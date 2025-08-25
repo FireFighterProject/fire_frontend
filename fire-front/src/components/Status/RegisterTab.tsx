@@ -109,14 +109,6 @@ function RegisterTab() {
                         >
                             차량등록
                         </button>
-
-                        <button
-                            onClick={handlePickExcel}
-                            className="px-4 h-9 rounded-md bg-[#ff6b35] text-white text-sm font-semibold hover:brightness-95"
-                        >
-                            엑셀 파일 선택
-                        </button>
-
                         <input
                             ref={fileInputRef}
                             type="file"

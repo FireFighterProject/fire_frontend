@@ -90,50 +90,67 @@ const Dispatch = () => {
       </div>
 
       {/* 차량 테이블 */}
-      <table className="w-full border">
-        <thead>
-          <tr className="bg-gray-100">
-            <th>선택</th>
-            <th>연번</th>
-            <th>시도</th>
-            <th>소방서</th>
-            <th>차종</th>
-            <th>호출명</th>
-            <th>용량</th>
-            <th>인원</th>
-            <th>AVL</th>
-            <th>PS-LTE</th>
-            <th>상태</th>
-            <th>자원집결지</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sortedVehicles.map((v, i) => (
-            <tr key={v.id} className="border-t">
-              <td>
-                <input
-                  type="checkbox"
-                  checked={selected.includes(v.id)}
-                  onChange={() => toggleSelect(v.id)}
-                  disabled={v.status === "출동중"}
-                />
-              </td>
-              <td>{i + 1}</td>
-              <td>{v.sido}</td>
-              <td>{v.station}</td>
-              <td>{v.type}</td>
-              <td>{v.callname}</td>
-              <td>{v.capacity}</td>
-              <td>{v.personnel}</td>
-              <td>{v.avl}</td>
-              <td>{v.pslte}</td>
-              <td>{v.status}</td>
-              <td>{v.rally ? "O" : "X"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="mt-2 overflow-x-auto">
+        <table className="min-w-[1200px] w-full table-fixed border border-gray-300 border-collapse text-sm">
+          {/* 고정 컬럼 폭 */}
+          <colgroup>
+            <col className="w-[56px]" />   {/* 선택 */}
+            <col className="w-[64px]" />   {/* 연번 */}
+            <col className="w-[88px]" />   {/* 시도 */}
+            <col className="w-[180px]" />  {/* 소방서 */}
+            <col className="w-[100px]" />  {/* 차종 */}
+            <col className="w-[140px]" />  {/* 호출명 */}
+            <col className="w-[80px]" />   {/* 용량 */}
+            <col className="w-[72px]" />   {/* 인원 */}
+            <col className="w-[170px]" />  {/* AVL */}
+            <col className="w-[170px]" />  {/* PS-LTE */}
+            <col className="w-[96px]" />   {/* 상태 */}
+            <col className="w-[96px]" />   {/* 자원집결지 */}
+          </colgroup>
 
+          <thead className="bg-gray-100">
+            <tr>
+              {[
+                "선택", "연번", "시도", "소방서", "차종", "호출명",
+                "용량", "인원", "AVL", "PS-LTE", "상태", "자원집결지",
+              ].map(h => (
+                <th key={h} className="border border-gray-300 px-2 py-2 text-center font-semibold">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+
+          <tbody>
+            {sortedVehicles.map((v, i) => (
+              <tr key={v.id} className="even:bg-gray-50">
+                <td className="border px-2 py-1 text-center">
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(v.id)}
+                    onChange={() => toggleSelect(v.id)}
+                    disabled={v.status === "출동중"}
+                  />
+                </td>
+                <td className="border px-2 py-1 text-center tabular-nums">{i + 1}</td>
+                <td className="border px-2 py-1 text-center whitespace-nowrap">{v.sido}</td>
+                <td className="border px-2 py-1 whitespace-nowrap">{v.station}</td>
+                <td className="border px-2 py-1 text-center whitespace-nowrap">{v.type}</td>
+                <td className="border px-2 py-1 whitespace-nowrap">{v.callname}</td>
+                <td className="border px-2 py-1 text-right tabular-nums">{v.capacity.toLocaleString()}</td>
+                <td className="border px-2 py-1 text-center tabular-nums">{v.personnel}</td>
+                <td className="border px-2 py-1 whitespace-nowrap font-mono">{v.avl}</td>
+                <td className="border px-2 py-1 whitespace-nowrap font-mono">{v.pslte}</td>
+                <td className={`border px-2 py-1 text-center ${v.status === "출동중" ? "text-red-600 font-semibold" : ""}`}>
+                  {v.status}
+                </td>
+                <td className="border px-2 py-1 text-center">{v.rally ? "O" : "X"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+              
       {/* 출동 명령 모달 */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
