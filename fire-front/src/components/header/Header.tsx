@@ -21,7 +21,7 @@ const isActivePath = (path: string) => {
 
 const Header = () => {
     return (
-        <header className="bg-red-600 text-white">
+        <header className="bg-red-600 text-white z-50 shadow-md">
             <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-4 py-2">
                 <div className="text-base md:text-lg font-semibold">
                     동원차량 관리 프로그램
