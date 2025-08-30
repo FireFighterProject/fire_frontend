@@ -1,3 +1,4 @@
+// src/pages/MapPage.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useKakaoLoader } from "../hooks/useKakaoLoader";
 import MapStatsPanel from "../components/map/MapStatsPanel";
@@ -23,18 +24,19 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
 
   const mapRef = useRef<HTMLDivElement | null>(null);
   const map = useRef<kakao.maps.Map | null>(null);
-  // ✅ 수정: Geocoder 타입으로
   const geocoder = useRef<kakao.maps.services.Geocoder | null>(null);
 
   const [filters, setFilters] = useState<Filters>({ sido: "", station: "", type: "" });
   const [stats, setStats] = useState<MapStats>({ visibleCount: 0, selectedAreaCount: 0, totalCount: 0 });
   const [selectedSido, setSelectedSido] = useState("");
 
+  // ⬇️ 2초 자동삭제용 timer 포함
   const dragRef = useRef<{
     dragging: boolean;
     start: kakao.maps.LatLng | null;
     rect: kakao.maps.Rectangle | null;
-  }>({ dragging: false, start: null, rect: null });
+    timer: number | null;
+  }>({ dragging: false, start: null, rect: null, timer: null });
 
   const markers = useRef<MarkerBundle[]>([]);
   const openedInfo = useRef<kakao.maps.InfoWindow | null>(null);
@@ -87,6 +89,16 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
     setStats((s) => ({ ...s, totalCount: filtered.length }));
 
     return () => {
+      // 정리: 타이머/사각형 제거
+      if (dragRef.current.timer) {
+        clearTimeout(dragRef.current.timer);
+        dragRef.current.timer = null;
+      }
+      if (dragRef.current.rect) {
+        dragRef.current.rect.setMap(null);
+        dragRef.current.rect = null;
+      }
+
       k.maps.event.removeListener(m, "idle", refreshVisibleCount);
       k.maps.event.removeListener(m, "click", onMapClickForRegion);
       k.maps.event.removeListener(m, "mousedown", onMouseDown);
@@ -120,7 +132,6 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
   }
 
   function drawMarkers() {
-    // ✅ null 가드 후 지역 변수로 고정
     const m = map.current;
     if (!m) return;
 
@@ -129,7 +140,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
 
     filtered.forEach((v) => {
       const pos = new k.maps.LatLng(v.lat, v.lng);
-      const marker = new k.maps.Marker({ map: m, position: pos }); // ✅ m 사용
+      const marker = new k.maps.Marker({ map: m, position: pos });
 
       const content = `
         <div style="min-width:220px;padding:8px 10px;border-radius:8px;background:#fff;border:1px solid #ddd;box-shadow:0 2px 8px rgba(0,0,0,0.12);">
@@ -144,7 +155,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
 
       k.maps.event.addListener(marker, "mouseover", () => {
         if (openedInfo.current) openedInfo.current.close();
-        info.open(m, marker); // ✅ m 사용
+        info.open(m, marker);
         openedInfo.current = info;
       });
 
@@ -179,7 +190,6 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
     g.coord2RegionCode(
       latLng.getLng(),
       latLng.getLat(),
-      // ✅ 콜백 파라미터 타입 명시
       (res: kakao.maps.services.RegionResult[], status: kakao.maps.services.Status) => {
         if (status !== window.kakao.maps.services.Status.OK || !res?.length) return;
         const sido = pickRegion1Depth(res);
@@ -191,13 +201,24 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
     );
   }
 
-  /** 드래그 범위 선택 */
+  /** 드래그 범위 선택 (2초 자동 삭제) */
   function onMouseDown(e?: kakao.maps.event.MapMouseEvent) {
     if (!e) return;
     const m = map.current;
     if (!m) return;
     const k = window.kakao;
     const start = e.latLng;
+
+    // 기존 타이머/사각형 정리
+    if (dragRef.current.timer) {
+      clearTimeout(dragRef.current.timer);
+      dragRef.current.timer = null;
+    }
+    if (dragRef.current.rect) {
+      dragRef.current.rect.setMap(null);
+      dragRef.current.rect = null;
+    }
+
     const rect = new k.maps.Rectangle({
       map: m,
       bounds: new k.maps.LatLngBounds(start, start),
@@ -208,7 +229,14 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
       fillColor: "#2f81f7",
       fillOpacity: 0.1,
     });
-    dragRef.current = { dragging: true, start, rect };
+
+    // 2초 후 자동 제거
+    const timerId = window.setTimeout(() => {
+      rect.setMap(null);
+      dragRef.current = { dragging: false, start: null, rect: null, timer: null };
+    }, 2000);
+
+    dragRef.current = { dragging: true, start, rect, timer: timerId };
   }
 
   function onMouseMove(e?: kakao.maps.event.MapMouseEvent) {
@@ -229,13 +257,25 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
 
   function onMouseUp() {
     const d = dragRef.current;
-    if (!d.dragging || !d.rect) return;
-    const bounds = d.rect.getBounds();
-    const cnt = markers.current.filter((m) => bounds.contain(m.marker.getPosition())).length;
-    setStats((s) => ({ ...s, selectedAreaCount: cnt }));
-    setSelectedSido("");
-    setTimeout(() => d.rect && d.rect.setMap(null), 600);
-    dragRef.current = { dragging: false, start: null, rect: null };
+    if (!d.dragging) return;
+
+    if (d.rect) {
+      const bounds = d.rect.getBounds();
+      const cnt = markers.current.filter((m) => bounds.contain(m.marker.getPosition())).length;
+      setStats((s) => ({ ...s, selectedAreaCount: cnt }));
+      setSelectedSido("");
+    }
+
+    // 자동삭제 타이머가 걸려있다면 정리하고 즉시 삭제(원하면 유지 가능)
+    if (d.timer) {
+      clearTimeout(d.timer);
+      d.timer = null;
+    }
+    if (d.rect) {
+      d.rect.setMap(null);
+    }
+
+    dragRef.current = { dragging: false, start: null, rect: null, timer: null };
   }
 
   /** 필터 핸들러 */
@@ -244,6 +284,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
     setSelectedSido("");
     setStats((s) => ({ ...s, selectedAreaCount: 0 }));
   };
+
   const resetFilters = () => {
     setFilters({ sido: "", station: "", type: "" });
     setSelectedSido("");
@@ -252,9 +293,9 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
   };
 
   return (
-    <div className="fixed inset-0">
+    <div className="fixed inset-0 -z-20">
       {/* 지도 */}
-      <div className="fixed left-0 right-0 bottom-0" style={{ top: headerHeight }}>
+      <div className="fixed left-0 right-0 bottom-0 -z-20" style={{ top: headerHeight }}>
         <div ref={mapRef} className="absolute inset-0" />
       </div>
 
