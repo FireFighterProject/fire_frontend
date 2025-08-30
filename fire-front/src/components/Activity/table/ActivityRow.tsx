@@ -40,7 +40,6 @@ const ActivityRow: React.FC<Props> = ({ vehicle, onReturn, onRelocate }) => {
                     </button>
                 </div>
             </td>
-w
         </tr>
     );
 };
