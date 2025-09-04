@@ -1,7 +1,6 @@
 // src/pages/Status.tsx
-import React, {  useRef, useState } from "react";
-
-import type { Vehicle } from "../../types/global"; 
+import React, { useRef, useState } from "react";
+import type { Vehicle } from "../../types/global";
 
 function RegisterTab() {
     const [form, setForm] = useState<Vehicle>({
@@ -47,7 +46,8 @@ function RegisterTab() {
         try {
             // xlsx 사용 가능 시 미리보기 파싱
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const XLSX: any = (await import("xlsx")).default ?? (await import("xlsx"));
+            const XLSX: any =
+                (await import("xlsx")).default ?? (await import("xlsx"));
             const buf = await file.arrayBuffer();
             const wb = XLSX.read(buf, { type: "array" });
             const sheet = wb.Sheets[wb.SheetNames[0]];
@@ -86,20 +86,52 @@ function RegisterTab() {
     return (
         <div className="p-6 space-y-6">
             {/* 신규등록 카드 */}
-            <section className="rounded-md border border-gray-200">
-                <header className="px-5 py-3 border-b border-gray-100 font-semibold">
+            <section className="rounded-md border border-gray-300">
+                <header className="px-5 py-3 border-b border-gray-300 font-semibold">
                     신규등록
                 </header>
                 <div className="p-5 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Input label="시도" value={form.sido} onChange={(v) => onChange("sido", v)} />
-                        <Input label="소방서" value={form.station} onChange={(v) => onChange("station", v)} />
-                        <Input label="차종" value={form.type} onChange={(v) => onChange("type", v)} />
-                        <Input label="호출명" value={form.callname} onChange={(v) => onChange("callname", v)} />
-                        <Input label="용량" value={form.capacity} onChange={(v) => onChange("capacity", v)} />
-                        <Input label="인원" value={form.personnel} onChange={(v) => onChange("personnel", v)} />
-                        <Input label="AVL 단말기 번호" value={form.avl} onChange={(v) => onChange("avl", v)} />
-                        <Input label="PS-LTE 번호" value={form.pslte} onChange={(v) => onChange("pslte", v)} />
+                        <Input
+                            label="시도"
+                            value={form.sido}
+                            onChange={(v) => onChange("sido", v)}
+                        />
+                        <Input
+                            label="소방서"
+                            value={form.station}
+                            onChange={(v) => onChange("station", v)}
+                        />
+                        <Input
+                            label="차종"
+                            value={form.type}
+                            onChange={(v) => onChange("type", v)}
+                        />
+                        <Input
+                            label="호출명"
+                            value={form.callname}
+                            onChange={(v) => onChange("callname", v)}
+                        />
+                        <Input
+                            label="용량"
+                            value={form.capacity}
+                            onChange={(v) => onChange("capacity", v)}
+                        />
+                        <Input
+                            label="인원"
+                            value={form.personnel}
+                            onChange={(v) => onChange("personnel", v)}
+                        />
+                        <Input
+                            label="AVL 단말기 번호"
+                            value={form.avl}
+                            onChange={(v) => onChange("avl", v)}
+                        />
+                        <Input
+                            label="PS-LTE 번호"
+                            value={form.pslte}
+                            onChange={(v) => onChange("pslte", v)}
+                        />
                     </div>
 
                     <div className="flex items-center gap-3 pt-2">
@@ -124,8 +156,8 @@ function RegisterTab() {
             </section>
 
             {/* 선택된 엑셀 파일 카드 */}
-            <section className="rounded-md border border-gray-200">
-                <header className="px-5 py-3 border-b border-gray-100 font-semibold">
+            <section className="rounded-md border border-gray-300">
+                <header className="px-5 py-3 border-b border-gray-300 font-semibold">
                     선택된 엑셀 파일
                 </header>
 
@@ -145,7 +177,7 @@ function RegisterTab() {
                         </button>
                     </div>
 
-                    <div className="overflow-auto border border-gray-200 rounded">
+                    <div className="overflow-auto border border-gray-300 rounded">
                         <table className="min-w-[720px] w-full text-sm">
                             <thead className="bg-gray-50">
                                 <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:text-left [&>th]:font-semibold">
@@ -162,7 +194,10 @@ function RegisterTab() {
                             <tbody>
                                 {excelRows.length === 0 ? (
                                     <tr>
-                                        <td className="px-3 py-6 text-center text-gray-500" colSpan={8}>
+                                        <td
+                                            className="px-3 py-6 text-center text-gray-500"
+                                            colSpan={8}
+                                        >
                                             선택된 파일이 없습니다.
                                         </td>
                                     </tr>
@@ -192,28 +227,28 @@ function RegisterTab() {
 /* ------------------------------- UI Helpers ------------------------------ */
 
 function Input({
-  label,
-  value,
-  onChange,
+    label,
+    value,
+    onChange,
 }: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
 }) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[13px] text-gray-700">{label}</span>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-9 rounded border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
-    </label>
-  );
+    return (
+        <label className="flex flex-col gap-1">
+            <span className="text-[13px] text-gray-700">{label}</span>
+            <input
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className="h-9 rounded border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+        </label>
+    );
 }
 
 function Td({ children }: { children: React.ReactNode }) {
-  return <td className="px-3 py-2 border-t border-gray-100">{children}</td>;
+    return <td className="px-3 py-2 border-t border-gray-300">{children}</td>;
 }
 
 export default RegisterTab;
