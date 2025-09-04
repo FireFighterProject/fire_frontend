@@ -26,8 +26,8 @@ function GlobalEmergencyToggle() {
 export default function App() {
   const location = useLocation();
 
-  // 📌 /map 경로에서는 재난모드 버튼 숨기기
-  const hideToggle = location.pathname.startsWith("/map");
+  // /map 및 /statistics (하위 경로 포함)에서는 재난모드 버튼 숨김
+  const hideToggle = /^\/(map|statistics)\b/.test(location.pathname);
 
   return (
     <Provider store={store}>
