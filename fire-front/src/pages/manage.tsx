@@ -1,10 +1,12 @@
 // src/pages/Manage.tsx
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../store";
 import type { Vehicle } from "../types/global";
 
-// 차종(열) 키 리터럴 타입
+/* =========================
+ * 차종(열) 키 리터럴 타입
+ * ========================= */
 type VehicleTypeKey =
   | "경펌" | "소펌" | "중펌" | "대펌"
   | "중형탱크" | "대형탱크" | "급수탱크"
@@ -15,14 +17,14 @@ type VehicleTypeKey =
   | "굴절" | "고가" | "배연"
   | "회복" | "지원" | "기타";
 
-// 표 한 행 타입
+/** 표 한 행 타입 */
 type StatusRow = {
   구분: string;
   "차량(계)": number;
   "인원(계)": number;
 } & Record<VehicleTypeKey, number>;
 
-// 열 순서
+/** 열 순서 */
 const COL_ORDER: VehicleTypeKey[] = [
   "경펌", "소펌", "중펌", "대펌",
   "중형탱크", "대형탱크", "급수탱크",
@@ -30,16 +32,10 @@ const COL_ORDER: VehicleTypeKey[] = [
   "구조", "구급", "지휘", "조사", "굴절", "고가", "배연", "회복", "지원", "기타",
 ];
 
-// 샘플 데이터
-const SAMPLE_VEHICLES: Vehicle[] = [
-  { id: "1", sido: "경북", station: "포항", type: "로젠바우어", callname: "포항-1", capacity: "1400", personnel: "3", avl: "-", pslte: "-", status: "대기", rally: true },
-  { id: "2", sido: "서울", station: "강서", type: "구급", callname: "강서-2", capacity: "", personnel: "3", avl: "-", pslte: "-", status: "활동" },
-  { id: "3", sido: "경북", station: "구미", type: "중형탱크", callname: "구미-3", capacity: "", personnel: "4", avl: "-", pslte: "-", status: "활동", rally: true },
-  { id: "4", sido: "인천", station: "남동", type: "경펌", callname: "남동-4", capacity: "", personnel: "2", avl: "-", pslte: "-", status: "대기" },
-  { id: "5", sido: "경북", station: "영천", type: "화학", callname: "영천-5", capacity: "", personnel: "5", avl: "-", pslte: "-", status: "대기", rally: false },
-];
-
-// 차종 문자열 → 열 키로 정규화
+/* ---------------------------------------------------
+ * 차종 문자열 → 열 키로 정규화
+ *  - 업로드/입력의 표현 차이를 표준화
+ * --------------------------------------------------- */
 function normalizeType(type: string): VehicleTypeKey {
   if (type.includes("경펌")) return "경펌";
   if (type.includes("소펌")) return "소펌";
@@ -58,19 +54,26 @@ function normalizeType(type: string): VehicleTypeKey {
   return "기타";
 }
 
-// 상태 문자열 → "대기" | "활동"
+/* ---------------------------------------------------
+ * 상태 문자열 → "대기" | "활동" 으로 단순화
+ *  - 화면 집계용: "출동중/복귀/철수" 등은 가까운 값으로 매핑
+ * --------------------------------------------------- */
 function normalizeStatus(status: string | undefined): "대기" | "활동" {
   const s = status ?? "";
-  if (s.includes("활동") || s.includes("임무")) return "활동";
+  if (s.includes("활동") || s.includes("임무") || s.includes("출동")) return "활동";
   return "대기";
 }
 
-// 집계 행 생성
+/* ---------------------------------------------------
+ * 집계 행 생성
+ *  - 평상시: 경북 전체만
+ *  - 재난시: 경북(집결지) + 타 시도 대기/활동 분할
+ * --------------------------------------------------- */
 function buildRows(vehicles: Vehicle[], isDisaster: boolean): StatusRow[] {
   const rows: StatusRow[] = [];
 
   const calcRow = (label: string, filterFn: (v: Vehicle) => boolean): StatusRow => {
-    const subset: Vehicle[] = vehicles.filter(filterFn);
+    const subset = vehicles.filter(filterFn);
     const row: StatusRow = {
       구분: label,
       "차량(계)": subset.length,
@@ -92,13 +95,13 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean): StatusRow[] {
     return row;
   };
 
-  // 평상시
+  // 평상시: 경북 전체 1행
   if (!isDisaster) {
     rows.push(calcRow("경북 전체", (v) => v.sido === "경북"));
     return rows;
   }
 
-  // 재난시
+  // 재난시: 경북(집결지 true) + 타시도
   const isGB = (v: Vehicle) => v.sido === "경북";
   const isRally = (v: Vehicle) => v.rally === true;
 
@@ -106,9 +109,7 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean): StatusRow[] {
   rows.push(calcRow("경북 대기", (v) => isGB(v) && isRally(v) && normalizeStatus(v.status) === "대기"));
   rows.push(calcRow("경북 활동", (v) => isGB(v) && isRally(v) && normalizeStatus(v.status) === "활동"));
 
-  const otherRegions = Array.from(
-    new Set(vehicles.filter((v) => v.sido !== "경북").map((v) => v.sido)),
-  ).sort();
+  const otherRegions = Array.from(new Set(vehicles.filter((v) => v.sido !== "경북").map((v) => v.sido))).sort();
 
   otherRegions.forEach((region) => {
     rows.push(calcRow(`${region} 전체`, (v) => v.sido === region));
@@ -119,10 +120,17 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean): StatusRow[] {
   return rows;
 }
 
-const Status = () => {
+/* =========================
+ * 페이지 컴포넌트
+ * ========================= */
+const Manage: React.FC = () => {
+  // 재난 모드 여부
   const isDisaster = useSelector((state: RootState) => state.emergency.isDisaster);
-  const [vehicles] = useState<Vehicle[]>(SAMPLE_VEHICLES);
 
+  // ✅ 전역 차량 목록 사용 (페이지 로컬 SAMPLE 제거)
+  const vehicles = useSelector((state: RootState) => state.vehicle.vehicles);
+
+  // 집계 행 메모
   const rows = useMemo(() => buildRows(vehicles, isDisaster), [vehicles, isDisaster]);
 
   return (
@@ -140,10 +148,7 @@ const Status = () => {
               <th className="border px-2 py-1 whitespace-nowrap">차량(계)</th>
               <th className="border px-2 py-1 whitespace-nowrap">인원(계)</th>
               {COL_ORDER.map((c) => (
-                <th
-                  key={c}
-                  className="border px-2 py-1 whitespace-nowrap"
-                >
+                <th key={c} className="border px-2 py-1 whitespace-nowrap">
                   {c}
                 </th>
               ))}
@@ -165,9 +170,8 @@ const Status = () => {
           </tbody>
         </table>
       </section>
-
     </div>
   );
 };
 
-export default Status;
+export default Manage;

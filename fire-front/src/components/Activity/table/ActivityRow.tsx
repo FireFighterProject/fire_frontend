@@ -18,8 +18,8 @@ const ActivityRow: React.FC<Props> = ({ vehicle, onReturn, onRelocate }) => {
             <td className="border border-black px-3 py-2">{vehicle.personnel}</td>
             <td className="border border-black px-3 py-2">{vehicle.avl}</td>
             <td className="border border-black px-3 py-2">{vehicle.pslte}</td>
-            <td className="border border-black px-3 py-2">{/* 출동장소 */}</td>
-            <td className="border border-black px-3 py-2">{/* 내용 */}</td>
+            <td className="border border-black px-3 py-2">{vehicle.dispatchPlace}</td>
+            <td className="border border-black px-3 py-2">{vehicle.content}</td>
             <td className="border border-black px-3 py-2">{vehicle.status}</td>
             <td className="border border-black px-2 py-2">
                 <div className="flex gap-1 justify-center">

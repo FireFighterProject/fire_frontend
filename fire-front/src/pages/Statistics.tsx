@@ -1,54 +1,9 @@
 // src/pages/Statistics.tsx
 import React, { useMemo, useState } from "react";
-
 /* ========= 샘플 타입/데이터 (API 연동 시 교체) ========= */
-type Vehicle = {
-  id: string;
-  sido: string;
-  station: string;
-  type: string;
-  callname: string;
-  capacity?: number;
-  personnel?: number;
-  pslte?: boolean;
-  avl?: boolean;
-};
-
-type ActivityLog = {
-  id: string;
-  vehicleId: string;
-  date: string; // yyyy-MM-dd
-  dispatchTime: string; // yyyy-MM-dd HH:mm
-  dispatchPlace: string;
-  returnTime: string;
-  command: string;
-  moved: boolean;
-  minutes: number;
-  crewCount: number;
-};
-
-const VEHICLES: Vehicle[] = [
-  { id: "v1", sido: "경북", station: "포항소방서", type: "펌프차", callname: "포항119-1", capacity: 3000, personnel: 4, pslte: true, avl: true },
-  { id: "v2", sido: "경북", station: "구미소방서", type: "구조차", callname: "구미119-2", capacity: 2000, personnel: 5, pslte: true, avl: true },
-  { id: "v3", sido: "경기", station: "수원소방서", type: "사다리차", callname: "수원119-1", capacity: 0, personnel: 3, pslte: true, avl: false },
-  { id: "v4", sido: "서울", station: "영등포소방서", type: "구급차", callname: "영등포119-3", capacity: 0, personnel: 2, pslte: true, avl: true },
-  { id: "v5", sido: "부산", station: "해운대소방서", type: "펌프차", callname: "해운대119-1", capacity: 3000, personnel: 4, pslte: false, avl: true },
-];
-
-const LOGS: ActivityLog[] = [
-  { id: "a1", vehicleId: "v1", date: "2025-08-30", dispatchTime: "2025-08-30 09:13", dispatchPlace: "포항 남구 대이동", returnTime: "2025-08-30 10:40", command: "화재진압", moved: false, minutes: 87, crewCount: 4 },
-  { id: "a2", vehicleId: "v1", date: "2025-08-29", dispatchTime: "2025-08-29 14:01", dispatchPlace: "포항 북구 양덕동", returnTime: "2025-08-29 14:55", command: "구조지원", moved: true, minutes: 54, crewCount: 4 },
-  { id: "a3", vehicleId: "v2", date: "2025-08-28", dispatchTime: "2025-08-28 20:20", dispatchPlace: "구미 선산읍", returnTime: "2025-08-28 21:50", command: "구조출동", moved: false, minutes: 90, crewCount: 5 },
-  { id: "a4", vehicleId: "v3", date: "2025-08-30", dispatchTime: "2025-08-30 11:05", dispatchPlace: "수원 권선구", returnTime: "2025-08-30 12:05", command: "화재진압", moved: false, minutes: 60, crewCount: 3 },
-  { id: "a5", vehicleId: "v4", date: "2025-08-30", dispatchTime: "2025-08-30 16:30", dispatchPlace: "서울 영등포구 문래동", returnTime: "2025-08-30 17:50", command: "구급지원", moved: true, minutes: 80, crewCount: 2 },
-  { id: "a6", vehicleId: "v5", date: "2025-08-29", dispatchTime: "2025-08-29 08:00", dispatchPlace: "부산 해운대구", returnTime: "2025-08-29 10:40", command: "훈련", moved: false, minutes: 160, crewCount: 4 },
-  { id: "a7", vehicleId: "v5", date: "2025-08-27", dispatchTime: "2025-08-27 13:15", dispatchPlace: "부산 해운대구 좌동", returnTime: "2025-08-27 14:10", command: "화재진압", moved: false, minutes: 55, crewCount: 4 },
-  { id: "a8", vehicleId: "v2", date: "2025-08-25", dispatchTime: "2025-08-25 07:40", dispatchPlace: "구미 인동", returnTime: "2025-08-25 08:25", command: "구급지원", moved: false, minutes: 45, crewCount: 5 },
-  { id: "a9", vehicleId: "v3", date: "2025-08-24", dispatchTime: "2025-08-24 18:10", dispatchPlace: "수원 팔달구", returnTime: "2025-08-24 19:00", command: "구조출동", moved: true, minutes: 50, crewCount: 3 },
-  { id: "a10", vehicleId: "v4", date: "2025-08-22", dispatchTime: "2025-08-22 12:00", dispatchPlace: "서울 영등포구 영등포동", returnTime: "2025-08-22 13:10", command: "훈련", moved: false, minutes: 70, crewCount: 2 },
-  { id: "a11", vehicleId: "v1", date: "2025-08-21", dispatchTime: "2025-08-21 09:40", dispatchPlace: "포항 남구 청림동", returnTime: "2025-08-21 10:28", command: "구급지원", moved: false, minutes: 48, crewCount: 4 },
-];
-
+import type { Vehicle } from "../types/global";
+import { DUMMY_VEHICLES as VEHICLES } from "../data/vehicles";
+import { DUMMY_LOGS as LOGS } from "../data/logs";
 /* ========= 유틸 ========= */
 const uniq = <T,>(arr: T[]) => Array.from(new Set(arr));
 const sum = (arr: number[]) => arr.reduce((s, v) => s + v, 0);

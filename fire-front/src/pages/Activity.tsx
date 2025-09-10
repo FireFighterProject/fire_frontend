@@ -1,61 +1,79 @@
 // src/pages/ActivityPage.tsx
-import React, { useMemo, useState } from "react";
-import type{ Vehicle } from "../types/global";
+import React, { useEffect, useMemo, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+
 import ActivitySummary from "../components/Activity/ActivitySummary";
 import ActivityFilter from "../components/Activity/ActivityFilter";
 import ActivityTable from "../components/Activity/ActivityTable";
 
-// 샘플 데이터 (Redux/백엔드 연동 가능)
-const SAMPLE: Vehicle[] = [
-  {
-    id: "1",
-    sido: "경북",
-    station: "포항소방서",
-    type: "구조",
-    callname: "포항-구조1",
-    capacity: "1500",
-    personnel: "5",
-    avl: "000-1111",
-    pslte: "111-2222",
-    status: "활동",
-  },
-  {
-    id: "2",
-    sido: "서울",
-    station: "강남소방서",
-    type: "펌프",
-    callname: "강남-펌프2",
-    capacity: "2000",
-    personnel: "4",
-    avl: "222-3333",
-    pslte: "333-4444",
-    status: "대기",
-  },
-];
+import type { RootState, AppDispatch } from "../store";
+import { setVehicles, updateVehicle } from "../features/vehicle/vehicleSlice";
+import { DUMMY_VEHICLES } from "../data/vehicles"; // ✅ 공통 목데이터 한 곳에서만 관리
 
+/**
+ * ActivityPage
+ * - 전역 Redux의 vehicle 리스트를 기준으로 활동(출동) 현황을 보여주는 페이지
+ * - 이 페이지에서는 필터 UI(시/도, 차종)만 로컬 상태로 관리하고,
+ *   차량 데이터 변경은 반드시 Redux 액션으로 수행한다.
+ */
 const ActivityPage: React.FC = () => {
-  const [vehicles, setVehicles] = useState<Vehicle[]>(SAMPLE);
-  const [filter, setFilter] = useState({ sido: "전체", type: "전체" });
+  const dispatch = useDispatch<AppDispatch>();
 
-  // ✅ 활동 차량만 필터링
-  const activeVehicles = useMemo(
-    () => vehicles.filter((v) => v.status === "활동"),
-    [vehicles]
-  );
+  /* ----------------------- 전역 차량 목록 ----------------------- */
+  const vehicles = useSelector((s: RootState) => s.vehicle.vehicles);
 
-  // ✅ 복귀 처리
+  /**
+   * 데모/초기 구동 편의:
+   * - 스토어가 비어있으면 공통 목데이터를 한 번만 주입
+   * - 실제 서비스에선 App 레벨에서 fetch 후 setVehicles(...) 호출을 권장
+   */
+  useEffect(() => {
+    if (vehicles.length === 0) {
+      dispatch(setVehicles(DUMMY_VEHICLES));
+    }
+  }, [vehicles.length, dispatch]);
+
+  /* ----------------------- 로컬 필터 상태 ----------------------- */
+  // 필요 이상으로 전역화할 필요가 없는 UI 전용 상태는 로컬로 유지
+// src/pages/Activity.tsx 또는 ActivityPage.tsx
+const [filter, setFilter] = useState({ sido: "전체", type: "전체", query: "" }); // ✅ query 추가
+
+// 필터링 로직에도 query 반영
+const filtered = useMemo(() => {
+  const q = filter.query.trim();
+  return vehicles.filter((v) => {
+    if (filter.sido !== "전체" && v.sido !== filter.sido) return false;
+    if (filter.type !== "전체" && v.type !== filter.type) return false;
+    if (q) {
+      const hay = `${v.callname} ${v.station} ${v.type} ${v.sido}`.toLowerCase();
+      if (!hay.includes(q.toLowerCase())) return false;
+    }
+    return true;
+  });
+}, [vehicles, filter]);
+
+
+  /* ----------------------- 활동 차량만 ----------------------- */
+  const activeVehicles = useMemo(() => {
+    // 기본: status === "활동" 만 포함
+    // 출동중도 활동으로 간주하려면 아래 라인으로 교체:
+    return filtered.filter((v) => v.status === "활동" || v.status === "출동중");
+    // return filtered.filter((v) => v.status === "활동");
+  }, [filtered]);
+
+  /* ----------------------- 이벤트 핸들러 ----------------------- */
+  // 복귀 처리 → 전역 상태 업데이트
   const handleReturn = (id: string) => {
-    setVehicles((prev) =>
-      prev.map((v) => (v.id === id ? { ...v, status: "대기" } : v))
-    );
+    dispatch(updateVehicle({ id, patch: { status: "대기" } }));
   };
 
-  // ✅ 장소 이동
+  // 장소 이동 (지도 모달과 연동 시 relocate 액션을 slice에 추가해 사용 권장)
   const handleRelocate = (id: string) => {
     alert(`${id} 차량 장소 이동 처리`);
-    // 지도 모달 띄워서 새 출동 명령 로직 연결
+    // 예) dispatch(relocate({ id, dispatchPlace: "새 주소", lat, lng }));
   };
 
+  /* ----------------------- 렌더 ----------------------- */
   return (
     <div style={{ padding: 20 }}>
       {/* 상단 요약 */}
