@@ -1,42 +1,10 @@
+// src/pages/ReportPage.tsx
 import React, { useMemo, useState } from "react";
-
-/** --------------------------- 샘플 타입 & 데이터 --------------------------- */
-type Vehicle = {
-  id: string;
-  sido: string;
-  station: string;
-  type: string;
-  callname: string;
-  personnel: number;
-};
-
-type Activity = {
-  id: string;
-  vehicleId: string;
-  command: string;
-  place: string;
-  startAt: string; // ISO
-  endAt: string;   // ISO
-  status: "대기" | "활동" | "복귀";
-};
-
-const SAMPLE_VEHICLES: Vehicle[] = [
-  { id: "v1", sido: "경북", station: "포항소방서", type: "펌프차", callname: "포항119-1", personnel: 4 },
-  { id: "v2", sido: "경북", station: "구미소방서", type: "구조차", callname: "구미119-2", personnel: 5 },
-  { id: "v3", sido: "대구", station: "달서소방서", type: "구급차", callname: "달서119-1", personnel: 3 },
-  { id: "v4", sido: "대구", station: "수성소방서", type: "펌프차", callname: "수성119-3", personnel: 4 },
-];
-
-const SAMPLE_ACTIVITIES: Activity[] = [
-  { id: "a1", vehicleId: "v1", command: "화재 진압", place: "포항시 남구 대이동", startAt: "2025-08-30T09:10:00", endAt: "2025-08-30T10:05:00", status: "복귀" },
-  { id: "a2", vehicleId: "v2", command: "구조 출동", place: "구미시 선산읍", startAt: "2025-08-30T11:20:00", endAt: "2025-08-30T12:10:00", status: "복귀" },
-  { id: "a3", vehicleId: "v3", command: "구급 이송", place: "대구시 달서구 용산동", startAt: "2025-08-31T14:30:00", endAt: "2025-08-31T15:05:00", status: "복귀" },
-  { id: "a4", vehicleId: "v4", command: "화재 진압", place: "대구시 수성구 만촌동", startAt: "2025-09-01T08:05:00", endAt: "2025-09-01T09:00:00", status: "복귀" },
-];
+import { useSelector } from "react-redux";
+import type { RootState } from "../store";
+import type { Vehicle, VehicleStatus } from "../types/global";
 
 /** --------------------------- 유틸 --------------------------- */
-const toMins = (ms: number) => Math.round(ms / 60000);
-const diffMins = (a: string, b: string) => toMins(new Date(b).getTime() - new Date(a).getTime());
 function groupBy<T, K extends string | number>(arr: T[], keyFn: (x: T) => K): Record<K, T[]> {
   return arr.reduce((m, x) => {
     const k = keyFn(x);
@@ -46,30 +14,35 @@ function groupBy<T, K extends string | number>(arr: T[], keyFn: (x: T) => K): Re
 }
 const unique = <T,>(arr: T[]) => Array.from(new Set(arr));
 
-/** --------------------------- 컴포넌트 --------------------------- */
+/** --------------------------- 타입 --------------------------- */
 type Topic =
   | "전체 통계"
   | "지역별 통계"
   | "차종별 통계"
-  | "출동 명령별"
-  | "활동 시간 분석";
+  | "상태별 통계"
+  | "출동 목록";
 
 type TabStep = 1 | 2 | 3 | 4;
 
+/** --------------------------- 컴포넌트 --------------------------- */
 export default function ReportPage() {
+  // ✅ Redux에서 vehicles 사용
+  const vehicles = useSelector((s: RootState) => s.vehicle.vehicles);
+
   /** 탭 & 폼 상태 */
   const [step, setStep] = useState<TabStep>(1);
   const [topic, setTopic] = useState<Topic>("전체 통계");
 
+  // 기간 필터는 Vehicle 단일 스냅샷에서는 의미가 약해 보이므로 UI만 유지(향후 활동 로그 연동 대비)
   const [periodStart, setPeriodStart] = useState<string>("");
   const [periodEnd, setPeriodEnd] = useState<string>("");
 
-  const sidos = useMemo(() => unique(SAMPLE_VEHICLES.map((v) => v.sido)), []);
-  const types = useMemo(() => unique(SAMPLE_VEHICLES.map((v) => v.type)), []);
+  const sidos = useMemo(() => unique(vehicles.map((v) => v.sido)), [vehicles]);
+  const types = useMemo(() => unique(vehicles.map((v) => v.type)), [vehicles]);
 
   const [filterSido, setFilterSido] = useState<string>("");
   const [filterType, setFilterType] = useState<string>("");
-  const [filterStatus, setFilterStatus] = useState<"" | Activity["status"]>("");
+  const [filterStatus, setFilterStatus] = useState<"" | VehicleStatus>("");
 
   /** 사용자 입력 가능한 필드 (AI가 채워주고, 사용자가 수정 가능) */
   const [title, setTitle] = useState<string>("");
@@ -79,121 +52,88 @@ export default function ReportPage() {
   /** AI 진행 상태 */
   const [isAIGenerating, setIsAIGenerating] = useState<boolean>(false);
 
-  /** 필터링된 활동 */
-  const filteredActivities = useMemo(() => {
-    return SAMPLE_ACTIVITIES.filter((a) => {
-      const v = SAMPLE_VEHICLES.find((vv) => vv.id === a.vehicleId);
-      if (!v) return false;
+  /** 필터링된 차량 */
+  const filteredVehicles = useMemo(() => {
+    return vehicles.filter((v) => {
       if (filterSido && v.sido !== filterSido) return false;
       if (filterType && v.type !== filterType) return false;
-      if (filterStatus && a.status !== filterStatus) return false;
-      if (periodStart && new Date(a.startAt) < new Date(periodStart)) return false;
-      if (periodEnd && new Date(a.endAt) > new Date(periodEnd)) return false;
+      if (filterStatus && v.status !== filterStatus) return false;
       return true;
     });
-  }, [filterSido, filterType, filterStatus, periodStart, periodEnd]);
+  }, [vehicles, filterSido, filterType, filterStatus]);
 
   /** 집계 */
   const aggregates = useMemo(() => {
-    const bySido = groupBy(filteredActivities, (a) => {
-      const v = SAMPLE_VEHICLES.find((x) => x.id === a.vehicleId)!;
-      return v.sido;
-    });
-    const byType = groupBy(filteredActivities, (a) => {
-      const v = SAMPLE_VEHICLES.find((x) => x.id === a.vehicleId)!;
-      return v.type;
-    });
-    const byCommand = groupBy(filteredActivities, (a) => a.command);
+    const bySido = groupBy(filteredVehicles, (v) => v.sido);
+    const byType = groupBy(filteredVehicles, (v) => v.type);
+    const byStatus = groupBy(filteredVehicles, (v) => v.status);
 
-    const timeMins = filteredActivities.map((a) => diffMins(a.startAt, a.endAt));
-    const totalMins = timeMins.reduce((s, v) => s + v, 0);
-    const avgMins = timeMins.length ? Math.round(totalMins / timeMins.length) : 0;
+    const totalVehicles = filteredVehicles.length;
+    const totalPersonnel = filteredVehicles.reduce((s, v) => s + (Number(v.personnel) || 0), 0);
 
-    return { totalCount: filteredActivities.length, bySido, byType, byCommand, totalMins, avgMins };
-  }, [filteredActivities]);
+    // 출동으로 볼 상태(업무 용어에 맞게 조정 가능)
+    const dispatchedStatuses: VehicleStatus[] = ["출동중", "활동"];
+    const dispatched = filteredVehicles.filter((v) => dispatchedStatuses.includes(v.status));
 
-  /** --------------------------- AI 작성 로직 ---------------------------
-   * 기본은 로컬 규칙 기반 생성(오프라인 동작).
-   * 실제 OpenAI/서버 연동 시 아래 fetch를 주석 해제하고 사용.
-   */
+    return { totalVehicles, totalPersonnel, bySido, byType, byStatus, dispatched };
+  }, [filteredVehicles]);
+
+  /** --------------------------- AI(로컬 규칙 기반) --------------------------- */
   const generateWithAI = async () => {
     setIsAIGenerating(true);
-
-    // ★ 서버 연동 샘플 (원하면 활성화)
-    // try {
-    //   const res = await fetch("/api/ai/report", {
-    //     method: "POST",
-    //     headers: { "Content-Type": "application/json" },
-    //     body: JSON.stringify({
-    //       topic,
-    //       periodStart,
-    //       periodEnd,
-    //       filters: { filterSido, filterType, filterStatus },
-    //       aggregates,
-    //       activities: filteredActivities,
-    //     }),
-    //   });
-    //   const data = await res.json();
-    //   setTitle(data.title);
-    //   setSummary(data.summary);
-    //   setMemo(data.memo);
-    //   return;
-    // } catch (e) {
-    //   console.warn("AI API fallback to local generator.", e);
-    // }
-
-    // ▶ 로컬 규칙 기반 자동 작성 (fallback)
     const dateRange =
-      (periodStart || periodEnd) ? `${periodStart || "—"} ~ ${periodEnd || "—"}` : "최근 기간";
-    const parts: string[] = [];
-    const topSido = Object.entries(aggregates.bySido)
-      .sort((a, b) => b[1].length - a[1].length)[0]?.[0];
-    const topType = Object.entries(aggregates.byType)
-      .sort((a, b) => b[1].length - a[1].length)[0]?.[0];
-    const topCmd = Object.entries(aggregates.byCommand)
-      .sort((a, b) => b[1].length - a[1].length)[0]?.[0];
+      (periodStart || periodEnd) ? `${periodStart || "—"} ~ ${periodEnd || "—"}` : "현 시점";
+
+    const topSido = Object.entries(aggregates.bySido).sort((a, b) => b[1].length - a[1].length)[0]?.[0];
+    const topType = Object.entries(aggregates.byType).sort((a, b) => b[1].length - a[1].length)[0]?.[0];
+    const topStatus = Object.entries(aggregates.byStatus).sort((a, b) => b[1].length - a[1].length)[0]?.[0];
 
     const newTitle =
       title.trim() ||
       `${dateRange} ${filterSido ? `${filterSido} ` : ""}${topic} 보고`;
 
+    const parts: string[] = [];
     parts.push(
       `• 기간: ${dateRange}`,
-      `• 총 출동 ${aggregates.totalCount}건, 총 활동 ${aggregates.totalMins}분(평균 ${aggregates.avgMins}분)`
+      `• 총 차량 ${aggregates.totalVehicles}대, 총 인원 ${aggregates.totalPersonnel}명`,
+      `• 출동(활동/출동중) 차량: ${aggregates.dispatched.length}대`
     );
     if (filterSido || filterType || filterStatus) {
       parts.push(`• 필터: ${filterSido || "전체"} / ${filterType || "전체"} / ${filterStatus || "전체"}`);
     }
-    if (topSido) parts.push(`• 활동 집중 지역: ${topSido}`);
+    if (topSido) parts.push(`• 차량 집중 지역: ${topSido}`);
     if (topType) parts.push(`• 다빈도 차종: ${topType}`);
-    if (topCmd) parts.push(`• 주요 출동 명령: ${topCmd}`);
-    const newSummary = parts.join("\n");
+    if (topStatus) parts.push(`• 우세 상태: ${topStatus}`);
 
-    const notable = filteredActivities.slice(0, 3).map((a) => {
-      const v = SAMPLE_VEHICLES.find((x) => x.id === a.vehicleId)!;
-      return `- [${v.callname}] ${a.command} · ${a.place} (${a.startAt.replace("T", " ")} ~ ${a.endAt.replace("T", " ")}, ${diffMins(a.startAt, a.endAt)}분)`;
+    setTitle(newTitle);
+    setSummary(parts.join("\n"));
+
+    const notable = aggregates.dispatched.slice(0, 5).map((v) => {
+      const where = v.dispatchPlace ? ` @ ${v.dispatchPlace}` : "";
+      return `- [${v.callname}] ${v.type} · ${v.sido}/${v.station}${where} · 상태:${v.status}`;
     });
     const newMemo =
       (memo.trim() ? memo + "\n\n" : "") +
       `점검 메모:\n` +
-      (notable.length ? notable.join("\n") : "- 특이사항 없음");
+      (notable.length ? notable.join("\n") : "- 현재 출동 차량 없음");
 
-    // 필드 채우기 (사용자가 이후 자유롭게 수정 가능)
-    setTitle(newTitle);
-    setSummary(newSummary);
     setMemo(newMemo);
-
     setIsAIGenerating(false);
   };
 
   /** 액션: 인쇄/CSV/임시저장 */
   const handlePrint = () => window.print();
   const handleExportCSV = () => {
-    const header = ["vehicle", "sido", "type", "command", "place", "startAt", "endAt", "status"];
-    const rows = filteredActivities.map((a) => {
-      const v = SAMPLE_VEHICLES.find((x) => x.id === a.vehicleId)!;
-      return [v.callname, v.sido, v.type, a.command, a.place, a.startAt, a.endAt, a.status];
-    });
+    const header = [
+      "id", "sido", "station", "type", "callname",
+      "capacity", "personnel", "avl", "pslte", "status",
+      "dispatchPlace", "contact", "content", "lat", "lng", "rally"
+    ];
+    const rows = filteredVehicles.map((v) => [
+      v.id, v.sido, v.station, v.type, v.callname,
+      v.capacity, v.personnel, v.avl, v.pslte, v.status,
+      v.dispatchPlace ?? "", v.contact ?? "", v.content ?? "", v.lat ?? "", v.lng ?? "", v.rally ? "Y" : "N"
+    ]);
     const csv = [header, ...rows]
       .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
       .join("\n");
@@ -201,7 +141,7 @@ export default function ReportPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = (title || "report") + ".csv";
+    a.download = (title || "vehicle-report") + ".csv";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -210,7 +150,7 @@ export default function ReportPage() {
       topic, periodStart, periodEnd, filterSido, filterType, filterStatus,
       title, summary, memo, savedAt: new Date().toISOString(),
     };
-    localStorage.setItem("report_draft", JSON.stringify(payload));
+    localStorage.setItem("vehicle_report_draft", JSON.stringify(payload));
     alert("임시저장 완료!");
   };
 
@@ -222,19 +162,20 @@ export default function ReportPage() {
   );
 
   return (
-    <div className="flex h-[calc(100vh-64px)] w-full gap-4 p-4 text-gray-800">
+    <div className="flex h-[calc(100vh-64px)] w-full gap-4 p-4 text-gray-800 min-h-0">
+
       {/* 좌측 패널 */}
-      <aside className="w-[260px] shrink-0 rounded-xl border border-gray-200 bg-white shadow-sm">
+      <aside className="w-[260px] shrink-0 rounded-xl border border-gray-200 bg-white shadow-sm
+                  flex flex-col overflow-y-auto">
         {/* STEP 1 */}
         <div className="border-b p-4">
           <p className="mb-2 text-sm font-semibold">STEP 1. 보고서 주제</p>
           <div className="grid grid-cols-2 gap-2">
-            {(["전체 통계", "지역별 통계", "차종별 통계", "출동 명령별", "활동 시간 분석"] as Topic[]).map((t) => (
+            {(["전체 통계", "지역별 통계", "차종별 통계", "상태별 통계", "출동 목록"] as Topic[]).map((t) => (
               <button
                 key={t}
                 onClick={() => { setTopic(t); setStep(2); }}
-                className={`rounded-md border px-2 py-1 text-xs hover:bg-gray-50 ${topic === t ? "border-red-500 text-red-600" : "border-gray-200"
-                  }`}
+                className={`rounded-md border px-2 py-1 text-xs hover:bg-gray-50 ${topic === t ? "border-red-500 text-red-600" : "border-gray-200"}`}
               >
                 {t}
               </button>
@@ -258,24 +199,24 @@ export default function ReportPage() {
           <Labeled label="지역 (시/도)">
             <select value={filterSido} onChange={(e) => setFilterSido(e.target.value)}
               className="w-full rounded border border-gray-300 px-2 py-1 text-sm">
-              <option value="">드롭다운</option>
+              <option value="">전체</option>
               {sidos.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </Labeled>
           <Labeled label="차종">
             <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
               className="w-full rounded border border-gray-300 px-2 py-1 text-sm">
-              <option value="">드롭다운</option>
+              <option value="">전체</option>
               {types.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </Labeled>
           <Labeled label="상태">
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)}
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as VehicleStatus | "")}
               className="w-full rounded border border-gray-300 px-2 py-1 text-sm">
-              <option value="">드롭다운</option>
-              <option value="대기">대기</option>
-              <option value="활동">활동</option>
-              <option value="복귀">복귀</option>
+              <option value="">전체</option>
+              {(["대기", "활동", "대기중", "출동중", "복귀", "철수"] as VehicleStatus[]).map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
             </select>
           </Labeled>
 
@@ -286,7 +227,7 @@ export default function ReportPage() {
 
           <div className="mt-4">
             <p className="mb-1 text-xs text-gray-600">임시저장</p>
-            <input placeholder="오름차순"
+            <input placeholder="메모 제목(선택)"
               className="w-full rounded border border-gray-300 px-2 py-1 text-sm" />
           </div>
         </div>
@@ -298,10 +239,7 @@ export default function ReportPage() {
             <button
               onClick={generateWithAI}
               disabled={isAIGenerating}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium ${isAIGenerating
-                  ? "bg-gray-200 text-gray-500"
-                  : "bg-indigo-600 text-white hover:bg-indigo-700"
-                }`}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium ${isAIGenerating ? "bg-gray-200 text-gray-500" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}
               title="필터/집계를 기반으로 제목·요약·메모 자동 작성"
             >
               {isAIGenerating ? "AI 작성 중..." : "AI로 자동 작성"}
@@ -310,7 +248,7 @@ export default function ReportPage() {
 
           <Labeled label="보고서 제목">
             <input value={title} onChange={(e) => setTitle(e.target.value)}
-              placeholder="예) 9월 1주차 지역별 활동 보고"
+              placeholder="예) 9월 1주차 차량 현황 보고"
               className="w-full rounded border border-gray-300 px-2 py-1 text-sm" />
           </Labeled>
 
@@ -352,7 +290,7 @@ export default function ReportPage() {
               return (
                 <button key={n} onClick={() => setStep(n)}
                   className={`rounded-full px-3 py-1 text-sm ${active ? "bg-gray-900 text-white"
-                      : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                    : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
                     }`}>
                   {labels[n]}
                 </button>
@@ -382,7 +320,7 @@ export default function ReportPage() {
             <div className="rounded-xl bg-white p-4 shadow-sm print:shadow-none">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-bold">동원차량 관리 프로그램 – 보고서</h2>
+                  <h2 className="text-lg font-bold">동원차량 관리 프로그램 – 현황 보고서</h2>
                   <p className="text-xs text-gray-500">
                     {new Date().toLocaleString()} • {topic}
                   </p>
@@ -429,51 +367,47 @@ export default function ReportPage() {
 
             <PreviewSection title="집계 요약">
               <div className="grid gap-3 sm:grid-cols-4">
-                <KPI label="총 출동 건수" value={`${aggregates.totalCount}건`} />
-                <KPI label="총 활동 시간" value={`${aggregates.totalMins}분`} />
-                <KPI label="평균 활동 시간" value={`${aggregates.avgMins}분`} />
+                <KPI label="총 차량 수" value={`${aggregates.totalVehicles}대`} />
+                <KPI label="총 인원 수" value={`${aggregates.totalPersonnel}명`} />
+                <KPI label="출동(활동/출동중)" value={`${aggregates.dispatched.length}대`} />
                 <KPI label="선택 주제" value={topic} />
               </div>
             </PreviewSection>
 
-            <PreviewSection title="지역별(시/도) 출동 건수">
+            <PreviewSection title="지역별(시/도) 차량 수">
               <SimpleTable
-                headers={["시/도", "건수"]}
+                headers={["시/도", "대수"]}
                 rows={Object.entries(aggregates.bySido).map(([k, arr]) => [k, `${arr.length}`])}
               />
             </PreviewSection>
 
-            <PreviewSection title="차종별 출동 건수">
+            <PreviewSection title="차종별 차량 수">
               <SimpleTable
-                headers={["차종", "건수"]}
+                headers={["차종", "대수"]}
                 rows={Object.entries(aggregates.byType).map(([k, arr]) => [k, `${arr.length}`])}
               />
             </PreviewSection>
 
-            <PreviewSection title="출동 명령별 통계">
+            <PreviewSection title="상태별 차량 수">
               <SimpleTable
-                headers={["출동 명령", "건수"]}
-                rows={Object.entries(aggregates.byCommand).map(([k, arr]) => [k, `${arr.length}`])}
+                headers={["상태", "대수"]}
+                rows={Object.entries(aggregates.byStatus).map(([k, arr]) => [k, `${arr.length}`])}
               />
             </PreviewSection>
 
-            <PreviewSection title="주요 출동 목록">
+            <PreviewSection title="출동(활동·출동중) 목록">
               <SimpleTable
-                headers={["차량", "시/도", "차종", "명령", "장소", "시작", "종료", "소요(분)", "상태"]}
-                rows={filteredActivities.map((a) => {
-                  const v = SAMPLE_VEHICLES.find((x) => x.id === a.vehicleId)!;
-                  return [
-                    v.callname,
-                    v.sido,
-                    v.type,
-                    a.command,
-                    a.place,
-                    a.startAt.replace("T", " "),
-                    a.endAt.replace("T", " "),
-                    `${diffMins(a.startAt, a.endAt)}`,
-                    a.status,
-                  ];
-                })}
+                headers={["호출명", "시/도", "소방서", "차종", "상태", "자원집결지", "연락처", "지시/특이"]}
+                rows={aggregates.dispatched.map((v) => [
+                  v.callname,
+                  v.sido,
+                  v.station,
+                  v.type,
+                  v.status,
+                  v.dispatchPlace ?? "-",
+                  v.contact ?? "-",
+                  v.content ?? "-",
+                ])}
               />
             </PreviewSection>
           </div>

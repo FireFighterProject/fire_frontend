@@ -27,7 +27,7 @@ export default function App() {
   const location = useLocation();
 
   // /map 및 /statistics (하위 경로 포함)에서는 재난모드 버튼 숨김
-  const hideToggle = /^\/(map|statistics)\b/.test(location.pathname);
+  const hideToggle = /^\/(map|statistics|report)\b/.test(location.pathname);
 
   return (
     <Provider store={store}>
