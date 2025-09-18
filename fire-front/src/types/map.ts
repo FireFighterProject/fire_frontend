@@ -8,7 +8,7 @@ export interface Vehicle {
     dispatchPlace: string;
     lat: number;
     lng: number;
-    status: "활동" | "대기";
+    status: "출동중" | "대기";
 }
 
 export type Filters = { sido: string; station: string; type: string };
