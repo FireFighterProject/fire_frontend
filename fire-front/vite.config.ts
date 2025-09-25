@@ -11,7 +11,7 @@ export default defineConfig({
     proxy: {
       // 프론트에서 /api/* 로 호출하면 백엔드(8080)으로 프록시
       '/api': {
-        target: 'http://localhost:8080', // 🔁 실제 백엔드 주소/포트
+        target: 'http://172.23.80.1:8081', // 🔁 실제 백엔드 주소/포트
         changeOrigin: true,
         secure: false,
         /**
