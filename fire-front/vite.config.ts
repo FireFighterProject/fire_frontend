@@ -1,7 +1,6 @@
-// vite.config.ts
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite' // Tailwind Vite 플러그인
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -9,16 +8,19 @@ export default defineConfig({
     open: true,
     port: 5174,
     proxy: {
-      // 프론트에서 /api/* 로 호출하면 백엔드(8080)으로 프록시
+      // ✅ 기존 백엔드 프록시 (유지)
       '/api': {
-        target: 'http://172.23.80.1:8081', // 🔁 실제 백엔드 주소/포트
+        target: 'http://172.28.2.191:8081',
         changeOrigin: true,
         secure: false,
-        /**
-         * 백엔드가 /api 프리픽스를 사용하지 않는다면 주석 해제:
-         * 예) 프론트: /api/vehicles  →  백엔드: /vehicles
-         */
-        // rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+
+      // ✅ 기상청 날씨 API 프록시 추가
+      '/weather': {
+        target: 'https://apihub.kma.go.kr',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/weather/, '/api/typ01/url'),
       },
     },
   },
