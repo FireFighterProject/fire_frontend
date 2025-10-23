@@ -1,9 +1,11 @@
 // src/pages/Statistics.tsx
-import React, { useMemo, useState } from "react";
-/* ========= 샘플 타입/데이터 (API 연동 시 교체) ========= */
+import React, { useEffect, useMemo, useState } from "react";
+/* ========= 타입 ========= */
 import type { Vehicle } from "../types/global";
-import { DUMMY_VEHICLES as VEHICLES } from "../data/vehicles";
+/* ========= 로그 더미 (차량은 API로 대체) ========= */
 import { DUMMY_LOGS as LOGS } from "../data/logs";
+import axios from "axios";
+
 /* ========= 유틸 ========= */
 const uniq = <T,>(arr: T[]) => Array.from(new Set(arr));
 const sum = (arr: number[]) => arr.reduce((s, v) => s + v, 0);
@@ -14,6 +16,53 @@ const by = <T, K extends string | number>(arr: T[], key: (x: T) => K) =>
     (m[k] ??= []).push(x);
     return m;
   }, {} as any);
+
+/* ========= 서버 응답(차량) & 매핑 ========= */
+type ApiVehicleListItem = {
+  id: number;
+  stationId: number;
+  sido: string;
+  typeName: string;
+  callSign: string;
+  status: number;      // 0=대기, 1=출동중 (백엔드 정의)
+  rallyPoint: number;  // 0/1
+  capacity?: number;
+  personnel?: number;
+  avlNumber?: string;
+  psLteNumber?: string;
+};
+
+const STATUS_LABELS: Record<number, Vehicle["status"] | string> = {
+  0: "대기",
+  1: "출동중",
+};
+
+const api = axios.create({
+  baseURL: "/api",
+  headers: { "Content-Type": "application/json" },
+});
+
+const mapApiToVehicle = (v: ApiVehicleListItem): Vehicle => {
+  const statusLabel = STATUS_LABELS[v.status] ?? String(v.status);
+  return {
+    id: String(v.id),
+    sido: v.sido ?? "",
+    station: "", // 서버 응답에 소방서명 없음 → 필요 시 /api/fire-stations로 조인하여 채우기
+    type: v.typeName ?? "",
+    callname: v.callSign ?? "",
+    capacity: Number.isFinite(v.capacity as number) ? (v.capacity as number) : 0,
+    personnel: Number.isFinite(v.personnel as number) ? (v.personnel as number) : 0,
+    avl: v.avlNumber ?? "",
+    pslte: v.psLteNumber ?? "",
+    status: statusLabel as Vehicle["status"],
+    rally: v.rallyPoint === 1,
+    dispatchPlace: "",
+    lat: undefined,
+    lng: undefined,
+    contact: "",
+    content: "",
+  } as Vehicle;
+};
 
 /* ========= 공통 컴포넌트 (Tailwind) ========= */
 const KPI: React.FC<{ title: string; value: string | number }> = ({ title, value }) => (
@@ -142,25 +191,29 @@ const SideMenu: React.FC<{
 );
 
 /* ========= 탭: 일반 ========= */
-const TabGeneral: React.FC = () => {
+const TabGeneral: React.FC<{ vehicles: Vehicle[] }> = ({ vehicles }) => {
   const [sido, setSido] = useState<string>("");
   const [type, setType] = useState<string>("");
   const [detailVehicle, setDetailVehicle] = useState<Vehicle | null>(null);
 
   const filtered = useMemo(
-    () => VEHICLES.filter((v) => (!sido || v.sido === sido) && (!type || v.type === type)),
-    [sido, type]
+    () => vehicles.filter((v) => (!sido || v.sido === sido) && (!type || v.type === type)),
+    [vehicles, sido, type]
   );
-  const logs = useMemo(
-    () => LOGS.filter((l) => l.vehicleId === detailVehicle?.id).sort((a, b) => (a.dispatchTime < b.dispatchTime ? 1 : -1)),
+
+  const logsForDetail = useMemo(
+    () =>
+      LOGS
+        .filter((l) => String(l.vehicleId) === (detailVehicle?.id ?? ""))
+        .sort((a, b) => (a.dispatchTime < b.dispatchTime ? 1 : -1)),
     [detailVehicle]
   );
 
   return (
     <>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <KPI title="등록 차량" value={VEHICLES.length} />
-        <KPI title="총 인원 합계" value={sum(VEHICLES.map((v) => v.personnel ?? 0))} />
+        <KPI title="등록 차량" value={vehicles.length} />
+        <KPI title="총 인원 합계" value={sum(vehicles.map((v) => v.personnel ?? 0))} />
         <KPI title="평균 활동 시간(분/대)" value={avg(LOGS.map((l) => l.minutes))} />
       </div>
 
@@ -169,7 +222,7 @@ const TabGeneral: React.FC = () => {
           <span className="mb-1 text-xs text-gray-600">1차 필터 (시/도)</span>
           <select className="h-9 min-w-[180px] rounded-lg border border-gray-300 px-2" value={sido} onChange={(e) => setSido(e.target.value)}>
             <option value="">전체</option>
-            {uniq(VEHICLES.map((v) => v.sido)).map((s) => (
+            {uniq(vehicles.map((v) => v.sido)).map((s) => (
               <option key={s}>{s}</option>
             ))}
           </select>
@@ -178,7 +231,7 @@ const TabGeneral: React.FC = () => {
           <span className="mb-1 text-xs text-gray-600">2차 필터 (차종)</span>
           <select className="h-9 min-w-[180px] rounded-lg border border-gray-300 px-2" value={type} onChange={(e) => setType(e.target.value)}>
             <option value="">전체</option>
-            {uniq(VEHICLES.map((v) => v.type)).map((t) => (
+            {uniq(vehicles.map((v) => v.type)).map((t) => (
               <option key={t}>{t}</option>
             ))}
           </select>
@@ -202,7 +255,11 @@ const TabGeneral: React.FC = () => {
             station: v.station,
             type: v.type,
             callname: (
-              <button className="text-blue-600 underline-offset-2 hover:underline" onClick={() => setDetailVehicle(v)} title="활동 이력 보기">
+              <button
+                className="text-blue-600 underline-offset-2 hover:underline"
+                onClick={() => setDetailVehicle(v)}
+                title="활동 이력 보기"
+              >
                 {v.callname}
               </button>
             ),
@@ -223,7 +280,7 @@ const TabGeneral: React.FC = () => {
             { key: "moved", header: "이동", width: "70px" },
             { key: "cmd", header: "명령", width: "120px" },
           ]}
-          rows={logs.map((l) => ({
+          rows={logsForDetail.map((l) => ({
             date: l.date,
             dispatch: l.dispatchTime,
             place: l.dispatchPlace,
@@ -300,12 +357,15 @@ const TabByDate: React.FC = () => {
 };
 
 /* ========= 탭: 시도별 ========= */
-const TabByRegion: React.FC = () => {
-  const grouped = useMemo(() => by(LOGS, (l) => VEHICLES.find((v) => v.id === l.vehicleId)?.sido || "미상"), []);
+const TabByRegion: React.FC<{ vehicles: Vehicle[] }> = ({ vehicles }) => {
+  const grouped = useMemo(
+    () => by(LOGS, (l) => vehicles.find((v) => v.id === String(l.vehicleId))?.sido || "미상"),
+    [vehicles]
+  );
   const rows = Object.entries(grouped).map(([sido, logs]) => ({
     sido,
     cnt: logs.length,
-    vehicles: uniq(logs.map((l) => VEHICLES.find((v) => v.id === l.vehicleId)!.callname)).length,
+    vehicles: uniq(logs.map((l) => String(l.vehicleId))).length,
     minutes: sum(logs.map((l) => l.minutes)),
   }));
 
@@ -340,8 +400,11 @@ const TabByRegion: React.FC = () => {
 };
 
 /* ========= 탭: 차종별 ========= */
-const TabByType: React.FC = () => {
-  const grouped = useMemo(() => by(LOGS, (l) => VEHICLES.find((v) => v.id === l.vehicleId)?.type || "미상"), []);
+const TabByType: React.FC<{ vehicles: Vehicle[] }> = ({ vehicles }) => {
+  const grouped = useMemo(
+    () => by(LOGS, (l) => vehicles.find((v) => v.id === String(l.vehicleId))?.type || "미상"),
+    [vehicles]
+  );
   const rows = Object.entries(grouped).map(([type, logs]) => ({
     type,
     cnt: logs.length,
@@ -383,7 +446,7 @@ const TabByPlace: React.FC = () => {
   const rows = Object.entries(grouped).map(([place, logs]) => ({
     place,
     cnt: logs.length,
-    vehicles: uniq(logs.map((l) => l.vehicleId)).length,
+    vehicles: uniq(logs.map((l) => String(l.vehicleId))).length,
     minutes: sum(logs.map((l) => l.minutes)),
   }));
 
@@ -455,7 +518,13 @@ const TabByCommand: React.FC = () => {
           ]}
           rows={items.map((r) => ({
             cmd: (
-              <button className="text-blue-600 underline-offset-2 hover:underline" onClick={() => { setEditing(r.cmd); setTemp(memoMap[r.cmd] ?? ""); }}>
+              <button
+                className="text-blue-600 underline-offset-2 hover:underline"
+                onClick={() => {
+                  setEditing(r.cmd);
+                  setTemp(memoMap[r.cmd] ?? "");
+                }}
+              >
                 {r.cmd}
               </button>
             ),
@@ -488,7 +557,7 @@ const TabByCommand: React.FC = () => {
 };
 
 /* ========= 탭: 활동 시간별 ========= */
-const TabByDuration: React.FC = () => {
+const TabByDuration: React.FC<{ vehicles: Vehicle[] }> = ({ vehicles }) => {
   const sorted = useMemo(() => [...LOGS].sort((a, b) => b.minutes - a.minutes), []);
   const max = Math.max(...sorted.map((l) => l.minutes), 1);
 
@@ -511,12 +580,12 @@ const TabByDuration: React.FC = () => {
             { key: "bar", header: "미니차트" },
           ]}
           rows={sorted.map((l, i) => {
-            const v = VEHICLES.find((x) => x.id === l.vehicleId)!;
+            const v = vehicles.find((x) => x.id === String(l.vehicleId));
             return {
               no: i + 1,
-              command: `${v.callname} / ${l.command}`,
-              type: v.type,
-              sido: v.sido,
+              command: v ? `${v.callname} / ${l.command}` : `(미상) / ${l.command}`,
+              type: v?.type ?? "미상",
+              sido: v?.sido ?? "미상",
               minutes: l.minutes.toLocaleString(),
               bar: <MiniBar value={l.minutes} max={max} />,
             };
@@ -532,6 +601,26 @@ export default function StatisticsPage() {
   const [menuOpen, setMenuOpen] = useState<boolean>(true);
   const [tab, setTab] = useState<TabKey>("general");
 
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [fetching, setFetching] = useState(false);
+
+  const fetchVehicles = async () => {
+    try {
+      setFetching(true);
+      const res = await api.get<ApiVehicleListItem[]>("/vehicles");
+      setVehicles((res.data ?? []).map(mapApiToVehicle));
+    } catch (e) {
+      console.error(e);
+      alert("차량 목록을 불러오지 못했습니다.");
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchVehicles();
+  }, []);
+
   return (
     <div className="flex h-full flex-col">
       {/* 상단 툴바 (공통 헤더 아래 영역) */}
@@ -540,19 +629,29 @@ export default function StatisticsPage() {
           ≡
         </button>
         <div className="font-semibold">통계</div>
+        <div className="ml-auto">
+          <button
+            className="h-8 rounded-lg bg-gray-700 px-3 text-white disabled:opacity-60"
+            onClick={fetchVehicles}
+            disabled={fetching}
+            title="서버에서 최신 차량 목록 재조회"
+          >
+            {fetching ? "불러오는 중..." : "새로고침"}
+          </button>
+        </div>
       </div>
 
       <div className="relative grid flex-1 grid-cols-[240px_1fr] overflow-hidden">
         <SideMenu open={menuOpen} active={tab} onSelect={setTab} />
 
         <main className="overflow-auto p-4">
-          {tab === "general" && <TabGeneral />}
+          {tab === "general" && <TabGeneral vehicles={vehicles} />}
           {tab === "byDate" && <TabByDate />}
-          {tab === "byRegion" && <TabByRegion />}
-          {tab === "byType" && <TabByType />}
+          {tab === "byRegion" && <TabByRegion vehicles={vehicles} />}
+          {tab === "byType" && <TabByType vehicles={vehicles} />}
           {tab === "byPlace" && <TabByPlace />}
           {tab === "byCommand" && <TabByCommand />}
-          {tab === "byDuration" && <TabByDuration />}
+          {tab === "byDuration" && <TabByDuration vehicles={vehicles} />}
         </main>
       </div>
     </div>
