@@ -1,5 +1,5 @@
 // src/pages/Status.tsx
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import axios from "axios";
 
 /** =========================
@@ -15,6 +15,15 @@ type ApiVehicle = {
     psLteNumber: string;
     status: number;     // 코드 값 (예: 대기=0)
     rallyPoint: number; // 0/1
+    sido: string;       // 시도
+};
+
+/** 소방서 목록 API 응답 타입 */
+type FireStation = {
+    id: number;
+    sido: string;
+    name: string;
+    address: string;
 };
 
 /** UI 입력 폼 상태 (백엔드 스키마와 일치) */
@@ -22,9 +31,9 @@ type FormState = ApiVehicle;
 
 /** 엑셀 원본 컬럼(문자열) */
 type ExcelRow = {
-    시도?: string;           // UI 표시용으로만 사용 (API 전송 X)
-    소방서?: string;         // UI 표시용으로만 사용 (API 전송 X)
-    소방서ID?: string | number; // 있으면 stationId로 사용
+    시도?: string;
+    소방서?: string;
+    소방서ID?: string | number;
     차종?: string;
     호출명?: string;
     용량?: string | number;
@@ -64,6 +73,27 @@ const toNum = (v: string | number | undefined | null, fallback = 0) => {
 /** 상태코드 기본값(대기=0) — 백엔드 정의에 맞게 조정 가능 */
 const DEFAULT_STATUS_CODE = 0;
 
+/** 시도 프리셋(17개 시·도) */
+const SIDO_OPTIONS = [
+    "서울특별시",
+    "부산광역시",
+    "대구광역시",
+    "인천광역시",
+    "광주광역시",
+    "대전광역시",
+    "울산광역시",
+    "세종특별자치시",
+    "경기도",
+    "강원도",
+    "충청북도",
+    "충청남도",
+    "전라북도",
+    "전라남도",
+    "경상북도",
+    "경상남도",
+    "제주특별자치도"
+];
+
 function RegisterTab() {
     // ---------------- UI 상태 ----------------
     const [form, setForm] = useState<FormState>({
@@ -76,19 +106,51 @@ function RegisterTab() {
         psLteNumber: "",
         status: DEFAULT_STATUS_CODE,
         rallyPoint: 0,
+        sido: "", // 시도는 셀렉트로 선택
     });
 
     const [excelRows, setExcelRows] = useState<ExcelPreviewRow[]>([]);
     const [loading, setLoading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+    // 소방서 목록 상태
+    const [stations, setStations] = useState<FireStation[]>([]);
+    const [stationLoading, setStationLoading] = useState(false);
+
     const onChange = <K extends keyof FormState>(k: K, v: FormState[K]) =>
         setForm((p) => ({ ...p, [k]: v }));
 
+    // --------------- 소방서 목록 조회 ---------------
+    const fetchStations = async (sido?: string) => {
+        try {
+            setStationLoading(true);
+            const res = await api.get<FireStation[]>("/fire-stations", {
+                params: { sido: sido && sido.trim() ? sido.trim() : undefined },
+            });
+            setStations(res.data ?? []);
+        } catch (e) {
+            console.error(e);
+            setStations([]);
+        } finally {
+            setStationLoading(false);
+        }
+    };
+
+    // 시도 변경 시 자동 조회 + stationId 초기화
+    useEffect(() => {
+        if (form.sido) fetchStations(form.sido);
+        setForm((p) => ({ ...p, stationId: 0 }));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [form.sido]);
+
     // --------------- 단건 등록 ---------------
     const handleRegister = async () => {
+        if (!form.sido) {
+            alert("시도(sido)를 선택해주세요.");
+            return;
+        }
         if (!form.stationId || !form.callSign || !form.typeName) {
-            alert("stationId / 차종(typeName) / 호출명(callSign)을 입력해주세요.");
+            alert("소방서/차종(typeName)/호출명(callSign)을 입력(선택)해주세요.");
             return;
         }
         try {
@@ -100,6 +162,7 @@ function RegisterTab() {
                 status: toNum(form.status, DEFAULT_STATUS_CODE),
                 rallyPoint: toNum(form.rallyPoint, 0),
             } satisfies ApiVehicle);
+
             alert("차량이 등록되었습니다.");
             setForm({
                 stationId: 0,
@@ -111,7 +174,9 @@ function RegisterTab() {
                 psLteNumber: "",
                 status: DEFAULT_STATUS_CODE,
                 rallyPoint: 0,
+                sido: "",
             });
+            setStations([]);
         } catch (e: any) {
             console.error(e);
             alert(`등록 실패: ${e?.response?.data?.message ?? e.message ?? "알 수 없는 오류"}`);
@@ -135,7 +200,6 @@ function RegisterTab() {
             const mapped: ExcelPreviewRow[] = json.map((r, i) => {
                 const stationId = toNum(r.소방서ID as any, 0);
                 if (!stationId) {
-                    // 매핑 누락 경고(콘솔)
                     console.warn(`[Excel] ${i + 1}행: stationId(소방서ID) 없음 → 0으로 설정됨`);
                 }
                 return {
@@ -179,7 +243,6 @@ function RegisterTab() {
             alert("엑셀 데이터가 없습니다.");
             return;
         }
-        // 유효성 체크(최소 키)
         const invalid = excelRows.find(
             (r) => !r.stationId || !r.typeName || !r.callSign
         );
@@ -190,7 +253,6 @@ function RegisterTab() {
 
         try {
             setLoading(true);
-            // 간단히 행 별로 POST (백엔드가 일괄 API를 제공하면 그걸 쓰세요)
             await Promise.all(
                 excelRows.map((r) =>
                     api.post("/vehicles", {
@@ -203,6 +265,7 @@ function RegisterTab() {
                         psLteNumber: r.psLteNumber,
                         status: DEFAULT_STATUS_CODE,
                         rallyPoint: 0,
+                        sido: r.sido || "",
                     } as ApiVehicle)
                 )
             );
@@ -226,12 +289,48 @@ function RegisterTab() {
 
                 <div className="p-5 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Input
-                            label="소방서 ID (stationId)"
-                            type="number"
-                            value={String(form.stationId)}
-                            onChange={(v) => onChange("stationId", toNum(v, 0))}
-                        />
+                        {/* 1) 시도 선택 */}
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[13px] text-gray-700">시도 (sido)</span>
+                            <select
+                                className="h-9 rounded border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                value={form.sido}
+                                onChange={(e) => onChange("sido", e.target.value)}
+                            >
+                                <option value="">시도를 선택하세요</option>
+                                {SIDO_OPTIONS.map((s) => (
+                                    <option key={s} value={s}>{s}</option>
+                                ))}
+                            </select>
+                            <p className="text-xs text-gray-500">시도를 먼저 선택하면 해당 지역의 소방서 목록을 불러옵니다.</p>
+                        </div>
+
+                        {/* 2) 소방서 선택 (stationId 자동 세팅) */}
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[13px] text-gray-700">소방서 (station)</span>
+                            <select
+                                className="h-9 rounded border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                value={String(form.stationId)}
+                                onChange={(e) => onChange("stationId", Number(e.target.value) || 0)}
+                                disabled={!form.sido || stationLoading || stations.length === 0}
+                            >
+                                <option value="0">
+                                    {!form.sido
+                                        ? "시도를 먼저 선택하세요"
+                                        : stationLoading
+                                            ? "불러오는 중..."
+                                            : stations.length
+                                                ? "소방서를 선택하세요"
+                                                : "해당 시도의 소방서 목록이 없습니다"}
+                                </option>
+                                {stations.map((s) => (
+                                    <option key={s.id} value={s.id}>
+                                        {`${s.name} (ID: ${s.id})`}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
                         <Input
                             label="차종 (typeName)"
                             value={form.typeName}
