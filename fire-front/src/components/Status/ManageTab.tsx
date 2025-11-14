@@ -9,49 +9,39 @@ type ApiVehicle = {
     sido: string;
     typeName: string;
     callSign: string;
-    status: number;     // 0:대기, 1:활동, 2:철수(가정)
+    status: number;     // 0:대기, 1:활동, 2:철수
     rallyPoint: number; // 0/1
 };
 
-/** ============== UI 행 타입 ============== 
- * 기존 Vehicle과 유사하게 유지하되, API에 없는 값은 optional
- */
+/** ============== UI 행 타입 ============== */
 type Row = {
-    id: string;              // 테이블 key용 (string)
+    id: string;              // key
     stationId: number;
     sido: string;
-    station?: string;        // API에 없음
-    type: string;            // = typeName
-    callname: string;        // = callSign
-    capacity?: number | "";  // API에 없음
-    personnel?: number | ""; // API에 없음
-    avl?: string;            // API에 없음
-    pslte?: string;          // API에 없음
+    station?: string;
+    type: string;
+    callname: string;
+    capacity?: number | "";
+    personnel?: number | "";
+    avl?: string;
+    pslte?: string;
     status: "대기" | "활동" | "철수";
-    rally: boolean;          // = rallyPoint
+    rally: boolean;
 };
 
-/** 상태 코드 <-> 라벨 변환 */
-const statusCodeToLabel = (code: number): Row["status"] => {
-    if (code === 1) return "활동";
-    if (code === 2) return "철수";
-    return "대기";
-};
-const statusLabelToCode = (label: Row["status"]): number => {
-    if (label === "활동") return 1;
-    if (label === "철수") return 2;
-    return 0;
-};
+/** 상태 코드 → 라벨 */
+const statusCodeToLabel = (code: number): Row["status"] =>
+    code === 1 ? "활동" : code === 2 ? "철수" : "대기";
 
-/** API Base (필요시 .env로 빼세요) */
+/** API BASE URL */
 const API_BASE = "http://172.28.2.191:8081";
 
-/** 쿼리 파라미터 타입 */
+/** 쿼리 파라미터 (Swagger 기준) */
 type Query = {
     stationId?: number | "";
     status?: number | "";
     typeName?: string;
-    callSignLike?: string; // 백엔드가 callSignLike인지 callSign인지에 맞춰 조정
+    callSignLike?: string;
 };
 
 function ManageTab() {
@@ -65,8 +55,8 @@ function ManageTab() {
 
     // 필터 상태
     const [query, setQuery] = useState<Query>({
-        stationId: 1, // 예시 기본값
-        status: "",   // 전체
+        stationId: 1,
+        status: "",
         typeName: "",
         callSignLike: "",
     });
@@ -76,36 +66,36 @@ function ManageTab() {
         []
     );
 
-    /** API 호출 */
+    /** =================== API 호출 =================== */
     const fetchVehicles = async () => {
         setLoading(true);
         setError(null);
+
         try {
             const params: Record<string, any> = {};
+
             if (query.stationId !== "" && query.stationId != null) params.stationId = query.stationId;
             if (query.status !== "" && query.status != null) params.status = query.status;
             if (query.typeName) params.typeName = query.typeName;
-            // 스웨거 문구가 혼재되어 있어 둘 다 시도—백엔드에 맞춰 하나만 남기세요.
-            if (query.callSignLike) {
-                params.callSignLike = query.callSignLike;
-                params.callSign = undefined;
-            }
+            if (query.callSignLike) params.callSignLike = query.callSignLike;
 
             const res = await axios.get<ApiVehicle[]>(`${API_BASE}/api/vehicles`, { params });
+
             const mapped: Row[] = res.data.map((v) => ({
                 id: String(v.id),
                 stationId: v.stationId,
                 sido: v.sido ?? "",
-                station: "", // 백엔드 확정되면 매핑
+                station: "", // 백엔드에서 station 이름 제공 시 매핑 예정
                 type: v.typeName ?? "",
                 callname: v.callSign ?? "",
                 capacity: "",
                 personnel: "",
                 avl: "",
                 pslte: "",
-                status: statusCodeToLabel(v.status ?? 0),
+                status: statusCodeToLabel(v.status),
                 rally: (v.rallyPoint ?? 0) === 1,
             }));
+
             setRows(mapped);
         } catch (e: any) {
             setError(e?.message || "목록 조회 중 오류가 발생했습니다.");
@@ -115,11 +105,10 @@ function ManageTab() {
     };
 
     useEffect(() => {
-        // 초기 로드
         fetchVehicles();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    /** =================== 수정 기능 =================== */
     const startEdit = (row: Row) => {
         setEditRowId(row.id);
         setEditData(row);
@@ -131,7 +120,7 @@ function ManageTab() {
     };
 
     const saveEdit = () => {
-        // 현재는 로컬만 갱신 (PATCH 연동 원하면 알려주세요)
+        // (백엔드 PATCH 연동 필요 시 말해줘!)
         setRows((prev) => prev.map((r) => (r.id === editRowId ? { ...r, ...editData } as Row : r)));
         cancelEdit();
     };
@@ -150,6 +139,8 @@ function ManageTab() {
 
             {/* 필터 영역 */}
             <div className="flex flex-wrap gap-2 items-end">
+
+                {/* stationId */}
                 <div className="flex flex-col">
                     <label className="text-xs text-gray-500">stationId</label>
                     <input
@@ -157,17 +148,20 @@ function ManageTab() {
                         className="border px-2 py-1 rounded w-36"
                         value={query.stationId ?? ""}
                         onChange={(e) =>
-                            setQuery((q) => ({ ...q, stationId: e.target.value === "" ? "" : Number(e.target.value) }))
+                            setQuery((q) => ({
+                                ...q,
+                                stationId: e.target.value === "" ? "" : Number(e.target.value),
+                            }))
                         }
-                        placeholder="예: 1"
                     />
                 </div>
 
+                {/* status */}
                 <div className="flex flex-col">
                     <label className="text-xs text-gray-500">status</label>
                     <select
                         className="border px-2 py-1 rounded w-36"
-                        value={query.status === "" ? "" : query.status}
+                        value={query.status}
                         onChange={(e) =>
                             setQuery((q) => ({
                                 ...q,
@@ -182,6 +176,7 @@ function ManageTab() {
                     </select>
                 </div>
 
+                {/* typeName */}
                 <div className="flex flex-col">
                     <label className="text-xs text-gray-500">typeName</label>
                     <input
@@ -192,13 +187,14 @@ function ManageTab() {
                     />
                 </div>
 
+                {/* callSignLike */}
                 <div className="flex flex-col">
                     <label className="text-xs text-gray-500">callSignLike</label>
                     <input
                         className="border px-2 py-1 rounded w-48"
                         value={query.callSignLike ?? ""}
                         onChange={(e) => setQuery((q) => ({ ...q, callSignLike: e.target.value }))}
-                        placeholder="예: 서울-펌프"
+                        placeholder="예: 강남소방서"
                     />
                 </div>
 
@@ -213,6 +209,7 @@ function ManageTab() {
                 {error && <span className="text-sm text-red-600">{error}</span>}
             </div>
 
+            {/* ======================== 테이블 ======================== */}
             <div className="overflow-auto border border-gray-200 rounded bg-white">
                 <table className="min-w-[900px] w-full text-sm">
                     <thead className="bg-gray-50">
@@ -250,21 +247,21 @@ function ManageTab() {
                                             )}
                                         </Td>
 
-                                        {/* 소방서 (API 미제공) */}
+                                        {/* 소방서 */}
                                         <Td>
                                             {isEditing ? (
                                                 <input
                                                     value={editData.station ?? ""}
                                                     onChange={(e) => handleEditChange("station", e.target.value)}
                                                     className="border px-2 py-1 rounded w-full"
-                                                    placeholder="(API 미제공)"
+                                                    placeholder="-"
                                                 />
                                             ) : (
                                                 r.station || "-"
                                             )}
                                         </Td>
 
-                                        {/* 차종 (typeName) */}
+                                        {/* 차종 */}
                                         <Td>
                                             {isEditing ? (
                                                 <input
@@ -277,7 +274,7 @@ function ManageTab() {
                                             )}
                                         </Td>
 
-                                        {/* 호출명 (callSign) */}
+                                        {/* 호출명 */}
                                         <Td>
                                             {isEditing ? (
                                                 <input
@@ -290,7 +287,7 @@ function ManageTab() {
                                             )}
                                         </Td>
 
-                                        {/* 용량 (미제공) */}
+                                        {/* 용량 */}
                                         <Td>
                                             {isEditing ? (
                                                 <input
@@ -307,7 +304,7 @@ function ManageTab() {
                                             )}
                                         </Td>
 
-                                        {/* 인원 (미제공) */}
+                                        {/* 인원 */}
                                         <Td>
                                             {isEditing ? (
                                                 <input
@@ -324,28 +321,26 @@ function ManageTab() {
                                             )}
                                         </Td>
 
-                                        {/* AVL (미제공) */}
+                                        {/* AVL */}
                                         <Td>
                                             {isEditing ? (
                                                 <input
                                                     value={editData.avl ?? ""}
                                                     onChange={(e) => handleEditChange("avl", e.target.value)}
                                                     className="border px-2 py-1 rounded w-full"
-                                                    placeholder="-"
                                                 />
                                             ) : (
                                                 r.avl ?? "-"
                                             )}
                                         </Td>
 
-                                        {/* PS-LTE (미제공) */}
+                                        {/* PS-LTE */}
                                         <Td>
                                             {isEditing ? (
                                                 <input
                                                     value={editData.pslte ?? ""}
                                                     onChange={(e) => handleEditChange("pslte", e.target.value)}
                                                     className="border px-2 py-1 rounded w-full"
-                                                    placeholder="-"
                                                 />
                                             ) : (
                                                 r.pslte ?? "-"
@@ -360,8 +355,8 @@ function ManageTab() {
                                                     onChange={(e) => handleEditChange("status", e.target.value as Row["status"])}
                                                     className="border px-2 py-1 rounded"
                                                 >
-                                                    <option value="활동">활동</option>
                                                     <option value="대기">대기</option>
+                                                    <option value="활동">활동</option>
                                                     <option value="철수">철수</option>
                                                 </select>
                                             ) : (
@@ -369,7 +364,7 @@ function ManageTab() {
                                             )}
                                         </Td>
 
-                                        {/* 자원집결지 */}
+                                        {/* 집결지 */}
                                         <Td>
                                             {isEditing ? (
                                                 <input
@@ -382,7 +377,7 @@ function ManageTab() {
                                             )}
                                         </Td>
 
-                                        {/* 액션 */}
+                                        {/* 수정버튼 */}
                                         <Td>
                                             {isEditing ? (
                                                 <div className="flex gap-2">
