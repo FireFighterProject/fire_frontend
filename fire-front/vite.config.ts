@@ -10,7 +10,7 @@ export default defineConfig({
     proxy: {
       // ✅ 기존 백엔드 프록시 (유지)
       '/api': {
-        target: 'http://172.28.2.191:8081',
+        target: 'http://172.28.5.94:8081',
         changeOrigin: true,
         secure: false,
       },
