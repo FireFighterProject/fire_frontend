@@ -83,7 +83,7 @@ const Forecast: React.FC = () => {
                         업데이트: {loading ? "로딩 중..." : "방금 전"}
                     </span>
                 </div>
-
+                
                 {/* ===== 모드 전환 & 지역 선택 ===== */}
                 <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                     <div className="flex gap-2">
