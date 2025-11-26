@@ -71,7 +71,7 @@ const Forecast: React.FC = () => {
     }, [selectedRegion]);
 
     return (
-        <div className="min-h-screen bg-[#f9fbfd] py-10 px-5">
+        // <div className="min-h-screen bg-[#f9fbfd] py-10 px-5">
             <div className="max-w-3xl mx-auto bg-white shadow-md rounded-3xl p-8">
                 {/* ===== 헤더 ===== */}
                 <div className="flex items-center justify-between mb-6">
@@ -204,7 +204,7 @@ const Forecast: React.FC = () => {
                     </div>
                 )}
             </div>
-        </div>
+        // </div>
     );
 };
 
