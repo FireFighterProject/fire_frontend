@@ -5,7 +5,6 @@ const menus = [
     { name: "메인", path: "/" },
     { name: "현황", path: "/status" },
     { name: "관리", path: "/manage" },
-    { name: "출동", path: "/dispatch" },
     { name: "활동", path: "/activity" },
     { name: "지도", path: "/map" },
     { name: "통계", path: "/statistics" },
