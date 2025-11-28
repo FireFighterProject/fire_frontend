@@ -1,24 +1,22 @@
 // src/pages/Status.tsx
 import React, { useEffect, useRef, useState } from "react";
-import axios from "axios";
+import apiClient from "../../api/axios";
 
-/** =========================
- *  백엔드 API 타입(단건)
- *  ========================= */
+/* ================================================
+   🔥 서버 타입
+================================================ */
 type ApiVehicle = {
-    stationId: number;
+    stationName: string;
+    sido: string;
     callSign: string;
     typeName: string;
     capacity: number;
     personnel: number;
     avlNumber: string;
     psLteNumber: string;
-    status: number;     // 코드 값 (예: 대기=0)
-    rallyPoint: number; // 0/1
-    sido: string;       // 시도
+    status: number;
 };
 
-/** 소방서 목록 API 응답 타입 */
 type FireStation = {
     id: number;
     sido: string;
@@ -26,28 +24,22 @@ type FireStation = {
     address: string;
 };
 
-/** UI 입력 폼 상태 (백엔드 스키마와 일치) */
-type FormState = ApiVehicle;
-
-/** 엑셀 원본 컬럼(문자열) */
+/* Excel */
 type ExcelRow = {
     시도?: string;
     소방서?: string;
-    소방서ID?: string | number;
-    차종?: string;
     호출명?: string;
+    차종?: string;
     용량?: string | number;
     인원?: string | number;
-    "AVL 단말기번호"?: string;
-    "PS-LTE 번호"?: string;
+    AVL?: string;
+    "PS-LTE"?: string;
 };
 
-/** 엑셀 미리보기용 행(표시 전용) */
 type ExcelPreviewRow = {
     id: string;
     sido: string;
-    station: string;
-    stationId: number;
+    stationName: string;
     typeName: string;
     callSign: string;
     capacity: number;
@@ -56,401 +48,398 @@ type ExcelPreviewRow = {
     psLteNumber: string;
 };
 
-const api = axios.create({
-    baseURL: "/api",
-    headers: { "Content-Type": "application/json" },
-});
+/* ================================================
+    API 인스턴스
+================================================ */
+const api = apiClient;
 
-/** 숫자 변환 헬퍼 */
-const toNum = (v: string | number | undefined | null, fallback = 0) => {
-    if (v === undefined || v === null || v === "") return fallback;
-    if (typeof v === "number") return Number.isFinite(v) ? v : fallback;
-    const cleaned = String(v).replace(/,/g, "");
-    const n = Number(cleaned);
+/* 숫자 변환 */
+const toNum = (v: any, fallback = 0) => {
+    if (v == null || v === "") return fallback;
+    const n = Number(String(v).replace(/,/g, ""));
     return Number.isFinite(n) ? n : fallback;
 };
 
-/** 상태코드 기본값(대기=0) — 백엔드 정의에 맞게 조정 가능 */
-const DEFAULT_STATUS_CODE = 0;
+const DEFAULT_STATUS = 0;
 
-/** 시도 프리셋(17개 시·도) */
+/* 시도 매핑 */
 const SIDO_OPTIONS = [
-    "서울특별시",
-    "부산광역시",
-    "대구광역시",
-    "인천광역시",
-    "광주광역시",
-    "대전광역시",
-    "울산광역시",
-    "세종특별자치시",
-    "경기도",
-    "강원도",
-    "충청북도",
-    "충청남도",
-    "전라북도",
-    "전라남도",
-    "경상북도",
-    "경상남도",
-    "제주특별자치도"
+    "서울특별시", "부산광역시", "대구광역시", "인천광역시", "광주광역시",
+    "대전광역시", "울산광역시", "세종특별자치시", "경기도", "강원도",
+    "충청북도", "충청남도", "전라북도", "전라남도", "경상북도",
+    "경상남도", "제주특별자치도"
 ];
 
+const SIDO_MAP: Record<string, string> = {
+    "서울": "서울특별시",
+    "부산": "부산광역시",
+    "대구": "대구광역시",
+    "인천": "인천광역시",
+    "광주": "광주광역시",
+    "대전": "대전광역시",
+    "울산": "울산광역시",
+    "세종": "세종특별자치시",
+    "경기": "경기도",
+    "강원": "강원도",
+    "충북": "충청북도",
+    "충남": "충청남도",
+    "전북": "전라북도",
+    "전남": "전라남도",
+    "경북": "경상북도",
+    "경남": "경상남도",
+    "제주": "제주특별자치도",
+};
+
+const toFullSido = (raw: string = "") => {
+    const cleaned = raw.replace(/\s+/g, "");
+    if (SIDO_OPTIONS.includes(cleaned)) return cleaned;
+    return SIDO_MAP[cleaned] ?? cleaned;
+};
+
+/* ================================================
+    소방서 자동 정규화
+================================================ */
+const normalizeStationName = (name: string = "") => {
+    let n = name.replace(/\s+/g, ""); // 공백 모두 제거
+
+    // "센터", "119센터" 등은 소방서가 아님 → 제외
+    if (n.includes("센터")) return "";
+
+    // "소방서" 없으면 자동 추가
+    if (!n.includes("소방서")) {
+        n += "소방서";
+    }
+
+    return n;
+};
+
+/* ================================================
+    가장 유사한 소방서 자동 매칭
+================================================ */
+const findClosestStation = (name: string, list: FireStation[]) => {
+    if (!name) return "";
+
+    const target = normalizeStationName(name);
+
+    let best = "";
+    let score = -1;
+
+    list.forEach((s) => {
+        const comp = s.name.replace(/\s+/g, "");
+
+        // 완전 일치
+        if (comp === target) {
+            best = s.name;
+            score = 999;
+        }
+
+        // 부분 포함
+        const partial = comp.includes(target) || target.includes(comp);
+        if (partial && score < 50) {
+            best = s.name;
+            score = 50;
+        }
+
+        // 문자 길이 기반 근접 매칭
+        const closeness = -Math.abs(comp.length - target.length);
+        if (closeness > score) {
+            best = s.name;
+            score = closeness;
+        }
+    });
+
+    return best;
+};
+
+/* ================================================
+    RegisterTab 컴포넌트
+================================================ */
 function RegisterTab() {
-    // ---------------- UI 상태 ----------------
-    const [form, setForm] = useState<FormState>({
-        stationId: 0,
+    const [form, setForm] = useState<ApiVehicle>({
+        stationName: "",
+        sido: "",
         callSign: "",
         typeName: "",
         capacity: 0,
         personnel: 0,
         avlNumber: "",
         psLteNumber: "",
-        status: DEFAULT_STATUS_CODE,
-        rallyPoint: 0,
-        sido: "", // 시도는 셀렉트로 선택
+        status: DEFAULT_STATUS,
     });
 
+    const [stations, setStations] = useState<FireStation[]>([]);
+    const [allStations, setAllStations] = useState<FireStation[]>([]);
     const [excelRows, setExcelRows] = useState<ExcelPreviewRow[]>([]);
     const [loading, setLoading] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const fileRef = useRef<HTMLInputElement | null>(null);
 
-    // 소방서 목록 상태
-    const [stations, setStations] = useState<FireStation[]>([]);
-    const [stationLoading, setStationLoading] = useState(false);
+    const onChange = (key: keyof ApiVehicle, value: any) =>
+        setForm((prev) => ({ ...prev, [key]: value }));
 
-    const onChange = <K extends keyof FormState>(k: K, v: FormState[K]) =>
-        setForm((p) => ({ ...p, [k]: v }));
+    /* ============================================================
+        전체 소방서 사전 로드
+    ============================================================ */
+    useEffect(() => {
+        api.get("/fire-stations").then((res) => {
+            setAllStations(res.data);
+        });
+    }, []);
 
-    // --------------- 소방서 목록 조회 ---------------
-    const fetchStations = async (sido?: string) => {
-        try {
-            setStationLoading(true);
-            const res = await api.get<FireStation[]>("/fire-stations", {
-                params: { sido: sido && sido.trim() ? sido.trim() : undefined },
-            });
-            setStations(res.data ?? []);
-        } catch (e) {
-            console.error(e);
+    /* ============================================================
+        시도 변경 → 소방서 필터링
+    ============================================================ */
+    useEffect(() => {
+        if (form.sido) {
+            const filtered = allStations.filter((s) => s.sido === form.sido);
+            setStations(filtered);
+        } else {
             setStations([]);
-        } finally {
-            setStationLoading(false);
+        }
+        setForm((p) => ({ ...p, stationName: "" }));
+    }, [form.sido, allStations]);
+
+    /* ============================================================
+        엑셀 파싱
+    ============================================================ */
+    const handlePickExcel = () => fileRef.current?.click();
+
+    const handleExcel = async (file: File) => {
+        try {
+            const imported = await import("xlsx");
+            const XLSX = imported.default || imported;
+
+            const buf = await file.arrayBuffer();
+            const wb = XLSX.read(buf, { type: "array" });
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const json = XLSX.utils.sheet_to_json(sheet, { defval: "" }) as ExcelRow[];
+
+            const mapped = json.map((r, i) => {
+                const sido = toFullSido(r.시도 ?? "");
+                const rawStation = normalizeStationName(r.소방서 ?? "");
+                const bestMatch = findClosestStation(rawStation, allStations);
+
+                return {
+                    id: `${file.name}-${i}`,
+                    sido,
+                    stationName: bestMatch,  // 자동 매칭 결과
+                    typeName: r.차종 ?? "",
+                    callSign: r.호출명 ?? "",
+                    capacity: toNum(r.용량),
+                    personnel: toNum(r.인원),
+                    avlNumber: r.AVL ?? "",
+                    psLteNumber: r["PS-LTE"] ?? "",
+                };
+            });
+
+            setExcelRows(mapped);
+        } catch (err) {
+            console.error(err);
+            alert("엑셀 분석 실패");
         }
     };
 
-    // 시도 변경 시 자동 조회 + stationId 초기화
-    useEffect(() => {
-        if (form.sido) fetchStations(form.sido);
-        setForm((p) => ({ ...p, stationId: 0 }));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [form.sido]);
+    /* ============================================================
+        배치 등록
+    ============================================================ */
+    const handleBulkRegister = async () => {
+        if (excelRows.length === 0) return alert("엑셀 데이터 없음");
 
-    // --------------- 단건 등록 ---------------
-    const handleRegister = async () => {
-        if (!form.sido) {
-            alert("시도(sido)를 선택해주세요.");
-            return;
-        }
-        if (!form.stationId || !form.callSign || !form.typeName) {
-            alert("소방서/차종(typeName)/호출명(callSign)을 입력(선택)해주세요.");
-            return;
-        }
+        const invalid = excelRows.find(
+            (r) => !r.stationName || !r.typeName || !r.callSign
+        );
+        if (invalid) return alert("소방서/차종/호출명 누락된 행 존재");
+
         try {
             setLoading(true);
-            await api.post("/vehicles", {
-                ...form,
-                capacity: toNum(form.capacity, 0),
-                personnel: toNum(form.personnel, 0),
-                status: toNum(form.status, DEFAULT_STATUS_CODE),
-                rallyPoint: toNum(form.rallyPoint, 0),
-            } satisfies ApiVehicle);
 
-            alert("차량이 등록되었습니다.");
+            const body = excelRows.map((r) => ({
+                stationName: r.stationName,
+                sido: r.sido,
+                typeName: r.typeName,
+                callSign: r.callSign,
+                capacity: r.capacity,
+                personnel: r.personnel,
+                avlNumber: r.avlNumber,
+                psLteNumber: r.psLteNumber,
+            }));
+
+            const res = await api.post("/vehicles/batch", body);
+
+            alert(
+                `총 ${res.data.total} / 성공 ${res.data.inserted} / 중복 ${res.data.duplicates}\n`
+                + (res.data.messages?.length ? res.data.messages.join("\n") : "")
+            );
+
+            setExcelRows([]);
+
+        } catch (e: any) {
+            console.error(e);
+            alert(e?.response?.data?.message ?? "배치등록 실패");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    /* ============================================================
+        단건 등록
+    ============================================================ */
+    const handleRegister = async () => {
+        if (!form.sido) return alert("시도 선택");
+        if (!form.stationName) return alert("소방서 선택");
+
+        const payload = {
+            stationName: form.stationName,
+            sido: form.sido,
+            callSign: form.callSign,
+            typeName: form.typeName,
+            capacity: form.capacity,
+            personnel: form.personnel,
+            avlNumber: form.avlNumber,
+            psLteNumber: form.psLteNumber,
+            status: 0,
+            rallyPoint: 0,
+        };
+
+        try {
+            setLoading(true);
+            await api.post("/vehicles", payload);
+
+            alert("등록완료");
+
             setForm({
-                stationId: 0,
+                stationName: "",
+                sido: "",
                 callSign: "",
                 typeName: "",
                 capacity: 0,
                 personnel: 0,
                 avlNumber: "",
                 psLteNumber: "",
-                status: DEFAULT_STATUS_CODE,
-                rallyPoint: 0,
-                sido: "",
+                status: 0,
             });
-            setStations([]);
-        } catch (e: any) {
-            console.error(e);
-            alert(`등록 실패: ${e?.response?.data?.message ?? e.message ?? "알 수 없는 오류"}`);
         } finally {
             setLoading(false);
         }
     };
 
-    // ----------- 엑셀 선택/파싱 -----------
-    const handlePickExcel = () => fileInputRef.current?.click();
-
-    const handleExcelFile = async (file: File) => {
-        try {
-            const XLSX: any =
-                (await import("xlsx")).default ?? (await import("xlsx"));
-            const buf = await file.arrayBuffer();
-            const wb = XLSX.read(buf, { type: "array" });
-            const sheet = wb.Sheets[wb.SheetNames[0]];
-            const json = XLSX.utils.sheet_to_json(sheet, { defval: "" }) as ExcelRow[];
-
-            const mapped: ExcelPreviewRow[] = json.map((r, i) => {
-                const stationId = toNum(r.소방서ID as any, 0);
-                if (!stationId) {
-                    console.warn(`[Excel] ${i + 1}행: stationId(소방서ID) 없음 → 0으로 설정됨`);
-                }
-                return {
-                    id: `${file.name}-${i}`,
-                    sido: r.시도 ?? "",
-                    station: r.소방서 ?? "",
-                    stationId,
-                    typeName: r.차종 ?? "",
-                    callSign: r.호출명 ?? "",
-                    capacity: toNum(r.용량, 0),
-                    personnel: toNum(r.인원, 0),
-                    avlNumber: r["AVL 단말기번호"] ?? "",
-                    psLteNumber: r["PS-LTE 번호"] ?? "",
-                };
-            });
-
-            setExcelRows(mapped);
-        } catch (e) {
-            console.error(e);
-            // xlsx 실패 시 파일명만 보여주기
-            setExcelRows([
-                {
-                    id: file.name,
-                    sido: "",
-                    station: `파일 선택: ${file.name}`,
-                    stationId: 0,
-                    typeName: "",
-                    callSign: "",
-                    capacity: 0,
-                    personnel: 0,
-                    avlNumber: "",
-                    psLteNumber: "",
-                },
-            ]);
-        }
-    };
-
-    // ----------- 엑셀 → 서버 등록 -----------
-    const handleBulkRegister = async () => {
-        if (excelRows.length === 0) {
-            alert("엑셀 데이터가 없습니다.");
-            return;
-        }
-        const invalid = excelRows.find(
-            (r) => !r.stationId || !r.typeName || !r.callSign
-        );
-        if (invalid) {
-            alert("엑셀 행 중 stationId / 차종(typeName) / 호출명(callSign) 누락이 있습니다.");
-            return;
-        }
-
-        try {
-            setLoading(true);
-            await Promise.all(
-                excelRows.map((r) =>
-                    api.post("/vehicles", {
-                        stationId: r.stationId,
-                        callSign: r.callSign,
-                        typeName: r.typeName,
-                        capacity: toNum(r.capacity, 0),
-                        personnel: toNum(r.personnel, 0),
-                        avlNumber: r.avlNumber,
-                        psLteNumber: r.psLteNumber,
-                        status: DEFAULT_STATUS_CODE,
-                        rallyPoint: 0,
-                        sido: r.sido || "",
-                    } as ApiVehicle)
-                )
-            );
-            alert(`엑셀 ${excelRows.length}건 등록 완료`);
-            setExcelRows([]);
-        } catch (e: any) {
-            console.error(e);
-            alert(`일괄 등록 실패: ${e?.response?.data?.message ?? e.message ?? "알 수 없는 오류"}`);
-        } finally {
-            setLoading(false);
-        }
-    };
-
+    /* ============================================================
+        UI
+    ============================================================ */
     return (
         <div className="p-6 space-y-6">
-            {/* 신규등록 카드 */}
-            <section className="rounded-md border border-gray-300">
-                <header className="px-5 py-3 border-b border-gray-300 font-semibold">
-                    신규등록
-                </header>
+
+            {/* 신규등록 */}
+            <section className="border rounded">
+                <header className="px-5 py-3 border-b font-semibold">신규 등록</header>
 
                 <div className="p-5 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* 1) 시도 선택 */}
-                        <div className="flex flex-col gap-1">
-                            <span className="text-[13px] text-gray-700">시도 (sido)</span>
-                            <select
-                                className="h-9 rounded border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                value={form.sido}
-                                onChange={(e) => onChange("sido", e.target.value)}
-                            >
-                                <option value="">시도를 선택하세요</option>
-                                {SIDO_OPTIONS.map((s) => (
-                                    <option key={s} value={s}>{s}</option>
-                                ))}
-                            </select>
-                            <p className="text-xs text-gray-500">시도를 먼저 선택하면 해당 지역의 소방서 목록을 불러옵니다.</p>
-                        </div>
+                    <div className="grid md:grid-cols-3 gap-4">
 
-                        {/* 2) 소방서 선택 (stationId 자동 세팅) */}
-                        <div className="flex flex-col gap-1">
-                            <span className="text-[13px] text-gray-700">소방서 (station)</span>
-                            <select
-                                className="h-9 rounded border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                value={String(form.stationId)}
-                                onChange={(e) => onChange("stationId", Number(e.target.value) || 0)}
-                                disabled={!form.sido || stationLoading || stations.length === 0}
-                            >
-                                <option value="0">
-                                    {!form.sido
-                                        ? "시도를 먼저 선택하세요"
-                                        : stationLoading
-                                            ? "불러오는 중..."
-                                            : stations.length
-                                                ? "소방서를 선택하세요"
-                                                : "해당 시도의 소방서 목록이 없습니다"}
-                                </option>
-                                {stations.map((s) => (
-                                    <option key={s.id} value={s.id}>
-                                        {`${s.name} (ID: ${s.id})`}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                        <Select
+                            label="시도"
+                            value={form.sido}
+                            onChange={(v) => onChange("sido", v)}
+                            options={SIDO_OPTIONS}
+                        />
 
-                        <Input
-                            label="차종 (typeName)"
-                            value={form.typeName}
-                            onChange={(v) => onChange("typeName", v)}
+                        <Select
+                            label="소방서"
+                            value={form.stationName}
+                            onChange={(v) => onChange("stationName", v)}
+                            options={stations.map((s) => s.name)}
+                            disabled={!form.sido}
                         />
-                        <Input
-                            label="호출명 (callSign)"
-                            value={form.callSign}
-                            onChange={(v) => onChange("callSign", v)}
-                        />
-                        <Input
-                            label="용량 (capacity)"
-                            type="number"
-                            value={String(form.capacity)}
-                            onChange={(v) => onChange("capacity", toNum(v, 0))}
-                        />
-                        <Input
-                            label="인원 (personnel)"
-                            type="number"
-                            value={String(form.personnel)}
-                            onChange={(v) => onChange("personnel", toNum(v, 0))}
-                        />
-                        <Input
-                            label="AVL 단말기 번호 (avlNumber)"
+
+                        <Input label="차종" value={form.typeName}
+                            onChange={(v) => onChange("typeName", v)} />
+
+                        <Input label="호출명" value={form.callSign}
+                            onChange={(v) => onChange("callSign", v)} />
+
+                        <Input label="용량" type="number" value={String(form.capacity)}
+                            onChange={(v) => onChange("capacity", toNum(v))} />
+
+                        <Input label="인원" type="number" value={String(form.personnel)}
+                            onChange={(v) => onChange("personnel", toNum(v))} />
+
+                        <InputMasked label="AVL 단말기"
                             value={form.avlNumber}
-                            onChange={(v) => onChange("avlNumber", v)}
-                        />
-                        <Input
-                            label="PS-LTE 번호 (psLteNumber)"
+                            onChange={(v) => onChange("avlNumber", v)} />
+
+                        <InputMasked label="PS-LTE 번호"
                             value={form.psLteNumber}
-                            onChange={(v) => onChange("psLteNumber", v)}
-                        />
-                        <Input
-                            label="상태 코드 (status)"
-                            type="number"
-                            value={String(form.status)}
-                            onChange={(v) => onChange("status", toNum(v, DEFAULT_STATUS_CODE))}
-                        />
-                        <Input
-                            label="집결 여부 (rallyPoint: 0/1)"
-                            type="number"
-                            value={String(form.rallyPoint)}
-                            onChange={(v) => onChange("rallyPoint", toNum(v, 0))}
-                        />
+                            onChange={(v) => onChange("psLteNumber", v)} />
                     </div>
 
-                    <div className="flex items-center gap-3 pt-2">
-                        <button
-                            onClick={handleRegister}
-                            disabled={loading}
-                            className="px-4 h-9 rounded-md bg-[#e1412b] text-white text-sm font-semibold hover:brightness-95 disabled:opacity-60"
-                        >
-                            {loading ? "등록 중..." : "차량등록"}
-                        </button>
+                    <button
+                        onClick={handleRegister}
+                        className="px-4 h-9 bg-[#e1412b] text-white rounded"
+                    >
+                        {loading ? "등록 중..." : "차량 등록"}
+                    </button>
 
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept=".xlsx,.xls"
-                            onChange={(e) => {
-                                const f = e.target.files?.[0];
-                                if (f) handleExcelFile(f);
-                            }}
-                            className="hidden"
-                        />
-                    </div>
+                    <input
+                        ref={fileRef}
+                        type="file"
+                        accept=".xls,.xlsx"
+                        onChange={(e) =>
+                            e.target.files?.[0] && handleExcel(e.target.files[0])
+                        }
+                        className="hidden"
+                    />
                 </div>
             </section>
 
-            {/* 선택된 엑셀 파일 카드 */}
-            <section className="rounded-md border border-gray-300">
-                <header className="px-5 py-3 border-b border-gray-300 font-semibold">
-                    선택된 엑셀 파일
-                </header>
+            {/* 엑셀 */}
+            <section className="border rounded">
+                <header className="px-5 py-3 border-b font-semibold">엑셀 업로드</header>
 
                 <div className="p-5 space-y-3">
+
                     <div className="flex gap-3">
                         <button
                             onClick={handlePickExcel}
-                            className="px-4 h-9 rounded-md bg-[#ff6b35] text-white text-sm font-semibold hover:brightness-95"
+                            className="px-4 h-9 bg-[#ff6b35] text-white rounded"
                         >
-                            엑셀 파일 선택
+                            파일 선택
                         </button>
+
                         <button
                             onClick={handleBulkRegister}
-                            disabled={loading || excelRows.length === 0}
-                            className="px-4 h-9 rounded-md bg-[#e1412b] text-white text-sm font-semibold hover:brightness-95 disabled:opacity-60"
+                            disabled={excelRows.length === 0}
+                            className="px-4 h-9 bg-[#e1412b] text-white rounded disabled:opacity-50"
                         >
-                            {loading ? "등록 중..." : "엑셀 데이터로 차량등록"}
+                            일괄 등록
                         </button>
                     </div>
 
-                    <div className="overflow-auto border border-gray-300 rounded">
-                        <table className="min-w-[920px] w-full text-sm">
-                            <thead className="bg-gray-50">
-                                <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:text-left [&>th]:font-semibold">
+                    <div className="overflow-auto border rounded">
+                        <table className="min-w-[900px] w-full text-sm">
+                            <thead className="bg-gray-100">
+                                <tr>
                                     <th>시도</th>
                                     <th>소방서</th>
-                                    <th>소방서ID</th>
-                                    <th>차종(typeName)</th>
-                                    <th>호출명(callSign)</th>
+                                    <th>차종</th>
+                                    <th>호출명</th>
                                     <th>용량</th>
                                     <th>인원</th>
-                                    <th>AVL 단말기번호</th>
-                                    <th>PS-LTE 번호</th>
+                                    <th>AVL</th>
+                                    <th>PS-LTE</th>
                                 </tr>
                             </thead>
+
                             <tbody>
                                 {excelRows.length === 0 ? (
                                     <tr>
-                                        <td className="px-3 py-6 text-center text-gray-500" colSpan={9}>
-                                            선택된 파일이 없습니다.
+                                        <td colSpan={8} className="text-center py-6 text-gray-400">
+                                            선택된 파일 없음
                                         </td>
                                     </tr>
                                 ) : (
                                     excelRows.map((r) => (
-                                        <tr key={r.id} className="even:bg-gray-50/40">
+                                        <tr key={r.id} className="even:bg-gray-50">
                                             <Td>{r.sido}</Td>
-                                            <Td>{r.station}</Td>
-                                            <Td>{r.stationId || <span className="text-red-500">0(미지정)</span>}</Td>
+                                            <Td>{r.stationName}</Td>
                                             <Td>{r.typeName}</Td>
                                             <Td>{r.callSign}</Td>
                                             <Td>{r.capacity}</Td>
@@ -469,7 +458,39 @@ function RegisterTab() {
     );
 }
 
-/* ------------------------------- UI Helpers ------------------------------ */
+/* ================================================
+    UI Components
+================================================ */
+function Select({
+    label,
+    value,
+    onChange,
+    options,
+    disabled = false,
+}: {
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+    options: string[];
+    disabled?: boolean;
+}) {
+    return (
+        <label className="flex flex-col gap-1">
+            <span className="text-sm text-gray-700">{label}</span>
+            <select
+                className="h-9 border rounded px-3"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                disabled={disabled}
+            >
+                <option value="">선택하세요</option>
+                {options.map((op) => (
+                    <option key={op} value={op}>{op}</option>
+                ))}
+            </select>
+        </label>
+    );
+}
 
 function Input({
     label,
@@ -484,19 +505,53 @@ function Input({
 }) {
     return (
         <label className="flex flex-col gap-1">
-            <span className="text-[13px] text-gray-700">{label}</span>
+            <span className="text-sm text-gray-700">{label}</span>
             <input
                 value={value}
                 type={type}
                 onChange={(e) => onChange(e.target.value)}
-                className="h-9 rounded border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-9 border rounded px-3"
+            />
+        </label>
+    );
+}
+
+function InputMasked({
+    label,
+    value,
+    onChange,
+}: {
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+}) {
+    const handleInput = (raw: string) => {
+        let digits = raw.replace(/\D/g, "");
+        if (digits.length > 11) digits = digits.slice(0, 11);
+        onChange(digits);
+    };
+
+    const format = (digits: string) => {
+        if (digits.length <= 3) return digits;
+        if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+        return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+    };
+
+    return (
+        <label className="flex flex-col gap-1">
+            <span className="text-sm text-gray-700">{label}</span>
+            <input
+                value={format(value)}
+                onChange={(e) => handleInput(e.target.value)}
+                className="h-9 border rounded px-3"
+                maxLength={13}
             />
         </label>
     );
 }
 
 function Td({ children }: { children: React.ReactNode }) {
-    return <td className="px-3 py-2 border-t border-gray-300">{children}</td>;
+    return <td className="px-3 py-2 border-t">{children}</td>;
 }
 
 export default RegisterTab;
