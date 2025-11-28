@@ -28,11 +28,12 @@ export type VehicleStatus =
 export interface Vehicle {
     id: string;                 // 프런트에서 사용하는 로컬 ID
     sido: string;
-    station: string;            // 이름(표시용). 백엔드는 stationId로 통신
+    station: string;
+    stationId: number;  // 이름(표시용). 백엔드는 stationId로 통신
     type: string;               // = typeName
     callname: string;           // = callSign
-    capacity: number;
-    personnel: number;
+    capacity: string;
+    personnel: string;
     avl: string;                // = avlNumber
     pslte: string;              // = psLteNumber
     status: VehicleStatus;      // 프런트는 문자열 상태 유지
