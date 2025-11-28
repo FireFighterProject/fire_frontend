@@ -1,9 +1,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import path from "path";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
   server: {
     open: true,
     port: 5174,
@@ -13,14 +19,6 @@ export default defineConfig({
         target: 'http://172.28.5.94:8081',
         changeOrigin: true,
         secure: false,
-      },
-
-      // ✅ 기상청 날씨 API 프록시 추가
-      '/weather': {
-        target: 'https://apihub.kma.go.kr',
-        changeOrigin: true,
-        secure: false,
-        rewrite: (path) => path.replace(/^\/weather/, '/api/typ01/url'),
       },
     },
   },
