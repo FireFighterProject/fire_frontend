@@ -10,57 +10,91 @@ import {
     ResponsiveContainer,
 } from "recharts";
 
-// ✅ 환경변수 (Vite 기준)
-// .env 파일에 다음 항목 추가
-// VITE_WEATHER_API_KEY=4Q5DhMUXTayOQ4TFFy2sLw
-
 const Forecast: React.FC = () => {
     const [mode, setMode] = useState<"current" | "hourly">("current");
     const [selectedRegion, setSelectedRegion] = useState("대구");
     const [loading, setLoading] = useState(false);
-    const [weatherData, setWeatherData] = useState<any>(null);
+    const [currentWeather, setCurrentWeather] = useState<any>(null);
     const [hourlyData, setHourlyData] = useState<any[]>([]);
 
-    const API_KEY = import.meta.env.VITE_WEATHER_API_KEY;
-
-    // 예보구역코드 매핑 (샘플)
-    const regionCodes: Record<string, string> = {
-        서울: "11B10101",
-        부산: "11H20201",
-        대구: "11H10701",
-        광주: "11F20501",
-        인천: "11B20201",
+    // 지역 → 격자 좌표 (기상청 공식)
+    const regionCoords: Record<string, { nx: number; ny: number }> = {
+        서울: { nx: 60, ny: 127 },
+        부산: { nx: 98, ny: 76 },
+        대구: { nx: 89, ny: 90 },
+        광주: { nx: 58, ny: 74 },
+        인천: { nx: 55, ny: 124 },
     };
 
-    // === 데이터 불러오기 ===
+    // 오늘 날짜와 가장 가까운 base_time 계산
+    const getBaseDateTime = () => {
+        const now = new Date();
+        const date = now.toISOString().slice(0, 10).replace(/-/g, "");
+        const hours = now.getHours();
+
+        // 기상청 발표 시각: 02, 05, 08, 11, 14, 17, 20, 23
+        const availableTimes = [2, 5, 8, 11, 14, 17, 20, 23];
+        const baseHour =
+            availableTimes
+                .filter((t) => t <= hours)
+                .slice(-1)[0] || availableTimes[availableTimes.length - 1];
+
+        return {
+            baseDate: date,
+            baseTime: String(baseHour).padStart(2, "0") + "00",
+        };
+    };
+
     const fetchWeather = async () => {
         setLoading(true);
-        try {
-            const regCode = regionCodes[selectedRegion];
-            const url = `/weather/fct_shrt_reg.php?reg=${regCode}&tmfc=0&disp=1&authKey=${API_KEY}`;
-            const res = await fetch(url);
-            const text = await res.text();
 
-            // ⚙️ 기상청 API는 CSV 형식이므로 JSON 변환 필요
-            const lines = text.trim().split("\n");
-            const headers = lines[0].split(",");
-            const rows = lines.slice(1).map((line) => {
-                const values = line.split(",");
-                return headers.reduce((obj: any, key, idx) => {
-                    obj[key.trim()] = values[idx]?.trim();
-                    return obj;
-                }, {});
+        try {
+            const { nx, ny } = regionCoords[selectedRegion];
+            const { baseDate, baseTime } = getBaseDateTime();
+
+            const url = `/api/weather/village-forecast?baseDate=${baseDate}&baseTime=${baseTime}&nx=${nx}&ny=${ny}`;
+
+            const res = await fetch(url);
+            const json = await res.json();
+
+            if (!json?.response?.body?.items?.item) {
+                throw new Error("기상청 데이터 없음");
+            }
+
+            const items = json.response.body.items.item;
+
+            // 현재와 가장 가까운 TMP(기온) 데이터 찾기
+            const now = new Date();
+            const nowHM = Number(now.getHours().toString().padStart(2, "0") + "00");
+
+            let closest = items
+                .filter((d: any) => d.category === "TMP")
+                .reduce((prev: any, curr: any) => {
+                    const diffPrev = Math.abs(prev.fcstTime - nowHM);
+                    const diffCurr = Math.abs(curr.fcstTime - nowHM);
+                    return diffCurr < diffPrev ? curr : prev;
+                });
+
+            setCurrentWeather({
+                temp: closest.fcstValue,
+                sky: items.find((d: any) => d.category === "SKY" && d.fcstTime === closest.fcstTime)?.fcstValue,
+                pty: items.find((d: any) => d.category === "PTY" && d.fcstTime === closest.fcstTime)?.fcstValue,
+                pop: items.find((d: any) => d.category === "POP" && d.fcstTime === closest.fcstTime)?.fcstValue,
+                wsd: items.find((d: any) => d.category === "WSD" && d.fcstTime === closest.fcstTime)?.fcstValue,
             });
 
-            setWeatherData(rows[0]); // 가장 최근 데이터
-            setHourlyData(
-                rows.slice(0, 6).map((r) => ({
-                    time: r.TM_EF?.slice(-4, -2) + "시",
-                    temp: parseFloat(r.TA || "0"),
-                }))
-            );
-        } catch (err) {
-            console.error("날씨 데이터 불러오기 실패:", err);
+            // 시간별 그래프 데이터
+            const hourly = items
+                .filter((d: any) => d.category === "TMP")
+                .slice(0, 8)
+                .map((d: any) => ({
+                    time: d.fcstTime.slice(0, 2) + "시",
+                    temp: Number(d.fcstValue),
+                }));
+
+            setHourlyData(hourly);
+        } catch (e) {
+            console.error("날씨 오류:", e);
         } finally {
             setLoading(false);
         }
@@ -71,140 +105,114 @@ const Forecast: React.FC = () => {
     }, [selectedRegion]);
 
     return (
-        // <div className="min-h-screen bg-[#f9fbfd] py-10 px-5">
-            <div className="max-w-3xl mx-auto bg-white shadow-md rounded-3xl p-8">
-                {/* ===== 헤더 ===== */}
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="flex items-center gap-2 text-2xl font-bold text-gray-800">
-                        <Cloud className="w-6 h-6 text-blue-500" />
-                        일기예보
-                    </h2>
-                    <span className="text-sm text-gray-400">
-                        업데이트: {loading ? "로딩 중..." : "방금 전"}
-                    </span>
-                </div>
-                
-                {/* ===== 모드 전환 & 지역 선택 ===== */}
-                <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-                    <div className="flex gap-2">
-                        {["현재", "시간별"].map((label) => (
-                            <button
-                                key={label}
-                                onClick={() =>
-                                    setMode(label === "현재" ? "current" : "hourly")
-                                }
-                                className={`px-5 py-2.5 text-lg font-semibold rounded-md border transition-all ${mode === (label === "현재" ? "current" : "hourly")
-                                        ? "bg-blue-500 text-white border-blue-500"
-                                        : "bg-white border-gray-300 hover:border-blue-400"
-                                    }`}
-                            >
-                                {label}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-gray-500" />
-                        <label className="text-sm text-gray-600 font-medium">
-                            지역 선택
-                        </label>
-                        <select
-                            value={selectedRegion}
-                            onChange={(e) => setSelectedRegion(e.target.value)}
-                            className="ml-1 px-4 py-2 border border-gray-300 rounded-xl text-gray-700 font-medium focus:outline-none focus:border-blue-500"
-                        >
-                            {Object.keys(regionCodes).map((region) => (
-                                <option key={region}>{region}</option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-
-                {/* ===== 현재 모드 ===== */}
-                {mode === "current" && (
-                    <>
-                        <div className="flex justify-between items-center bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-6 mb-8">
-                            <div>
-                                <h1 className="text-6xl font-extrabold text-blue-600">
-                                    {weatherData ? `${weatherData.TA}°C` : "--°C"}
-                                </h1>
-                                <p className="text-gray-600 text-lg mt-1">
-                                    {weatherData?.WF || "정보 없음"}
-                                </p>
-                            </div>
-                            <img
-                                src="https://cdn-icons-png.flaticon.com/512/869/869869.png"
-                                alt="sun"
-                                className="w-20 h-20"
-                            />
-                        </div>
-
-                        {/* ===== 상세 카드 ===== */}
-                        <div className="grid grid-cols-3 gap-4">
-                            <div className="bg-purple-50 rounded-2xl p-4 text-center">
-                                <Droplets className="w-6 h-6 text-purple-400 mx-auto mb-1" />
-                                <p className="text-gray-600 text-sm font-medium">강수확률</p>
-                                <p className="text-lg font-semibold text-gray-700">
-                                    {weatherData?.ST || "0"}%
-                                </p>
-                            </div>
-                            <div className="bg-cyan-50 rounded-2xl p-4 text-center">
-                                <Wind className="w-6 h-6 text-cyan-400 mx-auto mb-1" />
-                                <p className="text-gray-600 text-sm font-medium">풍향</p>
-                                <p className="text-lg font-semibold text-gray-700">
-                                    {weatherData?.W1 || "--"}°
-                                </p>
-                            </div>
-                            <div className="bg-pink-50 rounded-2xl p-4 text-center">
-                                <MapPin className="w-6 h-6 text-pink-400 mx-auto mb-1" />
-                                <p className="text-gray-600 text-sm font-medium">위치</p>
-                                <p className="text-lg font-semibold text-gray-700">
-                                    {selectedRegion}
-                                </p>
-                            </div>
-                        </div>
-                    </>
-                )}
-
-                {/* ===== 시간별 모드 (그래프) ===== */}
-                {mode === "hourly" && (
-                    <div className="mt-8">
-                        <h3 className="text-lg font-semibold text-gray-700 mb-3">
-                            {selectedRegion} 시간별 온도 변화
-                        </h3>
-                        <div className="h-64">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={hourlyData}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                    <XAxis dataKey="time" stroke="#6b7280" />
-                                    <YAxis
-                                        domain={[0, 40]}
-                                        stroke="#6b7280"
-                                        tickFormatter={(v) => `${v}°`}
-                                    />
-                                    <Tooltip
-                                        contentStyle={{
-                                            backgroundColor: "#fff",
-                                            borderRadius: "10px",
-                                            border: "1px solid #ddd",
-                                            fontSize: "14px",
-                                        }}
-                                    />
-                                    <Line
-                                        type="monotone"
-                                        dataKey="temp"
-                                        stroke="#3b82f6"
-                                        strokeWidth={3}
-                                        dot={{ r: 5, fill: "#3b82f6" }}
-                                        activeDot={{ r: 7 }}
-                                    />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-                )}
+        <div className="min-w-xl mx-auto bg-white shadow-md rounded-3xl p-8">
+            {/* 제목 */}
+            <div className="flex items-center justify-between mb-6">
+                <h2 className="flex items-center gap-2 text-2xl font-bold text-gray-800">
+                    <Cloud className="w-6 h-6 text-blue-500" />
+                    일기예보
+                </h2>
+                <span className="text-sm text-gray-400">
+                    {loading ? "로딩 중..." : "업데이트 완료"}
+                </span>
             </div>
-        // </div>
+
+            {/* 모드 선택 + 지역 선택 */}
+            <div className="flex justify-between items-center mb-4">
+                <div className="flex gap-2">
+                    {["현재", "시간별"].map((label) => (
+                        <button
+                            key={label}
+                            onClick={() =>
+                                setMode(label === "현재" ? "current" : "hourly")
+                            }
+                            className={`px-4 py-2 font-semibold rounded-md border ${mode === (label === "현재" ? "current" : "hourly")
+                                    ? "bg-blue-500 text-white"
+                                    : "bg-white text-gray-700"
+                                }`}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+
+                <select
+                    className="border px-3 py-2 rounded-lg"
+                    value={selectedRegion}
+                    onChange={(e) => setSelectedRegion(e.target.value)}
+                >
+                    {Object.keys(regionCoords).map((r) => (
+                        <option key={r}>{r}</option>
+                    ))}
+                </select>
+            </div>
+
+            {/* 현재 날씨 */}
+            {mode === "current" && currentWeather && (
+                <div>
+                    <div className="bg-blue-50 p-6 rounded-2xl flex justify-between items-center mb-8">
+                        <div>
+                            <h1 className="text-6xl font-bold text-blue-600">
+                                {currentWeather.temp}°C
+                            </h1>
+                            <p className="text-gray-700 mt-1">
+                                하늘: {currentWeather.sky} / 강수형태: {currentWeather.pty}
+                            </p>
+                        </div>
+                        <img
+                            src="https://cdn-icons-png.flaticon.com/512/869/869869.png"
+                            className="w-20 h-20"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                        <div className="bg-purple-50 p-4 rounded-xl text-center">
+                            <Droplets className="mx-auto mb-1" />
+                            <p>강수확률</p>
+                            <p className="text-lg font-bold">{currentWeather.pop}%</p>
+                        </div>
+
+                        <div className="bg-cyan-50 p-4 rounded-xl text-center">
+                            <Wind className="mx-auto mb-1" />
+                            <p>풍속</p>
+                            <p className="text-lg font-bold">{currentWeather.wsd} m/s</p>
+                        </div>
+
+                        <div className="bg-pink-50 p-4 rounded-xl text-center">
+                            <MapPin className="mx-auto mb-1" />
+                            <p>위치</p>
+                            <p className="text-lg font-bold">{selectedRegion}</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 시간별 그래프 */}
+            {mode === "hourly" && (
+                <div className="mt-8">
+                    <h3 className="text-lg font-semibold mb-3">
+                        {selectedRegion} 시간별 온도
+                    </h3>
+
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={hourlyData}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="time" />
+                                <YAxis />
+                                <Tooltip />
+                                <Line
+                                    type="monotone"
+                                    dataKey="temp"
+                                    stroke="#3b82f6"
+                                    strokeWidth={3}
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };
 
