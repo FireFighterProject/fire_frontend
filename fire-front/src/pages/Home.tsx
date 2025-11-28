@@ -167,49 +167,6 @@ const Home: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* 일기예보 */}
           <Forecast />
-
-          {/* 공지사항 */}
-          <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="bg-purple-100 p-2 rounded-lg">
-                  <Bell className="w-6 h-6 text-purple-600" />
-                </div>
-                <h2 className="text-2xl font-bold text-gray-800">공지사항</h2>
-              </div>
-              <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                전체보기 →
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {notices.map((notice) => (
-                <div
-                  key={notice.id}
-                  className="p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl hover:from-blue-50 hover:to-blue-50 cursor-pointer transition-all duration-200 border border-gray-100 hover:border-blue-200 hover:shadow-md group"
-                >
-                  <div className="flex items-start gap-3">
-                    {notice.priority === 'high' && (
-                      <div className="flex-shrink-0 w-2 h-2 bg-red-500 rounded-full mt-2"></div>
-                    )}
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-2">
-                        {notice.title}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1.5 flex items-center gap-2">
-                        <span>{notice.date}</span>
-                        {notice.priority === 'high' && (
-                          <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded text-xs font-medium">
-                            중요
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 
