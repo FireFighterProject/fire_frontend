@@ -8,10 +8,16 @@ import Activity from "./pages/Activity";
 import MapPage from "./pages/MapPage";
 import Statistics from "./pages/Statistics";
 import Report from "./pages/Report";
+import GPSEntry from "./pages/gps/GPSEntry";
+import GPSStart from "./pages/gps/GPSStart";
+import GPSStatus from "./pages/gps/GPSStatus";
 
 export default function AppRoutes() {
     return (
         <Routes>
+            //==========================================================
+            {/*관리리용*/}
+            //==========================================================
             <Route path="/" element={<Home />} />
             <Route path="/status" element={<Status />} />
             <Route path="/manage" element={<Manage />} />
@@ -20,6 +26,17 @@ export default function AppRoutes() {
             <Route path="/map" element={<MapPage />} />
             <Route path="/statistics" element={<Statistics />} />
             <Route path="/report" element={<Report />} />
+
+
+        
+
+            //==========================================================
+            {/* 소방차용용 */}
+            //==========================================================
+            <Route path="/gps" element={<GPSEntry />} />
+            <Route path="/gps/start" element={<GPSStart />} />
+            <Route path="/gps/status" element={<GPSStatus />} />    
+    
             {/* 404 */}
             <Route path="*" element={<div className="p-4">페이지를 찾을 수 없습니다.</div>} />
         </Routes>
