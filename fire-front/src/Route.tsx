@@ -8,9 +8,8 @@ import Activity from "./pages/Activity";
 import MapPage from "./pages/MapPage";
 import Statistics from "./pages/Statistics";
 import Report from "./pages/Report";
-import GPSEntry from "./pages/gps/GPSEntry";
-import GPSStart from "./pages/gps/GPSStart";
 import GPSStatus from "./pages/gps/GPSStatus";
+import GPSReady from "./pages/gps/GPSReady";
 
 export default function AppRoutes() {
     return (
@@ -33,8 +32,7 @@ export default function AppRoutes() {
             //==========================================================
             {/* 소방차용용 */}
             //==========================================================
-            <Route path="/gps" element={<GPSEntry />} />
-            <Route path="/gps/start" element={<GPSStart />} />
+            <Route path="/gps/ready" element={<GPSReady />} />
             <Route path="/gps/status" element={<GPSStatus />} />    
     
             {/* 404 */}
