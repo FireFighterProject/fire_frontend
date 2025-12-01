@@ -5,10 +5,9 @@ import ActivityRow from "./table/ActivityRow";
 interface Props {
     vehicles: Vehicle[];
     onReturn: (id: string) => void;
-    onRelocate: (id: string) => void;
 }
 
-const ActivityTable: React.FC<Props> = ({ vehicles, onReturn, onRelocate }) => {
+const ActivityTable: React.FC<Props> = ({ vehicles, onReturn }) => {
     return (
         <div className="overflow-x-auto">
             <table className="w-full border  border-gray-300 text-sm text-center border-collapse">
@@ -34,7 +33,6 @@ const ActivityTable: React.FC<Props> = ({ vehicles, onReturn, onRelocate }) => {
                             key={v.id}
                             vehicle={v}
                             onReturn={onReturn}
-                            onRelocate={onRelocate}
                         />
                     ))}
                 </tbody>
