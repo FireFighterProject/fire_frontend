@@ -12,6 +12,7 @@ import { useLocation } from "react-router-dom";
 function GlobalEmergencyToggle() {
   const isDisaster = useAppSelector((s) => s.emergency.isDisaster);
   const dispatch = useAppDispatch();
+
   return (
     <div className="px-4 py-2 flex items-center">
       <Toggle
@@ -26,15 +27,24 @@ function GlobalEmergencyToggle() {
 export default function App() {
   const location = useLocation();
 
-  // /map 및 /statistics (하위 경로 포함)에서는 재난모드 버튼 숨김
+  // 기존 숨김 조건
   const hideToggle =
-    /^\/(map|statistics|report)\b/.test(location.pathname) || location.pathname === "/";
+    /^\/(map|statistics|report)\b/.test(location.pathname) ||
+    location.pathname === "/";
 
+  // 🔥 GPS 페이지에서는 Header + Toggle 둘 다 숨김
+  const isGPSPage =
+    location.pathname.startsWith("/gps/ready") ||
+    location.pathname.startsWith("/gps/status");
 
   return (
     <Provider store={store}>
-      <Header />
-      {!hideToggle && <GlobalEmergencyToggle />}
+      {/* 헤더 숨기기 */}
+      {!isGPSPage && <Header />}
+
+      {/* 재난 토글 숨기기 */}
+      {!isGPSPage && !hideToggle && <GlobalEmergencyToggle />}
+
       <AppRoutes />
     </Provider>
   );
