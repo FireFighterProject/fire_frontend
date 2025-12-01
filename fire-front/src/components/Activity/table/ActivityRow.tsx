@@ -4,10 +4,9 @@ import type { Vehicle } from "../../../types/global";
 interface Props {
     vehicle: Vehicle;
     onReturn: (id: string) => void;
-    onRelocate: (id: string) => void;
 }
 
-const ActivityRow: React.FC<Props> = ({ vehicle, onReturn, onRelocate }) => {
+const ActivityRow: React.FC<Props> = ({ vehicle, onReturn}) => {
     return (
         <tr className="even:bg-gray-50">
             <td className="border border-black px-3 py-2">{vehicle.sido}</td>
@@ -25,12 +24,6 @@ const ActivityRow: React.FC<Props> = ({ vehicle, onReturn, onRelocate }) => {
                 <div className="flex gap-1 justify-center">
                     <button className="bg-green-500 text-white text-xs px-2 py-1 rounded hover:bg-green-600">
                         지도
-                    </button>
-                    <button
-                        onClick={() => onRelocate(vehicle.id)}
-                        className="bg-red-500 text-white text-xs px-2 py-1 rounded hover:bg-red-600"
-                    >
-                        이동
                     </button>
                     <button
                         onClick={() => onReturn(vehicle.id)}
