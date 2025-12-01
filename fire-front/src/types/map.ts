@@ -44,5 +44,7 @@ export type MarkerBundle = {
 export type MapStats = {
     visibleCount: number;
     selectedAreaCount: number;
+    dragAreaCount: number;
     totalCount: number;
 };
+
