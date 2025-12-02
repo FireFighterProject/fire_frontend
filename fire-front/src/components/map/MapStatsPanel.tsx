@@ -14,16 +14,26 @@ const MapStatsPanel: React.FC<Props> = ({ top, stats, selectedSido }) => {
             style={{ top }}
         >
             <div className="font-semibold mb-1.5">지도 차량 통계</div>
-            <div className="grid grid-cols-[auto_1fr] gap-x-2.5">
-                <div>화면 내 차량 수:</div>
-                <div className="text-right">{stats.visibleCount}대</div>
 
-                <div>{selectedSido ? `선택지역(${selectedSido}) 차량수:` : "선택지역 차량수:"}</div>
+            <div className="grid grid-cols-[auto_1fr] gap-x-2.5">
+
+                {/* 시/도 선택 통계 */}
+                <div>
+                    {selectedSido
+                        ? `선택지역(${selectedSido}) 차량수:`
+                        : "선택지역 차량수:"}
+                </div>
                 <div className="text-right">{stats.selectedAreaCount}대</div>
 
+                {/* 드래그 구역 통계 */}
+                <div>드래그구역 차량수:</div>
+                <div className="text-right">{stats.dragAreaCount}대</div>
+
+                {/* 전체 차량 */}
                 <div>전체 차량수:</div>
                 <div className="text-right">{stats.totalCount}대</div>
             </div>
+
             <div className="mt-1.5 text-[11px] text-gray-600 space-x-2">
                 <span className="inline-block rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5">
                     지도 클릭 → 시/도 통계
