@@ -10,8 +10,8 @@ type ApiVehicle = {
     sido: string;
     callSign: string;
     typeName: string;
-    capacity: number;
-    personnel: number;
+    capacity: number | "";
+    personnel: number | "";
     avlNumber: string;
     psLteNumber: string;
     status: number;
@@ -24,7 +24,7 @@ type FireStation = {
     address: string;
 };
 
-/* Excel */
+/* Excel row 형태 */
 type ExcelRow = {
     시도?: string;
     소방서?: string;
@@ -42,8 +42,8 @@ type ExcelPreviewRow = {
     stationName: string;
     typeName: string;
     callSign: string;
-    capacity: number;
-    personnel: number;
+    capacity: number | "";
+    personnel: number | "";
     avlNumber: string;
     psLteNumber: string;
 };
@@ -53,12 +53,29 @@ type ExcelPreviewRow = {
 ================================================ */
 const api = apiClient;
 
-/* 숫자 변환 */
-const toNum = (v: any, fallback = 0) => {
-    if (v == null || v === "") return fallback;
-    const n = Number(String(v).replace(/,/g, ""));
-    return Number.isFinite(n) ? n : fallback;
+/* ===========================================================
+    숫자 변환 — 빈칸이면 "", 숫자만 남기고 변환
+=========================================================== */
+const toNum = (v: any): number | "" => {
+    if (v === null || v === undefined) return "";
+
+    // 숫자 타입은 그대로
+    if (typeof v === "number") {
+        return isNaN(v) ? "" : v;
+    }
+
+    // 문자열 처리
+    const raw = String(v).trim();
+    if (raw === "") return "";
+
+    // 숫자만 추출
+    const digits = raw.replace(/[^\d]/g, "");
+    if (digits === "") return "";
+
+    return Number(digits);
 };
+
+
 
 const DEFAULT_STATUS = 0;
 
@@ -96,63 +113,9 @@ const toFullSido = (raw: string = "") => {
     return SIDO_MAP[cleaned] ?? cleaned;
 };
 
-/* ================================================
-    소방서 자동 정규화
-================================================ */
-const normalizeStationName = (name: string = "") => {
-    let n = name.replace(/\s+/g, ""); // 공백 모두 제거
-
-    // "센터", "119센터" 등은 소방서가 아님 → 제외
-    if (n.includes("센터")) return "";
-
-    // "소방서" 없으면 자동 추가
-    if (!n.includes("소방서")) {
-        n += "소방서";
-    }
-
-    return n;
-};
 
 /* ================================================
-    가장 유사한 소방서 자동 매칭
-================================================ */
-const findClosestStation = (name: string, list: FireStation[]) => {
-    if (!name) return "";
-
-    const target = normalizeStationName(name);
-
-    let best = "";
-    let score = -1;
-
-    list.forEach((s) => {
-        const comp = s.name.replace(/\s+/g, "");
-
-        // 완전 일치
-        if (comp === target) {
-            best = s.name;
-            score = 999;
-        }
-
-        // 부분 포함
-        const partial = comp.includes(target) || target.includes(comp);
-        if (partial && score < 50) {
-            best = s.name;
-            score = 50;
-        }
-
-        // 문자 길이 기반 근접 매칭
-        const closeness = -Math.abs(comp.length - target.length);
-        if (closeness > score) {
-            best = s.name;
-            score = closeness;
-        }
-    });
-
-    return best;
-};
-
-/* ================================================
-    RegisterTab 컴포넌트
+    RegisterTab
 ================================================ */
 function RegisterTab() {
     const [form, setForm] = useState<ApiVehicle>({
@@ -160,8 +123,8 @@ function RegisterTab() {
         sido: "",
         callSign: "",
         typeName: "",
-        capacity: 0,
-        personnel: 0,
+        capacity: "",
+        personnel: "",
         avlNumber: "",
         psLteNumber: "",
         status: DEFAULT_STATUS,
@@ -176,31 +139,33 @@ function RegisterTab() {
     const onChange = (key: keyof ApiVehicle, value: any) =>
         setForm((prev) => ({ ...prev, [key]: value }));
 
-    /* ============================================================
-        전체 소방서 사전 로드
-    ============================================================ */
+    /* 🔥 소방서 전체 로드 */
     useEffect(() => {
-        api.get("/fire-stations").then((res) => {
-            setAllStations(res.data);
-        });
+        api.get("/fire-stations").then((res) => setAllStations(res.data));
+
+        console.log(toNum("2000L"));      // 2000
+        console.log(toNum("1,500"));      // 1500
+        console.log(toNum("1500 ℓ"));     // 1500
+        console.log(toNum(" 1500 "));     // 1500
+        console.log(toNum(1500));         // 1500
+        console.log(toNum(""));           // ""
+        console.log(toNum(undefined));    // ""
+        console.log(toNum(null));         // ""
     }, []);
 
-    /* ============================================================
-        시도 변경 → 소방서 필터링
-    ============================================================ */
+    /* 🔥 시도 바뀌면 소방서 필터링 */
     useEffect(() => {
         if (form.sido) {
-            const filtered = allStations.filter((s) => s.sido === form.sido);
-            setStations(filtered);
+            setStations(allStations.filter((s) => s.sido === form.sido));
         } else {
             setStations([]);
         }
         setForm((p) => ({ ...p, stationName: "" }));
     }, [form.sido, allStations]);
 
-    /* ============================================================
+    /* ================================================
         엑셀 파싱
-    ============================================================ */
+    ================================================= */
     const handlePickExcel = () => fileRef.current?.click();
 
     const handleExcel = async (file: File) => {
@@ -213,23 +178,29 @@ function RegisterTab() {
             const sheet = wb.Sheets[wb.SheetNames[0]];
             const json = XLSX.utils.sheet_to_json(sheet, { defval: "" }) as ExcelRow[];
 
-            const mapped = json.map((r, i) => {
-                const sido = toFullSido(r.시도 ?? "");
-                const rawStation = normalizeStationName(r.소방서 ?? "");
-                const bestMatch = findClosestStation(rawStation, allStations);
+            // 🔥 모든 key에서 공백 제거하는 정규화
+            const normalized = json.map(r =>
+                Object.fromEntries(
+                    Object.entries(r).map(([k, v]) => [k.trim(), v])
+                )
+            );
 
-                return {
-                    id: `${file.name}-${i}`,
-                    sido,
-                    stationName: bestMatch,  // 자동 매칭 결과
-                    typeName: r.차종 ?? "",
-                    callSign: r.호출명 ?? "",
-                    capacity: toNum(r.용량),
-                    personnel: toNum(r.인원),
-                    avlNumber: r.AVL ?? "",
-                    psLteNumber: r["PS-LTE"] ?? "",
-                };
-            });
+            const mapped = normalized.map((r, i) => ({
+                id: `${file.name}-${i}`,
+
+                sido: toFullSido(String(r["시도"] ?? "").trim()),
+                stationName: String(r["소방서"] ?? "").trim(),
+
+                typeName: String(r["차종"] ?? "").trim(),
+                callSign: String(r["호출명"] ?? "").trim(),
+
+                capacity: toNum(r["용량"]),     // ★ 이제 정상
+                personnel: toNum(r["인원"]),
+
+                avlNumber: String(r["AVL"] ?? "").trim(),
+                psLteNumber: String(r["PS-LTE"] ?? "").trim(),
+            }));
+
 
             setExcelRows(mapped);
         } catch (err) {
@@ -238,9 +209,9 @@ function RegisterTab() {
         }
     };
 
-    /* ============================================================
-        배치 등록
-    ============================================================ */
+    /* ================================================
+        일괄 등록
+    ================================================= */
     const handleBulkRegister = async () => {
         if (excelRows.length === 0) return alert("엑셀 데이터 없음");
 
@@ -257,8 +228,8 @@ function RegisterTab() {
                 sido: r.sido,
                 typeName: r.typeName,
                 callSign: r.callSign,
-                capacity: r.capacity,
-                personnel: r.personnel,
+                capacity: r.capacity === "" ? null : r.capacity,
+                personnel: r.personnel === "" ? null : r.personnel,
                 avlNumber: r.avlNumber,
                 psLteNumber: r.psLteNumber,
             }));
@@ -266,23 +237,21 @@ function RegisterTab() {
             const res = await api.post("/vehicles/batch", body);
 
             alert(
-                `총 ${res.data.total} / 성공 ${res.data.inserted} / 중복 ${res.data.duplicates}\n`
-                + (res.data.messages?.length ? res.data.messages.join("\n") : "")
+                `총 ${res.data.total} / 성공 ${res.data.inserted} / 중복 ${res.data.duplicates}`
             );
 
             setExcelRows([]);
-
-        } catch (e: any) {
-            console.error(e);
-            alert(e?.response?.data?.message ?? "배치등록 실패");
+        } catch (err: any) {
+            console.error(err);
+            alert(err?.response?.data?.message ?? "배치등록 실패");
         } finally {
             setLoading(false);
         }
     };
 
-    /* ============================================================
+    /* ================================================
         단건 등록
-    ============================================================ */
+    ================================================= */
     const handleRegister = async () => {
         if (!form.sido) return alert("시도 선택");
         if (!form.stationName) return alert("소방서 선택");
@@ -292,8 +261,8 @@ function RegisterTab() {
             sido: form.sido,
             callSign: form.callSign,
             typeName: form.typeName,
-            capacity: form.capacity,
-            personnel: form.personnel,
+            capacity: form.capacity === "" ? null : form.capacity,
+            personnel: form.personnel === "" ? null : form.personnel,
             avlNumber: form.avlNumber,
             psLteNumber: form.psLteNumber,
             status: 0,
@@ -303,16 +272,15 @@ function RegisterTab() {
         try {
             setLoading(true);
             await api.post("/vehicles", payload);
-
-            alert("등록완료");
+            alert("등록 완료");
 
             setForm({
                 stationName: "",
                 sido: "",
                 callSign: "",
                 typeName: "",
-                capacity: 0,
-                personnel: 0,
+                capacity: "",
+                personnel: "",
                 avlNumber: "",
                 psLteNumber: "",
                 status: 0,
@@ -322,13 +290,13 @@ function RegisterTab() {
         }
     };
 
-    /* ============================================================
-        UI
-    ============================================================ */
+    /* ================================================
+        UI 렌더링
+    ================================================= */
     return (
         <div className="p-6 space-y-6">
 
-            {/* 신규등록 */}
+            {/* 신규 등록 */}
             <section className="border rounded">
                 <header className="px-5 py-3 border-b font-semibold">신규 등록</header>
 
@@ -350,25 +318,36 @@ function RegisterTab() {
                             disabled={!form.sido}
                         />
 
-                        <Input label="차종" value={form.typeName}
-                            onChange={(v) => onChange("typeName", v)} />
+                        <Input label="차종"
+                            value={form.typeName}
+                            onChange={(v) => onChange("typeName", v)}
+                        />
 
-                        <Input label="호출명" value={form.callSign}
-                            onChange={(v) => onChange("callSign", v)} />
+                        <Input label="호출명"
+                            value={form.callSign}
+                            onChange={(v) => onChange("callSign", v)}
+                        />
 
-                        <Input label="용량" type="number" value={String(form.capacity)}
-                            onChange={(v) => onChange("capacity", toNum(v))} />
+                        <Input label="용량"
+                            value={String(form.capacity)}
+                            onChange={(v) => onChange("capacity", toNum(v))}
+                        />
 
-                        <Input label="인원" type="number" value={String(form.personnel)}
-                            onChange={(v) => onChange("personnel", toNum(v))} />
+                        <Input label="인원"
+                            value={String(form.personnel)}
+                            onChange={(v) => onChange("personnel", toNum(v))}
+                        />
 
                         <InputMasked label="AVL 단말기"
                             value={form.avlNumber}
-                            onChange={(v) => onChange("avlNumber", v)} />
+                            onChange={(v) => onChange("avlNumber", v)}
+                        />
 
                         <InputMasked label="PS-LTE 번호"
                             value={form.psLteNumber}
-                            onChange={(v) => onChange("psLteNumber", v)} />
+                            onChange={(v) => onChange("psLteNumber", v)}
+                        />
+
                     </div>
 
                     <button
@@ -390,7 +369,7 @@ function RegisterTab() {
                 </div>
             </section>
 
-            {/* 엑셀 */}
+            {/* 엑셀 업로드 */}
             <section className="border rounded">
                 <header className="px-5 py-3 border-b font-semibold">엑셀 업로드</header>
 
@@ -452,14 +431,16 @@ function RegisterTab() {
                             </tbody>
                         </table>
                     </div>
+
                 </div>
             </section>
+
         </div>
     );
 }
 
 /* ================================================
-    UI Components
+    UI COMPONENTS
 ================================================ */
 function Select({
     label,
@@ -544,7 +525,6 @@ function InputMasked({
                 value={format(value)}
                 onChange={(e) => handleInput(e.target.value)}
                 className="h-9 border rounded px-3"
-                maxLength={13}
             />
         </label>
     );
