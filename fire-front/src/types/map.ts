@@ -1,4 +1,4 @@
-// src/types/map.ts
+        // src/types/map.ts
 export interface MapVehicle {
     id: number;
 
@@ -38,7 +38,7 @@ export type Filters = { sido: string; station: string; type: string };
 export type MarkerBundle = {
     marker: kakao.maps.Marker;             // ✅ any 제거
     info: kakao.maps.InfoWindow | null;    // ✅ any 제거
-    data: Vehicle;
+    data: MapVehicle;
 };
 
 export type MapStats = {

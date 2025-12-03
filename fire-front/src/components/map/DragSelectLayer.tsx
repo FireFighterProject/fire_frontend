@@ -23,6 +23,7 @@ const DragSelectLayer = ({ map, vehicles, onSelect }: Props) => {
         const kakao = window.kakao;
 
         /** 마우스 다운 */
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const onMouseDown = (e: any) => {
             isDragging.current = true;
             dragStart.current = e.latLng;
@@ -32,6 +33,7 @@ const DragSelectLayer = ({ map, vehicles, onSelect }: Props) => {
         };
 
         /** 마우스 이동 */
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const onMouseMove = (e: any) => {
             if (!isDragging.current || !dragStart.current) return;
 

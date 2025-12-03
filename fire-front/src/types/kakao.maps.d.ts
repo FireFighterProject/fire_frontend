@@ -7,11 +7,17 @@ declare global {
             /** autoload=false 일 때 SDK 로딩 콜백 */
             export function load(callback: () => void): void;
 
-            /** 좌표 */
+            /** ------------------------------
+             * LatLng (카카오 좌표 객체)
+             * ------------------------------ */
             export class LatLng {
                 constructor(lat: number, lng: number);
                 getLat(): number;
                 getLng(): number;
+
+                /** 🔥 카카오 내부 필드 - optional 로 타입 오류 방지 */
+                Ma?: number;
+                La?: number;
             }
 
             /** 영역(남서-북동) */
@@ -20,23 +26,31 @@ declare global {
                 contain(latlng: LatLng): boolean;
             }
 
-            /** 지도 컨트롤 공통 타입 (빈 인터페이스 대신 object로) */
+            /** 지도 컨트롤 공통 타입 */
             export type Control = object;
 
-            /** 지도 컨트롤 위치 */
+            /** 컨트롤 위치 */
             export enum ControlPosition {
                 RIGHT,
                 TOPRIGHT,
             }
 
-            /** 지도 */
+            /** ------------------------------
+             * 지도 (Map)
+             * ------------------------------ */
             export class Map {
                 constructor(container: HTMLElement, options: { center: LatLng; level: number });
+
                 addControl(control: Control, position: ControlPosition): void;
                 getBounds(): LatLngBounds;
+
+                /** 🔥 PolygonLayer에서 필요 */
+                getLevel(): number;
             }
 
-            /** 마커 */
+            /** ------------------------------
+             * 마커
+             * ------------------------------ */
             export class Marker {
                 constructor(options: { map: Map; position: LatLng });
                 setMap(map: Map | null): void;
@@ -50,10 +64,34 @@ declare global {
                 close(): void;
             }
 
-            /** 컨트롤들 */
+            /** 지도 컨트롤 */
             export class ZoomControl { }
             export class MapTypeControl { }
-            /** 드래그 박스 */
+
+            /** ------------------------------
+             * 🔥 Polygon (지도 구역)
+             * ------------------------------ */
+            export class Polygon {
+                constructor(options: {
+                    map: Map | null;
+                    path: LatLng[];
+                    strokeWeight?: number;
+                    strokeColor?: string;
+                    strokeOpacity?: number;
+                    strokeStyle?: string;
+                    fillColor?: string;
+                    fillOpacity?: number;
+                });
+
+                setMap(map: Map | null): void;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                setOptions(options: any): void;
+                getPath(): LatLng[];
+            }
+
+            /** ------------------------------
+             * Rectangle (드래그 박스)
+             * ------------------------------ */
             export class Rectangle {
                 constructor(options: {
                     map: Map;
@@ -65,30 +103,36 @@ declare global {
                     fillColor: string;
                     fillOpacity: number;
                 });
+
                 setBounds(bounds: LatLngBounds): void;
                 setMap(map: Map | null): void;
                 getBounds(): LatLngBounds;
             }
 
-            /** 이벤트 */
+            /** ------------------------------
+             * 이벤트
+             * ------------------------------ */
             export namespace event {
-                /** 마우스 이벤트(우리가 쓰는 필드만) */
                 export interface MapMouseEvent {
                     latLng: LatLng;
                 }
+
                 export function addListener(
-                    target: Map | Marker | Rectangle,
+                    target: Map | Marker | Polygon | Rectangle,
                     type: string,
                     handler: (evt?: MapMouseEvent) => void
                 ): void;
+
                 export function removeListener(
-                    target: Map | Marker | Rectangle,
+                    target: Map | Marker | Polygon | Rectangle,
                     type: string,
                     handler: (evt?: MapMouseEvent) => void
                 ): void;
             }
 
-            /** 서비스 */
+            /** ------------------------------
+             * 서비스 (주소/행정구역)
+             * ------------------------------ */
             export namespace services {
                 export type RegionResult = {
                     region_type: "H" | "B" | "S" | string;
@@ -110,8 +154,10 @@ declare global {
         }
     }
 
+    /** window.kakao 타입 */
     interface Window {
         kakao: typeof kakao;
     }
 }
+
 export { };

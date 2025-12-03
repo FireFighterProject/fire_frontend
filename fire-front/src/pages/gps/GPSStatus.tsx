@@ -3,6 +3,16 @@ import { useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import api from "../../api/axios";
 
+type Mission = {
+    id: number;
+    address: string;
+    vehicle: string;
+    title: string;
+    desc: string;
+};
+
+
+
 const GPSStatus = () => {
     const [params] = useSearchParams();
 
@@ -12,7 +22,7 @@ const GPSStatus = () => {
     const address = params.get("address") ?? "";
     const desc = params.get("desc") ?? "";
 
-    const [mission, setMission] = useState<any>(null);
+    const [mission, setMission] = useState<Mission | null>(null);
     const [lat, setLat] = useState<number | null>(null);
     const [lon, setLon] = useState<number | null>(null);
     const [gpsStatus, setGpsStatus] = useState("준비중");
@@ -46,6 +56,7 @@ const GPSStatus = () => {
                             longitude,
                         });
                         setGpsStatus("전송 성공");
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
                     } catch (err) {
                         setGpsStatus("전송 실패");
                     }
@@ -104,6 +115,7 @@ const GPSStatus = () => {
 
                         <p className="mt-2 text-sm text-gray-600">
                             📡 GPS 상태: {gpsStatus}
+                            현재 위치: {lat}, {lon}
                         </p>
                     </div>
                 </div>

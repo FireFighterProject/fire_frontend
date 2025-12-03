@@ -26,24 +26,54 @@ export type VehicleStatus =
     | "철수";
 
 export interface Vehicle {
-    id: string;                 // 프런트에서 사용하는 로컬 ID
+    id: string | number;   // 숫자 또는 문자열 모두 대응
+
+    // 지역 및 소방서
     sido: string;
-    station: string;
-    stationId: number;  // 이름(표시용). 백엔드는 stationId로 통신
-    type: string;               // = typeName
-    callname: string;           // = callSign
-    capacity: string;
-    personnel: string;
-    avl: string;                // = avlNumber
-    pslte: string;              // = psLteNumber
-    status: VehicleStatus;      // 프런트는 문자열 상태 유지
+    station: string;       // 표시용 소방서명
+    stationId: number;
+
+    // 소방서명: 백엔드 응답 호환용(optional)
+    stationName?: string;
+
+    // 차량 종류 / 호출명
+    type: string;
+    callname: string;
+
+    // 백엔드 응답 호환용(optional)
+    callSign?: string;
+    name?: string;
+
+    // 용량 / 인원
+    capacity: string | number;
+    personnel: string | number;
+
+    // 단말기 번호
+    avl: string;
+    pslte: string;
+
+    // 차량 상태
+    status: string; // "대기" | "활동" 등 문자열
+
+    // 위치정보
     lat?: number | null;
     lng?: number | null;
+
+    // 출동 부가 속성
     dispatchPlace?: string | null;
     contact?: string | null;
     content?: string | null;
-    rally: boolean;             // 프런트는 boolean, 백엔드는 number(rallyPoint)
+
+    // 집결 여부 (프런트)
+    rally: boolean;
+
+    // 백엔드 호환용 (0/1)
+    rallyPoint?: number;
+
+    // 기타 확장 필드 허용
+    [key: string]: unknown;
 }
+
 
 // ==============================
 // 3) 백엔드 API 페이로드 타입

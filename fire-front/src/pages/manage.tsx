@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
+import type { AppDispatch } from "../store";
 import type { RootState } from "../store";
 import type { Vehicle } from "../types/global";
 import axios from "axios";
@@ -34,16 +35,18 @@ const COL_ORDER: VehicleTypeKey[] = [
  * 유틸 함수
  * ========================= */
 function getStationName(v: Vehicle) {
-  return (v as any).station ?? (v as any).stationName ?? "";
+  return v.station ?? v.stationName ?? "";
 }
+
 function getCallname(v: Vehicle) {
-  const vv = v as any;
-  return vv.callname ?? vv.callSign ?? vv.name ?? `V-${vv.id}`;
+  return v.callname ?? v.callSign ?? v.name ?? `V-${v.id}`;
 }
+
 function isRally(v: Vehicle) {
-  return (v as any).rally === true || (v as any).rallyPoint === 1;
+  return v.rally === true || v.rallyPoint === 1;
 }
-function normalizeType(type: string | undefined): VehicleTypeKey {
+
+function normalizeType(type?: string): VehicleTypeKey {
   const t = String(type ?? "");
   if (t.includes("경펌")) return "경펌";
   if (t.includes("소펌")) return "소펌";
@@ -65,7 +68,8 @@ function normalizeType(type: string | undefined): VehicleTypeKey {
   if (t.includes("고가")) return "고가";
   return "기타";
 }
-function normalizeStatus(status: string | undefined): "대기" | "활동" {
+
+function normalizeStatus(status?: string): "대기" | "활동" {
   const s = status ?? "";
   if (s.includes("활동") || s.includes("출동") || s.includes("임무")) return "활동";
   return "대기";
@@ -81,16 +85,24 @@ function normalizeSido(raw?: string) {
   return s;
 }
 
+/* =========================
+ * 표 데이터 구성
+ * ========================= */
 function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
-  const rows: any[] = [];
+  type RowType = Record<VehicleTypeKey | "구분" | "차량(계)" | "인원(계)", string | number>;
 
-  const calcRow = (label: string, cond: (v: Vehicle) => boolean) => {
+  const rows: RowType[] = [];
+
+  const calcRow = (label: string, cond: (v: Vehicle) => boolean): RowType => {
     const subset = vehicles.filter(cond);
 
-    const row: any = {
+    const row: RowType = {
       구분: label,
       "차량(계)": subset.length,
-      "인원(계)": subset.reduce((s, v) => s + (Number((v as any).personnel) || 0), 0),
+      "인원(계)": subset.reduce(
+        (s, v) => s + (Number(v.personnel) || 0),
+        0
+      ),
       경펌: 0, 소펌: 0, 중펌: 0, 대펌: 0,
       중형탱크: 0, 대형탱크: 0, 급수탱크: 0,
       화학: 0, 산불: 0, 험지: 0, 로젠바우어: 0, 산불신속팀: 0,
@@ -99,44 +111,48 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
     };
 
     subset.forEach((v) => {
-      const key = normalizeType((v as any).type);
-      row[key] += 1;
+      const key = normalizeType(v.type);
+      row[key] = (typeof row[key] === "number" ? row[key] : 0) + 1;
     });
 
     return row;
   };
 
-  // 평상시 → 경상북도만 표시
+  // 평상시
   if (!isDisaster) {
-    rows.push(calcRow("경상북도 전체", (v) => normalizeSido((v as any).sido) === "경상북도"));
+    rows.push(
+      calcRow(
+        "경상북도 전체",
+        (v) => normalizeSido(v.sido) === "경상북도"
+      )
+    );
     return rows;
   }
 
-  // 재난 시: 경상북도 먼저 고정
-  const isGB = (v: Vehicle) => normalizeSido((v as any).sido) === "경상북도";
+  // 재난 시: 경북 먼저
+  const isGB = (v: Vehicle) => normalizeSido(v.sido) === "경상북도";
 
   rows.push(calcRow("경상북도 전체", (v) => isGB(v) && isRally(v)));
-  rows.push(calcRow("경상북도 대기", (v) => isGB(v) && isRally(v) && normalizeStatus((v as any).status) === "대기"));
-  rows.push(calcRow("경상북도 활동", (v) => isGB(v) && isRally(v) && normalizeStatus((v as any).status) === "활동"));
+  rows.push(calcRow("경상북도 대기", (v) => isGB(v) && isRally(v) && normalizeStatus(v.status) === "대기"));
+  rows.push(calcRow("경상북도 활동", (v) => isGB(v) && isRally(v) && normalizeStatus(v.status) === "활동"));
 
-  // 나머지 지역 추출 (경상북도 제외)
-  const other = Array.from(
+  // 나머지 지역
+  const otherRegions = Array.from(
     new Set(
       vehicles
-        .map((v) => normalizeSido((v as any).sido))
+        .map((v) => normalizeSido(v.sido))
         .filter((s) => s && s !== "경상북도")
     )
   );
 
-  other.forEach((region) => {
-    rows.push(calcRow(`${region} 전체`, (v) => normalizeSido((v as any).sido) === region));
-    rows.push(calcRow(`${region} 대기`, (v) => normalizeSido((v as any).sido) === region && normalizeStatus((v as any).status) === "대기"));
-    rows.push(calcRow(`${region} 활동`, (v) => normalizeSido((v as any).sido) === region && normalizeStatus((v as any).status) === "활동"));
+  otherRegions.forEach((region) => {
+    rows.push(calcRow(`${region} 전체`, (v) => normalizeSido(v.sido) === region));
+    rows.push(calcRow(`${region} 대기`, (v) => normalizeSido(v.sido) === region && normalizeStatus(v.status) === "대기"));
+    rows.push(calcRow(`${region} 활동`, (v) => normalizeSido(v.sido) === region && normalizeStatus(v.status) === "활동"));
   });
 
   return rows;
 }
-
 
 /* =========================
  * 조건 빌더
@@ -146,11 +162,13 @@ function buildRowPredicate(label: string, isDisaster: boolean) {
   const wantsWait = statusRaw === "대기";
 
   return (v: Vehicle) => {
-    const sido = (v as any).sido ?? "";
-    const status = normalizeStatus((v as any).status);
+    const sido = v.sido ?? "";
+    const status = normalizeStatus(v.status);
 
-    if (regionRaw === "경북") {
-      if (sido !== "경북") return false;
+    const isGBRow = regionRaw === "경북" || regionRaw === "경상북도";
+
+    if (isGBRow) {
+      if (!["경북", "경상북도"].includes(sido)) return false;
       if (isDisaster && !isRally(v)) return false;
     } else {
       if (sido !== regionRaw) return false;
@@ -165,21 +183,22 @@ function buildRowPredicate(label: string, isDisaster: boolean) {
  * 메인 컴포넌트
  * ========================= */
 const Manage: React.FC = () => {
-  const dispatch = useDispatch<any>();
+  const dispatch = useDispatch<AppDispatch>();
 
   const isDisaster = useSelector((s: RootState) => s.emergency.isDisaster);
   const vehicles = useSelector((s: RootState) => s.vehicle.vehicles) as Vehicle[];
 
   const [assignedIds, setAssignedIds] = useState<Set<number>>(new Set());
-  const [assigned, setAssigned] = useState<any[]>([]);
+  const [assigned, setAssigned] = useState<
+    { id: number | string; callname: string; sido: string; station: string; type: string }[]
+  >([]);
 
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [addr, setAddr] = useState("");
 
-  /* 선택되지 않은 차량 목록 */
   const remaining = useMemo(
-    () => vehicles.filter((v) => !assignedIds.has((v as any).id)),
+    () => vehicles.filter((v) => !assignedIds.has(Number(v.id))),
     [vehicles, assignedIds]
   );
 
@@ -188,9 +207,7 @@ const Manage: React.FC = () => {
     [remaining, isDisaster]
   );
 
-  /* =========================
-   * 차량 선택 (대기만 허용)
-   * ========================= */
+  /* 차량 선택 */
   function handleAssignOne(rowLabel: string, typeKey: VehicleTypeKey) {
     if (!rowLabel.includes("대기")) {
       alert("대기 차량만 선택할 수 있습니다.");
@@ -200,12 +217,12 @@ const Manage: React.FC = () => {
     const predicate = buildRowPredicate(rowLabel, isDisaster);
 
     const target = remaining.find(
-      (v) => predicate(v) && normalizeType((v as any).type) === typeKey
+      (v) => predicate(v) && normalizeType(v.type) === typeKey
     );
 
     if (!target) return;
 
-    const vid = (target as any).id;
+    const vid = Number(target.id);
 
     setAssignedIds((prev) => new Set(prev).add(vid));
 
@@ -214,18 +231,16 @@ const Manage: React.FC = () => {
       {
         id: vid,
         callname: getCallname(target),
-        sido: (target as any).sido,
+        sido: target.sido,
         station: getStationName(target),
-        type: (target as any).type,
+        type: target.type,
       },
     ]);
   }
 
-  /* =========================
-   * 편성 차량 삭제
-   * ========================= */
+  /* 편성 차량 삭제 */
   function removeAssigned(id: number) {
-    setAssigned((prev) => prev.filter((a) => a.id !== id));
+    setAssigned((prev) => prev.filter((a) => Number(a.id) !== id));
     setAssignedIds((prev) => {
       const next = new Set(prev);
       next.delete(id);
@@ -233,32 +248,28 @@ const Manage: React.FC = () => {
     });
   }
 
-  /* =========================
-   * 출동 생성 + 발송 (새 API 구조)
-   * ========================= */
+  /* 출동 생성 + 차량 편성 */
   async function handleCreateSend() {
     if (!title.trim()) return alert("출동 제목을 입력하세요.");
+    if (!addr.trim()) return alert("주소를 입력하세요.");
+    if (!desc.trim()) return alert("내용을 입력하세요.");
+    if (assigned.length === 0) return alert("편성된 차량이 없습니다.");
 
     try {
-      // 1) 출동 생성 (차량 정보 포함 X)
-      const res = await api.post("/dispatch-orders", {
-        stationId: 1,
+      const createRes = await api.post("/dispatch-orders", {
         title,
-        description: desc,
         address: addr,
-        addressNormalized: addr,
-        latitude: 0,
-        longitude: 0,
+        content: desc,
       });
 
-      const orderId = res.data.dispatchOrderId;
+      const orderId = createRes.data.id;
 
-      // 2) 출동 발송
-      await api.post(`/dispatch-orders/${orderId}/send`);
+      await api.post(`/dispatch-orders/${orderId}/assign`, {
+        vehicleIds: assigned.map((v) => v.id),
+      });
 
-      alert("출동 생성 및 발송 완료");
+      alert("출동 생성 및 차량 편성 완료!");
 
-      // 테이블 즉시 갱신
       dispatch(fetchVehicles({}));
 
       setAssigned([]);
@@ -274,7 +285,6 @@ const Manage: React.FC = () => {
   }
 
   /* 지역 색상 */
-  // 전국 17개 시·도 이름 (표준)
   const REGION_LIST = [
     "서울특별시", "부산광역시", "대구광역시", "인천광역시", "광주광역시",
     "대전광역시", "울산광역시", "세종특별자치시",
@@ -283,34 +293,22 @@ const Manage: React.FC = () => {
     "경상북도", "경상남도",
     "제주특별자치도",
   ];
+  const REGION_COLORS = ["bg-red-50", "bg-blue-50", "bg-green-50"];
 
-  // 반복할 3색상
-  const REGION_COLORS = [
-    "bg-red-50",
-    "bg-blue-50",
-    "bg-green-50",
-  ];
-
-  // label 문자열에 포함된 지역명 찾기
   function detectRegion(label: string) {
     return REGION_LIST.find((region) => label.includes(region));
   }
 
-  // 색상 가져오기
   function getRowColor(label: string) {
     const region = detectRegion(label);
-    if (!region) return "bg-gray-50"; // 지역 없음 → 기본값
+    if (!region) return "bg-gray-50";
 
     const index = REGION_LIST.indexOf(region);
-    const color = REGION_COLORS[index % REGION_COLORS.length];
-
-    return color;
+    return REGION_COLORS[index % REGION_COLORS.length];
   }
-
 
   return (
     <div className="min-h-screen bg-white text-gray-800">
-
       <section className="p-4 overflow-x-auto">
         <table className="table-auto w-full border border-gray-300 text-sm">
           <thead className="bg-gray-100">
@@ -328,8 +326,8 @@ const Manage: React.FC = () => {
           <tbody>
             {rows.map((r, idx) => (
               <tr
-                key={r["구분"] + idx}
-                className={`${getRowColor(r["구분"])} ${idx % 2 ? "opacity-95" : ""}`}
+                key={`${r["구분"]}${idx}`}
+                className={`${getRowColor(String(r["구분"]))} ${idx % 2 ? "opacity-95" : ""}`}
               >
                 <td className="border px-2 py-1 text-left font-medium">{r["구분"]}</td>
                 <td className="border px-2 py-1 text-center">{r["차량(계)"]}</td>
@@ -337,7 +335,7 @@ const Manage: React.FC = () => {
 
                 {COL_ORDER.map((k) => {
                   const val = r[k];
-                  const canClick = val > 0 && r["구분"].includes("대기");
+                  const canClick = typeof val === "number" && val > 0 && String(r["구분"]).includes("대기");
 
                   return (
                     <td
@@ -346,7 +344,7 @@ const Manage: React.FC = () => {
                         "border px-2 py-1 text-center select-none " +
                         (canClick ? "cursor-pointer hover:bg-blue-100" : "text-gray-400")
                       }
-                      onClick={() => canClick && handleAssignOne(r["구분"], k)}
+                      onClick={() => canClick && handleAssignOne(String(r["구분"]), k)}
                     >
                       {val}
                     </td>
@@ -357,12 +355,8 @@ const Manage: React.FC = () => {
           </tbody>
         </table>
 
-        {/* =========================
-            편성 차량 화면
-        ========================= */}
         {assigned.length > 0 && (
           <div className="mt-6 space-y-3">
-
             <input
               placeholder="출동 제목"
               className="w-full border px-3 py-2 rounded"
@@ -394,7 +388,7 @@ const Manage: React.FC = () => {
                   <div>{a.callname} / {a.sido} {a.station} / {a.type}</div>
 
                   <button
-                    onClick={() => removeAssigned(a.id)}
+                    onClick={() => removeAssigned(Number(a.id))}
                     className="px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600"
                   >
                     삭제
@@ -409,11 +403,9 @@ const Manage: React.FC = () => {
             >
               출동 생성 및 발송
             </button>
-
           </div>
         )}
       </section>
-
     </div>
   );
 };

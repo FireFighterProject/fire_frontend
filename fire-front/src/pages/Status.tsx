@@ -1,5 +1,5 @@
 // src/pages/Status.tsx
-import React, { useState } from "react";
+import { useState } from "react";
 import ManageTab from "../components/Status/ManageTab";
 import RegisterTab from "../components/Status/RegisterTab";
 

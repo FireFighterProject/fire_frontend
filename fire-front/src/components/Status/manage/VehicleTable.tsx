@@ -1,6 +1,21 @@
-// src/components/manage/VehicleTable.tsx
-import React, { useEffect, useMemo } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useMemo } from "react";
 import Td from "./Td";
+import type { Vehicle } from "../../../types/vehicle";
+
+type StationInfo = { id: number; name: string; sido: string };
+
+type Props = {
+    rows: Vehicle[];
+    allStations: StationInfo[];
+    loading: boolean;
+    editRowId: string | number | null;
+    editData: Partial<Vehicle>;
+    setEditData: React.Dispatch<React.SetStateAction<Partial<Vehicle>>>;
+    setEditRowId: React.Dispatch<React.SetStateAction<string | null>>;
+
+    saveEdit: () => void;
+};
 
 export default function VehicleTable({
     rows,
@@ -11,47 +26,31 @@ export default function VehicleTable({
     setEditData,
     setEditRowId,
     saveEdit,
-}) {
-    allStations = allStations || [];
-
+}: Props) {
     const mappedRows = useMemo(() => {
         return rows.map((r) => {
             const found = allStations.find(
                 (s) => Number(s.id) === Number(r.stationId)
             );
-            return {
-                ...r,
-                station: found?.name ?? "-",
-            };
+            return { ...r, station: found?.name ?? r.station };
         });
     }, [rows, allStations]);
 
-    const handleEditChange = (field: string, value: any) => {
-        setEditData((prev: any) => ({ ...prev, [field]: value }));
-    };
-
     const headers = [
-        "연번",
-        "시도",
-        "소방서",
-        "차종",
-        "호출명",
-        "용량",
-        "인원",
-        "AVL",
-        "PS-LTE",
-        "상태",
-        "집결",
-        "수정",
+        "연번", "시도", "소방서", "차종", "호출명",
+        "용량", "인원", "AVL", "PS-LTE", "상태", "집결", "수정",
     ];
+
+    const change = (field: keyof Vehicle, value: any) =>
+        setEditData((prev) => ({ ...prev, [field]: value }));
 
     return (
         <div className="overflow-auto border rounded bg-white">
-            <table className="min-w-[900px] text-sm w-full">
+            <table className="min-w-[900px] w-full text-sm">
                 <thead className="bg-gray-50">
                     <tr>
                         {headers.map((h) => (
-                            <th key={h} className="px-3 py-2 text-left font-semibold">
+                            <th key={h} className="px-3 py-2 font-semibold">
                                 {h}
                             </th>
                         ))}
@@ -61,119 +60,113 @@ export default function VehicleTable({
                 <tbody>
                     {mappedRows.length === 0 ? (
                         <tr>
-                            <td colSpan={headers.length}
-                                className="text-center py-10 text-gray-500">
+                            <td colSpan={headers.length} className="text-center py-10">
                                 {loading ? "불러오는 중..." : "등록된 차량이 없습니다."}
                             </td>
                         </tr>
                     ) : (
                         mappedRows.map((r, idx) => {
-                            const isEditing = r.id === editRowId;
+                            const editing = r.id === editRowId;
 
                             return (
                                 <tr key={r.id} className="even:bg-gray-50/40">
                                     <Td>{idx + 1}</Td>
 
+                                    {/* 시도 */}
                                     <Td>
-                                        {isEditing ? (
+                                        {editing ? (
                                             <input
-                                                value={editData.sido ?? ""}
-                                                onChange={(e) =>
-                                                    handleEditChange("sido", e.target.value)
-                                                }
-                                                className="border px-2 py-1 rounded w-full"
+                                                value={editData.sido ?? r.sido}
+                                                onChange={(e) => change("sido", e.target.value)}
+                                                className="border px-2 py-1 w-full rounded"
                                             />
                                         ) : r.sido}
                                     </Td>
 
+                                    {/* 소방서 */}
                                     <Td>{r.station}</Td>
 
+                                    {/* 차종 */}
                                     <Td>
-                                        {isEditing ? (
+                                        {editing ? (
                                             <input
-                                                value={editData.type ?? ""}
-                                                onChange={(e) =>
-                                                    handleEditChange("type", e.target.value)
-                                                }
-                                                className="border px-2 py-1 rounded w-full"
+                                                value={editData.type ?? r.type}
+                                                onChange={(e) => change("type", e.target.value)}
+                                                className="border px-2 py-1 w-full rounded"
                                             />
                                         ) : r.type}
                                     </Td>
 
+                                    {/* 호출명 */}
                                     <Td>
-                                        {isEditing ? (
+                                        {editing ? (
                                             <input
-                                                value={editData.callname ?? ""}
-                                                onChange={(e) =>
-                                                    handleEditChange("callname", e.target.value)
-                                                }
-                                                className="border px-2 py-1 rounded w-full"
+                                                value={editData.callname ?? r.callname}
+                                                onChange={(e) => change("callname", e.target.value)}
+                                                className="border px-2 py-1 w-full rounded"
                                             />
                                         ) : r.callname}
                                     </Td>
 
+                                    {/* 용량 */}
                                     <Td>
-                                        {isEditing ? (
+                                        {editing ? (
                                             <input
-                                                value={editData.capacity ?? ""}
-                                                onChange={(e) =>
-                                                    handleEditChange("capacity", e.target.value)
-                                                }
-                                                className="border px-2 py-1 rounded w-full"
+                                                value={editData.capacity ?? r.capacity}
+                                                onChange={(e) => change("capacity", e.target.value)}
+                                                className="border px-2 py-1 w-full rounded"
                                             />
                                         ) : r.capacity}
                                     </Td>
 
+                                    {/* 인원 */}
                                     <Td>
-                                        {isEditing ? (
+                                        {editing ? (
                                             <input
-                                                value={editData.personnel ?? ""}
-                                                onChange={(e) =>
-                                                    handleEditChange("personnel", e.target.value)
-                                                }
-                                                className="border px-2 py-1 rounded w-full"
+                                                value={editData.personnel ?? r.personnel}
+                                                onChange={(e) => change("personnel", e.target.value)}
+                                                className="border px-2 py-1 w-full rounded"
                                             />
                                         ) : r.personnel}
                                     </Td>
 
+                                    {/* AVL */}
                                     <Td>
-                                        {isEditing ? (
+                                        {editing ? (
                                             <input
-                                                value={editData.avl ?? ""}
-                                                onChange={(e) =>
-                                                    handleEditChange("avl", e.target.value)
-                                                }
-                                                className="border px-2 py-1 rounded w-full"
+                                                value={editData.avl ?? r.avl}
+                                                onChange={(e) => change("avl", e.target.value)}
+                                                className="border px-2 py-1 w-full rounded"
                                             />
                                         ) : r.avl}
                                     </Td>
 
-                                    {/* ⛔ PS-LTE 수정 불가능 */}
+                                    {/* PS-LTE */}
                                     <Td>{r.pslte}</Td>
 
-                                    {/* ⛔ 상태 수정 불가능 */}
+                                    {/* 상태 */}
                                     <Td>{r.status}</Td>
 
+                                    {/* 집결 */}
                                     <Td>
-                                        {isEditing ? (
+                                        {editing ? (
                                             <input
                                                 type="checkbox"
                                                 checked={!!editData.rally}
-                                                onChange={(e) =>
-                                                    handleEditChange("rally", e.target.checked)
-                                                }
+                                                onChange={(e) => change("rally", e.target.checked)}
                                             />
                                         ) : (
-                                            <input type="checkbox" checked={r.rally} disabled />
+                                            <input type="checkbox" checked={!!r.rally} disabled />
                                         )}
                                     </Td>
 
+                                    {/* 수정/저장 */}
                                     <Td>
-                                        {isEditing ? (
+                                        {editing ? (
                                             <div className="flex gap-2">
                                                 <button
                                                     onClick={saveEdit}
-                                                    className="px-2 py-1 text-xs bg-green-500 text-white rounded border"
+                                                    className="px-2 py-1 text-xs bg-green-500 text-white rounded"
                                                 >
                                                     저장
                                                 </button>
@@ -187,7 +180,7 @@ export default function VehicleTable({
                                         ) : (
                                             <button
                                                 onClick={() => {
-                                                    setEditRowId(r.id);
+                                                    setEditRowId(String(r.id));
                                                     setEditData(r);
                                                 }}
                                                 className="px-2 py-1 text-xs border rounded"

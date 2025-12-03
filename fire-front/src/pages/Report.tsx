@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../store";
-import type { Vehicle, VehicleStatus } from "../types/global";
+import type {  VehicleStatus } from "../types/global";
 
 /** --------------------------- 유틸 --------------------------- */
 function groupBy<T, K extends string | number>(arr: T[], keyFn: (x: T) => K): Record<K, T[]> {
@@ -26,7 +26,7 @@ type TabStep = 1 | 2 | 3 | 4;
 
 /** --------------------------- 컴포넌트 --------------------------- */
 export default function ReportPage() {
-  // ✅ Redux에서 vehicles 사용
+  
   const vehicles = useSelector((s: RootState) => s.vehicle.vehicles);
 
   /** 탭 & 폼 상태 */
@@ -73,7 +73,7 @@ export default function ReportPage() {
 
     // 출동으로 볼 상태(업무 용어에 맞게 조정 가능)
     const dispatchedStatuses: VehicleStatus[] = ["출동중", "활동"];
-    const dispatched = filteredVehicles.filter((v) => dispatchedStatuses.includes(v.status));
+    const dispatched = filteredVehicles.filter((v) => dispatchedStatuses.includes(v.status as VehicleStatus));
 
     return { totalVehicles, totalPersonnel, bySido, byType, byStatus, dispatched };
   }, [filteredVehicles]);

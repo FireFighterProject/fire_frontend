@@ -16,12 +16,14 @@ type Props = {
 };
 
 /** 🔥 점이 폴리곤 내부인지 판정 (ray-casting) */
-const isPointInPolygon = (lat: number, lng: number, paths: kakao.maps.LatLng[]) => {
+const isPointInPolygon = (lat: number, lng: number, path: kakao.maps.LatLng[]) => {
     let inside = false;
 
-    for (let i = 0, j = paths.length - 1; i < paths.length; j = i++) {
-        const xi = paths[i].Ma, yi = paths[i].La;
-        const xj = paths[j].Ma, yj = paths[j].La;
+    for (let i = 0, j = path.length - 1; i < path.length; j = i++) {
+        const xi = path[i].getLat();
+        const yi = path[i].getLng();
+        const xj = path[j].getLat();
+        const yj = path[j].getLng();
 
         const intersect =
             yi > lng !== yj > lng &&
@@ -29,6 +31,7 @@ const isPointInPolygon = (lat: number, lng: number, paths: kakao.maps.LatLng[]) 
 
         if (intersect) inside = !inside;
     }
+
     return inside;
 };
 
@@ -48,9 +51,12 @@ const PolygonLayer = ({ map, vehicles, onRegionSelect }: Props) => {
         const parseCoordinates = (geometry: any) => {
             if (geometry.type === "MultiPolygon") {
                 return geometry.coordinates.map((poly: any) =>
-                    poly[0].map((c: number[]) => new kakao.maps.LatLng(c[1], c[0]))
+                    poly[0].map(
+                        (c: number[]) => new kakao.maps.LatLng(c[1], c[0])
+                    )
                 );
             }
+
             return [
                 geometry.coordinates[0].map(
                     (c: number[]) => new kakao.maps.LatLng(c[1], c[0])
@@ -59,9 +65,11 @@ const PolygonLayer = ({ map, vehicles, onRegionSelect }: Props) => {
         };
 
         /** 🔥 클릭 시 → 폴리곤 내부 차량만 카운트 */
-        const handleSelect = (polygon: kakao.maps.Polygon, regionName: string, path: kakao.maps.LatLng[]) => {
-            console.log("선택된 지역:", regionName);
-
+        const handleSelect = (
+            polygon: kakao.maps.Polygon,
+            regionName: string,
+            path: kakao.maps.LatLng[]
+        ) => {
             if (selectedPolygon.current) {
                 selectedPolygon.current.setOptions({
                     fillColor: "#ffffff",
@@ -80,7 +88,6 @@ const PolygonLayer = ({ map, vehicles, onRegionSelect }: Props) => {
 
             selectedPolygon.current = polygon;
 
-            /** 🔥 '위치 기반' 지역 차량 검색 */
             const regionVehicles = vehicles.filter((v) => {
                 if (!v.lat || !v.lng) return false;
                 return isPointInPolygon(v.lat, v.lng, path);

@@ -1,5 +1,5 @@
 // src/components/Toggle.tsx
-import React, { useState, memo, useCallback } from "react";
+import  { useState, memo, useCallback } from "react";
 
 type ToggleProps = {
   defaultOn?: boolean;                // 초기 상태
