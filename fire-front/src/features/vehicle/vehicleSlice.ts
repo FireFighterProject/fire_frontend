@@ -13,7 +13,7 @@ import axios from "axios";
 const API_BASE = "http://172.28.5.94:8081";
 
 /* ======================================================
-    🔥 Redux 전용 axios 인스턴스 생성
+     Redux 전용 axios 인스턴스 생성
     - baseURL: /api/vehicles
     - ManageTab에서 사용하는 axios와 분리됨
 ====================================================== */
@@ -122,24 +122,31 @@ function mapApiToVehicle(v: ApiVehicle): Vehicle {
 /* ======================================================
     🔥 차량 목록 조회 Thunk (axios 인스턴스 사용)
 ====================================================== */
-export const fetchVehicles = createAsyncThunk<Vehicle[], any>(
+export const fetchVehicles = createAsyncThunk<Vehicle[], FetchVehiclesArgs | undefined>(
     "vehicle/fetchVehicles",
-    async (args) => {
-        const params: any = {};
+    async (args, { rejectWithValue }) => {
+        try {
+            const params: any = {};
 
-        if (args?.stationId) params.stationId = args.stationId;
-        if (args?.status) params.status = args.status;
-        if (args?.typeName) params.typeName = args.typeName;
+            if (args?.stationId) params.stationId = args.stationId;
+            if (args?.status) params.status = args.status;
+            if (args?.typeName) params.typeName = args.typeName;
 
-        // ❗ 백엔드 이름(callSign) 맞추기
-        if (args?.callSign) params.callSign = args.callSign;
+            // 백엔드 파라미터 callSign 통일
+            if (args?.callSignLike) params.callSign = args.callSignLike;
 
-        // ❗ 정확한 URL (슬래시 없음)
-        const res = await api.get("/vehicles", { params });
+            // 백엔드 요청
+            const res = await api.get<ApiVehicle[]>("/vehicles", { params });
 
-        return res.data.map(mapApiToVehicle);
+            // 매핑
+            return res.data.map(mapApiToVehicle);
+
+        } catch (err: any) {
+            return rejectWithValue(err.response?.data || "차량 로드 실패");
+        }
     }
 );
+
 
 /* ======================================================
     Slice 본체
