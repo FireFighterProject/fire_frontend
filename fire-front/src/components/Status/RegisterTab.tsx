@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/pages/Status.tsx
 import React, { useEffect, useRef, useState } from "react";
 import apiClient from "../../api/axios";
@@ -56,6 +57,7 @@ const api = apiClient;
 /* ===========================================================
     숫자 변환 — 빈칸이면 "", 숫자만 남기고 변환
 =========================================================== */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toNum = (v: any): number | "" => {
     if (v === null || v === undefined) return "";
 
@@ -136,6 +138,7 @@ function RegisterTab() {
     const [loading, setLoading] = useState(false);
     const fileRef = useRef<HTMLInputElement | null>(null);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const onChange = (key: keyof ApiVehicle, value: any) =>
         setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -200,7 +203,7 @@ function RegisterTab() {
                 avlNumber: String(r["AVL"] ?? "").trim(),
                 psLteNumber: String(r["PS-LTE"] ?? "").trim(),
             }));
-
+            
 
             setExcelRows(mapped);
         } catch (err) {

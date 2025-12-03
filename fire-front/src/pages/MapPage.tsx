@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { useKakaoLoader } from "../hooks/useKakaoLoader";
 
+import DragSelectLayer from "../components/map/DragSelectLayer";
 import MapStatsPanel from "../components/map/MapStatsPanel";
 import MapFilterPanel from "../components/map/MapFilterPanel";
 import PolygonLayer from "../components/map/PolygonLayer";
@@ -12,43 +13,44 @@ import type {
   Filters,
   MapStats,
   MarkerBundle,
-  Vehicle as MapVehicle,
+  MapVehicle,
 } from "../types/map";
 
-/* ===================== API 타입 ====================== */
-type ApiLastLocation = {
+
+// ===================== GPS API 타입 =====================
+type ApiGps = {
   vehicleId: number;
   latitude: number;
   longitude: number;
-  heading: number;
-  speedKph: number;
+  updatedAt?: string;
+  heading?: number;
+  speedKph?: number;
 };
+
+type ApiLastLocation = ApiGps;
 
 type Props = {
   vehicles?: MapVehicle[];
   headerHeight?: number;
 };
 
-const API_BASE = "http://172.28.5.94:8081";
+const API_BASE = "/api";
 const POLL_MS = 5000;
 
-/* ===================== 공통 함수 ====================== */
-const isValidCoord = (lat?: number, lng?: number) =>
+
+// ===================== 공통 함수 =====================
+const isValidCoord = (lat?: number, lng?: number): boolean =>
   typeof lat === "number" &&
   typeof lng === "number" &&
   !(lat === 0 && lng === 0);
 
-function normalizeStatus(raw: unknown): string {
+function normalizeStatus(raw: unknown): MapVehicle["status"] {
   if (raw === null || raw === undefined) return "기타";
 
   if (typeof raw === "number") {
-    return raw === 0
-      ? "대기"
-      : raw === 1
-        ? "활동"
-        : raw === 2
-          ? "철수"
-          : "기타";
+    return raw === 0 ? "대기" :
+      raw === 1 ? "활동" :
+        raw === 2 ? "철수" : "기타";
   }
 
   const s = String(raw).trim();
@@ -59,12 +61,15 @@ function normalizeStatus(raw: unknown): string {
   return "기타";
 }
 
-/* 🔥 차량 + GPS merge */
+
+// ===================== GPS + 차량 merge =====================
 function buildMapVehicles(
   last: ApiLastLocation[],
-  storeVehicles: Vehicle[]
+  storeVehicles: MapVehicle[]
 ): MapVehicle[] {
-  const byId = new Map<number, Vehicle>(storeVehicles.map((v) => [Number(v.id), v]));
+  const byId = new Map<number, MapVehicle>(
+    storeVehicles.map((v) => [Number(v.id), v])
+  );
 
   return last
     .map((l) => {
@@ -74,7 +79,12 @@ function buildMapVehicles(
 
       const mapped: MapVehicle = {
         id: base.id,
-        callname: String(base.callname ?? base.callSign ?? base.name ?? `V-${l.vehicleId}`),
+        callname: String(
+          base.callname ??
+          base.callSign ??
+          base.name ??
+          `V-${l.vehicleId}`
+        ),
         sido: String(base.sido ?? ""),
         station: String(base.station ?? base.stationName ?? ""),
         type: String(base.type ?? base.typeName ?? ""),
@@ -83,107 +93,110 @@ function buildMapVehicles(
         lat: l.latitude,
         lng: l.longitude,
         status: normalizeStatus(base.status),
+        heading: l.heading ?? 0,
+        speedKph: l.speedKph ?? 0,
       };
 
-      (mapped as any).heading = l.heading;
-      (mapped as any).speedKph = l.speedKph;
       return mapped;
     })
-    .filter(Boolean) as MapVehicle[];
+    .filter((v): v is MapVehicle => v !== null);
 }
 
-/* ======================================================= */
 
+
+// ===================== MapPage Component =====================
 const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
   const kakaoReady = useKakaoLoader();
 
   // 🔥 Redux 차량
-  const storeVehicles = useSelector((s: RootState) => s.vehicle.vehicles);
+  const storeVehicles = useSelector((s: RootState) => s.vehicle.vehicles) as MapVehicle[];
 
-  // 🔥 GPS + 차량 merge
+  // 🔥 GPS 데이터
   const [lastLocs, setLastLocs] = useState<ApiLastLocation[]>([]);
 
-  // 🔥 지역 선택 데이터
+  // 🔥 UI 상태
   const [selectedSido, setSelectedSido] = useState("");
 
-  // 🔥 통계 패널 숫자
   const [stats, setStats] = useState<MapStats>({
     visibleCount: 0,
     selectedAreaCount: 0,
+    dragAreaCount: 0,
     totalCount: 0,
   });
 
-  // 🔥 필터
   const [filters, setFilters] = useState<Filters>({
     sido: "",
     station: "",
     type: "",
   });
 
-  // 지도, 마커, 인포윈도우
+  // 지도 요소
   const mapRef = useRef<HTMLDivElement | null>(null);
   const map = useRef<kakao.maps.Map | null>(null);
   const markers = useRef<MarkerBundle[]>([]);
   const openedInfo = useRef<kakao.maps.InfoWindow | null>(null);
 
-  /* ================= GPS 데이터 polling ================= */
-  useEffect(() => {
-    let abort = new AbortController();
 
-    const fetchLast = async () => {
+  // ===================== GPS polling =====================
+  useEffect(() => {
+    const abort = new AbortController();
+
+    const fetchGps = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/gps/last-locations/all?stationId=1`, {
+        const res = await fetch(`${API_BASE}/gps/all`, {
           headers: { accept: "*/*" },
           signal: abort.signal,
         });
 
-        if (!res.ok) throw new Error("fetch error");
-        const data: ApiLastLocation[] = await res.json();
+        if (!res.ok) throw new Error("GPS fetch error");
+
+        const data: ApiGps[] = await res.json();
         setLastLocs(Array.isArray(data) ? data : []);
       } catch (err) {
-        if ((err as any)?.name !== "AbortError") {
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
           console.error("GPS fetch 실패:", err);
         }
       }
     };
 
-    fetchLast();
-    const timer = setInterval(fetchLast, POLL_MS);
+    fetchGps();
+    const intervalId = setInterval(fetchGps, POLL_MS);
 
     return () => {
       abort.abort();
-      clearInterval(timer);
+      clearInterval(intervalId);
     };
   }, []);
 
-  /* ================= GPS + 차량 merge ================= */
+
+
+  // ===================== GPS + 차량 merge =====================
   const joinedVehicles = useMemo(
-    () => buildMapVehicles(lastLocs, storeVehicles as any[]),
+    () => buildMapVehicles(lastLocs, storeVehicles),
     [lastLocs, storeVehicles]
   );
 
-  /* ================= 차량 목록 최종 결정 ================= */
+
+  // ===================== 최종 차량 데이터 =====================
   const data: MapVehicle[] = useMemo(() => {
     if (externalVehicles?.length) return externalVehicles;
     if (joinedVehicles.length) return joinedVehicles;
 
-    return (storeVehicles as any[])
+    const safeVehicles = storeVehicles
       .filter((v) => v && isValidCoord(v.lat, v.lng))
-      .map((v) => ({
-        id: v.id,
-        callname: v.callname,
-        sido: v.sido,
-        station: v.station,
-        type: v.type,
-        personnel: Number(v.personnel) || 0,
-        dispatchPlace: v.dispatchPlace ?? "",
-        lat: v.lat,
-        lng: v.lng,
+      .map((v): MapVehicle => ({
+        ...v,
+        lat: v.lat ?? 0,
+        lng: v.lng ?? 0,
         status: normalizeStatus(v.status),
-      })) as MapVehicle[];
+      }));
+
+    return safeVehicles;
   }, [externalVehicles, joinedVehicles, storeVehicles]);
 
-  /* ================= 필터 처리 ================= */
+
+
+  // ===================== 필터 처리 =====================
   const filtered = useMemo(() => {
     return data.filter(
       (v) =>
@@ -193,7 +206,9 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
     );
   }, [data, filters]);
 
-  /* ================= 필터 옵션 ================= */
+
+
+  // ===================== 필터 옵션 =====================
   const options = useMemo(() => {
     const sidos = [...new Set(data.map((v) => v.sido))].sort();
     const stations = [...new Set(data.map((v) => v.station))].sort();
@@ -201,7 +216,9 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
     return { sidos, stations, types };
   }, [data]);
 
-  /* ================= 지도 초기화 ================= */
+
+
+  // ===================== 지도 초기화 =====================
   useEffect(() => {
     if (!kakaoReady || !mapRef.current) return;
 
@@ -215,11 +232,11 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
 
     m.addControl(new kakao.maps.ZoomControl(), kakao.maps.ControlPosition.RIGHT);
     m.addControl(new kakao.maps.MapTypeControl(), kakao.maps.ControlPosition.TOPRIGHT);
-
-    return () => { };
   }, [kakaoReady]);
 
-  /* ================= 마커 렌더링 ================= */
+
+
+  // ===================== 마커 렌더링 =====================
   const clearMarkers = () => {
     markers.current.forEach((m) => {
       m.marker.setMap(null);
@@ -242,14 +259,14 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
       });
 
       const content = `
-      <div style="min-width:220px;padding:8px 10px;border-radius:8px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.12);">
-        <div style="font-weight:600;margin-bottom:4px">${v.callname}</div>
-        <div style="font-size:12px;line-height:1.5">
-          <div><b>시/도</b> ${v.sido} · <b>소방서</b> ${v.station}</div>
-          <div><b>종류</b> ${v.type} · <b>인원</b> ${v.personnel}명</div>
-          <div><b>출동 장소</b> ${v.dispatchPlace ?? "-"}</div>
-        </div>
-      </div>`.trim();
+        <div style="min-width:220px;padding:8px 10px;border-radius:8px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.12);">
+          <div style="font-weight:600;margin-bottom:4px">${v.callname}</div>
+          <div style="font-size:12px;line-height:1.5">
+            <div><b>시/도</b> ${v.sido} · <b>소방서</b> ${v.station}</div>
+            <div><b>종류</b> ${v.type} · <b>인원</b> ${v.personnel}명</div>
+            <div><b>출동 장소</b> ${v.dispatchPlace ?? "-"}</div>
+          </div>
+        </div>`.trim();
 
       const info = new kakao.maps.InfoWindow({ content });
 
@@ -268,6 +285,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
     });
   };
 
+
   useEffect(() => {
     if (!map.current || !kakaoReady) return;
 
@@ -278,9 +296,11 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
       visibleCount: filtered.length,
       totalCount: data.length,
     }));
-  }, [filtered, kakaoReady]);
+  }, [filtered, kakaoReady, data.length]);
 
-  /* ================= 지역 클릭 콜백 ================= */
+
+
+  // ===================== 지역 클릭 =====================
   const handleRegionSelect = (regionName: string, regionData: MapVehicle[]) => {
     setSelectedSido(regionName);
 
@@ -290,7 +310,8 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
     }));
   };
 
-  /* ================= 필터 리셋 ================= */
+
+  // ===================== 필터 리셋 =====================
   const resetFilters = () => {
     setFilters({ sido: "", station: "", type: "" });
     setSelectedSido("");
@@ -304,9 +325,11 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
   const changeFilter = (k: keyof Filters, v: string) =>
     setFilters((prev) => ({ ...prev, [k]: v }));
 
+
+
+  // ===================== 렌더링 =====================
   const topOffset = headerHeight + 14;
 
-  /* ================= 렌더링 ================= */
   return (
     <div className="fixed inset-0 -z-20">
       <div
@@ -316,7 +339,6 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
         <div ref={mapRef} className="absolute inset-0" />
       </div>
 
-      {/* 🔥 폴리곤 layer */}
       {map.current && (
         <PolygonLayer
           map={map.current}
@@ -325,14 +347,25 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
         />
       )}
 
-      {/* 통계 패널 */}
+      {map.current && (
+        <DragSelectLayer
+          map={map.current}
+          vehicles={data}
+          onSelect={(selected) => {
+            setStats((s) => ({
+              ...s,
+              dragAreaCount: selected.length,
+            }));
+          }}
+        />
+      )}
+
       <MapStatsPanel
         top={topOffset}
         stats={stats}
         selectedSido={selectedSido}
       />
 
-      {/* 필터 패널 */}
       <MapFilterPanel
         top={topOffset}
         data={filtered}

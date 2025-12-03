@@ -1,5 +1,5 @@
 // src/pages/Dispatch.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import KakaoMapModal from "../components/Dispatch/KakaoMapModal";
 import type { RootState, AppDispatch } from "../store";
@@ -60,16 +60,19 @@ const mapApiToVehicle = (
   station?: ApiFireStation
 ): Vehicle => ({
   id: String(v.id),
+  stationId: v.stationId,
   sido: v.sido ?? station?.sido ?? "",
   station: station?.name ?? "",
   type: v.typeName,
   callname: v.callSign,
-  capacity: v.capacity ?? 0,
-  personnel: v.personnel ?? 0,
+  capacity: String(v.capacity ?? "0"),
+  personnel: String(v.personnel ?? "0"),
   avl: v.avlNumber ?? "",
   pslte: v.psLteNumber ?? "",
   status: STATUS_LABELS[v.status],
   rally: v.rallyPoint === 1,
+  dispatchPlace: "",
+  content: "",
 });
 
 /* ================================================================
@@ -81,14 +84,14 @@ const DispatchPage: React.FC = () => {
 
   const [fetching, setFetching] = useState(false);
 
-  /* 출동 생성 패널 상태 */
+  /* 출동 생성 */
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [address, setAddress] = useState("");
   const [pos, setPos] = useState<{ lat: number; lng: number } | null>(null);
   const [mapOpen, setMapOpen] = useState(false);
 
-  /* 편성 상태 */
+  /* 편성 */
   const [selected, setSelected] = useState<string[]>([]);
   const [assigned, setAssigned] = useState<string[]>([]);
 
@@ -97,7 +100,7 @@ const DispatchPage: React.FC = () => {
     useState<Record<number, ApiFireStation>>({});
 
   /* ===========================
-      소방서 정보 조회
+        소방서 정보 조회
   ============================ */
   const getStations = async (ids: number[]) => {
     const unique = Array.from(new Set(ids));
@@ -108,9 +111,7 @@ const DispatchPage: React.FC = () => {
     if (need.length) {
       fetched = await Promise.all(
         need.map((id) =>
-          api
-            .get<ApiFireStation>(`/fire-stations/${id}`)
-            .then((r) => [id, r.data] as const)
+          api.get<ApiFireStation>(`/fire-stations/${id}`).then((r): [number, ApiFireStation] => [id, r.data])
         )
       );
     }
@@ -124,11 +125,12 @@ const DispatchPage: React.FC = () => {
   };
 
   /* ===========================
-      차량 불러오기
+        차량 불러오기 (+로딩 UI)
   ============================ */
-  const fetchVehicles = async () => {
+  const fetchVehicles = useCallback(async () => {
     try {
       setFetching(true);
+
       const res = await api.get<ApiVehicleListItem[]>("/vehicles");
       const list = res.data ?? [];
 
@@ -141,14 +143,14 @@ const DispatchPage: React.FC = () => {
     } finally {
       setFetching(false);
     }
-  };
+  }, [dispatch, stationCache]);
 
   useEffect(() => {
     fetchVehicles();
-  }, []);
+  }, [fetchVehicles]);
 
   /* ===========================
-      체크박스 선택
+        차량 선택
   ============================ */
   const toggleSelect = (id: string) => {
     setSelected((prev) =>
@@ -157,7 +159,7 @@ const DispatchPage: React.FC = () => {
   };
 
   /* ===========================
-      차량 정렬
+        차량 정렬
   ============================ */
   const sortedVehicles = useMemo(() => {
     return [...vehicles].sort((a, b) =>
@@ -166,7 +168,7 @@ const DispatchPage: React.FC = () => {
   }, [vehicles]);
 
   /* ===========================
-      로컬 편성
+        로컬 편성
   ============================ */
   const handleAssignLocal = () => {
     if (selected.length === 0) return alert("차량을 선택하세요.");
@@ -179,7 +181,7 @@ const DispatchPage: React.FC = () => {
   };
 
   /* ===========================
-      출동 발송 (전체 자동)
+        출동 발송
   ============================ */
   const handleSendAll = async () => {
     if (!title.trim()) return alert("출동 제목을 입력하세요.");
@@ -187,7 +189,6 @@ const DispatchPage: React.FC = () => {
     if (assigned.length === 0) return alert("편성된 차량이 없습니다.");
 
     try {
-      /* 1) 출동 명령 생성 */
       const res = await createDispatchOrder({
         stationId: 1,
         title,
@@ -196,22 +197,18 @@ const DispatchPage: React.FC = () => {
 
       const orderId = res.data.dispatchOrderId;
 
-      /* 2) 차량 편성 */
       for (const vid of assigned) {
         await assignVehicle(orderId, Number(vid));
       }
 
-      /* 3) 차량 상태 변경 (출동중) */
       for (const vid of assigned) {
         await api.patch(`/vehicles/${vid}/status`, { status: 1 });
       }
 
-      /* 4) 출동 발송 */
       await sendDispatchOrder(orderId);
 
       alert("출동 완료!");
 
-      /* 초기화 */
       setTitle("");
       setDescription("");
       setAddress("");
@@ -226,12 +223,24 @@ const DispatchPage: React.FC = () => {
   };
 
   /* ===========================
-      UI
+        UI
   ============================ */
   return (
     <div className="p-6 space-y-6">
 
-      {/* 출동 생성 패널 */}
+      {/* 차량 새로고침 버튼 */}
+      <div className="flex justify-end mb-3">
+        <button
+          onClick={fetchVehicles}
+          disabled={fetching}
+          className={`px-4 py-2 rounded text-white 
+            ${fetching ? "bg-gray-400" : "bg-green-600 hover:bg-green-700"}`}
+        >
+          {fetching ? "불러오는 중..." : "차량 새로고침"}
+        </button>
+      </div>
+
+      {/* 출동 생성 영역 */}
       <section className="border rounded p-4 bg-gray-50 space-y-3">
         <h2 className="font-bold text-lg">출동 생성</h2>
 
@@ -284,7 +293,7 @@ const DispatchPage: React.FC = () => {
         </button>
       </section>
 
-      {/* 편성된 차량 패널 */}
+      {/* 편성된 차량 */}
       <section className="border rounded p-4 bg-gray-100 space-y-2">
         <h2 className="font-bold text-lg">편성된 차량</h2>
 
@@ -323,63 +332,66 @@ const DispatchPage: React.FC = () => {
           <button
             className="px-3 py-2 bg-blue-600 text-white rounded"
             onClick={handleAssignLocal}
+            disabled={fetching}
           >
             차량 편성
           </button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-[1200px] w-full border text-sm">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="border px-2 py-1">선택</th>
-                <th className="border px-2 py-1">시도</th>
-                <th className="border px-2 py-1">소방서</th>
-                <th className="border px-2 py-1">차종</th>
-                <th className="border px-2 py-1">호출명</th>
-                <th className="border px-2 py-1">용량</th>
-                <th className="border px-2 py-1">인원</th>
-                <th className="border px-2 py-1">AVL</th>
-                <th className="border px-2 py-1">PS-LTE</th>
-                <th className="border px-2 py-1">상태</th>
-                <th className="border px-2 py-1">집결지</th>
-              </tr>
-            </thead>
+        {/* 🔥 로딩 UI */}
+        {fetching ? (
+          <div className="text-center py-10 text-gray-500 text-sm">
+            차량 정보를 불러오는 중입니다...
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-[1200px] w-full border text-sm">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="border px-2 py-1">선택</th>
+                  <th className="border px-2 py-1">시도</th>
+                  <th className="border px-2 py-1">소방서</th>
+                  <th className="border px-2 py-1">차종</th>
+                  <th className="border px-2 py-1">호출명</th>
+                  <th className="border px-2 py-1">용량</th>
+                  <th className="border px-2 py-1">인원</th>
+                  <th className="border px-2 py-1">AVL</th>
+                  <th className="border px-2 py-1">PS-LTE</th>
+                  <th className="border px-2 py-1">상태</th>
+                  <th className="border px-2 py-1">집결지</th>
+                </tr>
+              </thead>
 
-            <tbody>
-              {sortedVehicles
-                .filter((v) => v.status === "대기")
-                .map((v) => (
-                  <tr key={v.id} className="even:bg-gray-50">
-                    <td className="border px-2 py-1 text-center">
-                      <input
-                        type="checkbox"
-                        checked={selected.includes(v.id)}
-                        onChange={() => toggleSelect(v.id)}
-                      />
-                    </td>
-
-                    <td className="border px-2 py-1 text-center">{v.sido}</td>
-                    <td className="border px-2 py-1">{v.station}</td>
-                    <td className="border px-2 py-1 text-center">{v.type}</td>
-                    <td className="border px-2 py-1">{v.callname}</td>
-                    <td className="border px-2 py-1 text-right">
-                      {v.capacity}
-                    </td>
-                    <td className="border px-2 py-1 text-center">
-                      {v.personnel}
-                    </td>
-                    <td className="border px-2 py-1">{v.avl}</td>
-                    <td className="border px-2 py-1">{v.pslte}</td>
-                    <td className="border px-2 py-1 text-center">{v.status}</td>
-                    <td className="border px-2 py-1 text-center">
-                      {v.rally ? "O" : "X"}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
+              <tbody>
+                {sortedVehicles
+                  .filter((v) => v.status === "대기")
+                  .map((v) => (
+                    <tr key={v.id} className="even:bg-gray-50">
+                      <td className="border px-2 py-1 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selected.includes(String(v.id))}
+                          onChange={() => toggleSelect(String(v.id))}
+                        />
+                      </td>
+                      <td className="border px-2 py-1 text-center">{v.sido}</td>
+                      <td className="border px-2 py-1">{v.station}</td>
+                      <td className="border px-2 py-1 text-center">{v.type}</td>
+                      <td className="border px-2 py-1">{v.callname}</td>
+                      <td className="border px-2 py-1 text-right">{v.capacity}</td>
+                      <td className="border px-2 py-1 text-center">{v.personnel}</td>
+                      <td className="border px-2 py-1">{v.avl}</td>
+                      <td className="border px-2 py-1">{v.pslte}</td>
+                      <td className="border px-2 py-1 text-center">{v.status}</td>
+                      <td className="border px-2 py-1 text-center">
+                        {v.rally ? "O" : "X"}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       {/* MAP 모달 */}

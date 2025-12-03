@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Cloud, MapPin, Droplets, Wind } from "lucide-react";
 import {
     LineChart,
@@ -10,14 +10,53 @@ import {
     ResponsiveContainer,
 } from "recharts";
 
+/* ------------------------------
+    타입 정의
+------------------------------ */
+type WeatherItem = {
+    baseDate: string;
+    baseTime: string;
+    category: string;
+    fcstDate: string;
+    fcstTime: string; // HHMM
+    fcstValue: string;
+    nx: number;
+    ny: number;
+};
+
+type WeatherResponse = {
+    response: {
+        body: {
+            items: {
+                item: WeatherItem[];
+            };
+        };
+    };
+};
+
+type CurrentWeather = {
+    temp: string;
+    sky?: string;
+    pty?: string;
+    pop?: string;
+    wsd?: string;
+};
+
+type HourlyPoint = {
+    time: string;
+    temp: number;
+};
+
+/* ------------------------------ */
+
 const Forecast: React.FC = () => {
     const [mode, setMode] = useState<"current" | "hourly">("current");
     const [selectedRegion, setSelectedRegion] = useState("대구");
     const [loading, setLoading] = useState(false);
-    const [currentWeather, setCurrentWeather] = useState<any>(null);
-    const [hourlyData, setHourlyData] = useState<any[]>([]);
+    const [currentWeather, setCurrentWeather] = useState<CurrentWeather | null>(null);
+    const [hourlyData, setHourlyData] = useState<HourlyPoint[]>([]);
 
-    // 지역 → 격자 좌표 (기상청 공식)
+    // 지역 → 격자 좌표
     const regionCoords: Record<string, { nx: number; ny: number }> = {
         서울: { nx: 60, ny: 127 },
         부산: { nx: 98, ny: 76 },
@@ -26,18 +65,16 @@ const Forecast: React.FC = () => {
         인천: { nx: 55, ny: 124 },
     };
 
-    // 오늘 날짜와 가장 가까운 base_time 계산
+    // 발표 시각 계산
     const getBaseDateTime = () => {
         const now = new Date();
         const date = now.toISOString().slice(0, 10).replace(/-/g, "");
         const hours = now.getHours();
 
-        // 기상청 발표 시각: 02, 05, 08, 11, 14, 17, 20, 23
         const availableTimes = [2, 5, 8, 11, 14, 17, 20, 23];
         const baseHour =
-            availableTimes
-                .filter((t) => t <= hours)
-                .slice(-1)[0] || availableTimes[availableTimes.length - 1];
+            availableTimes.filter((t) => t <= hours).slice(-1)[0] ??
+            availableTimes[availableTimes.length - 1];
 
         return {
             baseDate: date,
@@ -45,7 +82,10 @@ const Forecast: React.FC = () => {
         };
     };
 
-    const fetchWeather = async () => {
+    /* ------------------------------
+        기상 데이터 호출
+    ------------------------------ */
+    const fetchWeather = useCallback(async () => {
         setLoading(true);
 
         try {
@@ -55,42 +95,42 @@ const Forecast: React.FC = () => {
             const url = `/api/weather/village-forecast?baseDate=${baseDate}&baseTime=${baseTime}&nx=${nx}&ny=${ny}`;
 
             const res = await fetch(url);
-            const json = await res.json();
+            const json: WeatherResponse = await res.json();
 
-            if (!json?.response?.body?.items?.item) {
-                throw new Error("기상청 데이터 없음");
-            }
+            const items = json?.response?.body?.items?.item;
+            if (!items) throw new Error("기상청 데이터 없음");
 
-            const items = json.response.body.items.item;
-
-            // 현재와 가장 가까운 TMP(기온) 데이터 찾기
+            // 현재 시간과 가장 가까운 예보시간
             const now = new Date();
             const nowHM = Number(now.getHours().toString().padStart(2, "0") + "00");
 
-            let closest = items
-                .filter((d: any) => d.category === "TMP")
-                .reduce((prev: any, curr: any) => {
-                    const diffPrev = Math.abs(prev.fcstTime - nowHM);
-                    const diffCurr = Math.abs(curr.fcstTime - nowHM);
-                    return diffCurr < diffPrev ? curr : prev;
-                });
+            const tmpList = items.filter((d) => d.category === "TMP");
+            if (tmpList.length === 0) return;
+
+            const closest = tmpList.reduce((prev, curr) => {
+                const diffPrev = Math.abs(Number(prev.fcstTime) - nowHM);
+                const diffCurr = Math.abs(Number(curr.fcstTime) - nowHM);
+                return diffCurr < diffPrev ? curr : prev;
+            });
+
+            const sky = items.find((d) => d.category === "SKY" && d.fcstTime === closest.fcstTime)?.fcstValue;
+            const pty = items.find((d) => d.category === "PTY" && d.fcstTime === closest.fcstTime)?.fcstValue;
+            const pop = items.find((d) => d.category === "POP" && d.fcstTime === closest.fcstTime)?.fcstValue;
+            const wsd = items.find((d) => d.category === "WSD" && d.fcstTime === closest.fcstTime)?.fcstValue;
 
             setCurrentWeather({
                 temp: closest.fcstValue,
-                sky: items.find((d: any) => d.category === "SKY" && d.fcstTime === closest.fcstTime)?.fcstValue,
-                pty: items.find((d: any) => d.category === "PTY" && d.fcstTime === closest.fcstTime)?.fcstValue,
-                pop: items.find((d: any) => d.category === "POP" && d.fcstTime === closest.fcstTime)?.fcstValue,
-                wsd: items.find((d: any) => d.category === "WSD" && d.fcstTime === closest.fcstTime)?.fcstValue,
+                sky,
+                pty,
+                pop,
+                wsd,
             });
 
             // 시간별 그래프 데이터
-            const hourly = items
-                .filter((d: any) => d.category === "TMP")
-                .slice(0, 8)
-                .map((d: any) => ({
-                    time: d.fcstTime.slice(0, 2) + "시",
-                    temp: Number(d.fcstValue),
-                }));
+            const hourly = tmpList.slice(0, 8).map((d) => ({
+                time: d.fcstTime.slice(0, 2) + "시",
+                temp: Number(d.fcstValue),
+            }));
 
             setHourlyData(hourly);
         } catch (e) {
@@ -98,11 +138,11 @@ const Forecast: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [selectedRegion]);
 
     useEffect(() => {
         fetchWeather();
-    }, [selectedRegion]);
+    }, [fetchWeather]);
 
     return (
         <div className="min-w-xl mx-auto bg-white shadow-md rounded-3xl p-8">
@@ -117,7 +157,7 @@ const Forecast: React.FC = () => {
                 </span>
             </div>
 
-            {/* 모드 선택 + 지역 선택 */}
+            {/* 모드 선택 */}
             <div className="flex justify-between items-center mb-4">
                 <div className="flex gap-2">
                     {["현재", "시간별"].map((label) => (
@@ -136,6 +176,7 @@ const Forecast: React.FC = () => {
                     ))}
                 </div>
 
+                {/* 지역 선택 */}
                 <select
                     className="border px-3 py-2 rounded-lg"
                     value={selectedRegion}
@@ -190,9 +231,7 @@ const Forecast: React.FC = () => {
             {/* 시간별 그래프 */}
             {mode === "hourly" && (
                 <div className="mt-8">
-                    <h3 className="text-lg font-semibold mb-3">
-                        {selectedRegion} 시간별 온도
-                    </h3>
+                    <h3 className="text-lg font-semibold mb-3">{selectedRegion} 시간별 온도</h3>
 
                     <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">

@@ -26,7 +26,8 @@ const ActivityRow: React.FC<Props> = ({ vehicle, onReturn}) => {
                         지도
                     </button>
                     <button
-                        onClick={() => onReturn(vehicle.id)}
+                        onClick={() => onReturn(String(vehicle.id))}
+
                         className="bg-blue-500 text-white text-xs px-2 py-1 rounded hover:bg-blue-600"
                     >
                         복귀

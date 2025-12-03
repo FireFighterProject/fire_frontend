@@ -1,39 +1,60 @@
 // src/components/manage/FilterBar.tsx
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import type { Vehicle } from "../../../types/vehicle";
 
-export default function FilterBar({ rows, query, setQuery, allStations }) {
+export type FilterQuery = {
+    sido: string;
+    stationId: string | number | "";
+    status: string | number | "";
+    typeName: string;
+    callSign: string;
+};
 
-    const [tempQuery, setTempQuery] = useState({
+export type FireStation = {
+    id: number;
+    sido: string;
+    name: string;
+};
+
+type Props = {
+    rows: Vehicle[];
+    query: FilterQuery;
+    setQuery: (q: FilterQuery) => void;
+    allStations: FireStation[];
+};
+
+export default function FilterBar({ rows, query, setQuery, allStations }: Props) {
+    const [tempQuery, setTempQuery] = useState<FilterQuery>({
         ...query,
         sido: query.sido ?? "",
     });
 
     const [sidoList, setSidoList] = useState<string[]>([]);
-    const [selectedSido, setSelectedSido] = useState(query.sido ?? "");
-    const [stations, setStations] = useState<any[]>([]);
-    const [selectedStationName, setSelectedStationName] = useState("");
+    const [selectedSido, setSelectedSido] = useState<string>(query.sido ?? "");
+    const [stations, setStations] = useState<FireStation[]>([]);
+    const [selectedStationName, setSelectedStationName] = useState<string>("");
 
-    // query → tempQuery 동기화
+    // query 갱신 → tempQuery에도 반영
     useEffect(() => {
         setTempQuery((prev) => ({ ...prev, ...query }));
         setSelectedSido(query.sido || "");
     }, [query]);
 
-    // 시도 목록 추출
+    // 🔥 rows에서 시도 목록 추출
     useEffect(() => {
         const sidos = Array.from(
-            new Set(rows.map((r) => r.sido).filter(Boolean))
+            new Set(rows.map((r) => r.sido).filter((v): v is string => Boolean(v)))
         );
         setSidoList(sidos);
     }, [rows]);
 
-    // 시도 선택
+    // 🔥 시도 선택
     const handleSidoChange = (value: string) => {
         setSelectedSido(value);
         setSelectedStationName("");
 
         if (!value) {
-            // 전체 선택 → stationId도 초기화
+            // 전체 초기화
             setStations([]);
             setTempQuery((q) => ({ ...q, sido: "", stationId: "" }));
             return;
@@ -43,22 +64,20 @@ export default function FilterBar({ rows, query, setQuery, allStations }) {
         const filtered = allStations.filter((s) => s.sido === value);
         setStations(filtered);
 
-        // 시도만 적용, stationId 초기화
         setTempQuery((q) => ({ ...q, sido: value, stationId: "" }));
     };
 
-    // 소방서 선택
+    // 🔥 소방서 선택
     const handleStationChange = (name: string) => {
         setSelectedStationName(name);
 
         const found = stations.find((s) => s.name === name);
         setTempQuery((q) => ({
             ...q,
-            stationId: found ? found.id : "",
+            stationId: found?.id ?? "",
         }));
     };
 
-    // 적용 버튼
     const applyFilters = () => {
         setQuery(tempQuery);
     };
@@ -76,7 +95,7 @@ export default function FilterBar({ rows, query, setQuery, allStations }) {
                 >
                     <option value="">전체</option>
                     {sidoList.map((s) => (
-                        <option key={s}>{s}</option>
+                        <option key={s} value={s}>{s}</option>
                     ))}
                 </select>
             </div>
@@ -108,8 +127,7 @@ export default function FilterBar({ rows, query, setQuery, allStations }) {
                     onChange={(e) =>
                         setTempQuery((q) => ({
                             ...q,
-                            status:
-                                e.target.value === "" ? "" : Number(e.target.value),
+                            status: e.target.value === "" ? "" : Number(e.target.value),
                         }))
                     }
                 >
@@ -142,7 +160,7 @@ export default function FilterBar({ rows, query, setQuery, allStations }) {
                     onChange={(e) =>
                         setTempQuery((q) => ({ ...q, callSign: e.target.value }))
                     }
-                    placeholder="예: 강남소방서-01"
+                    placeholder="예: 강남-01"
                 />
             </div>
 

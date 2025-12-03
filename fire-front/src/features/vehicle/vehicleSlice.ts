@@ -126,7 +126,7 @@ export const fetchVehicles = createAsyncThunk<Vehicle[], FetchVehiclesArgs | und
     "vehicle/fetchVehicles",
     async (args, { rejectWithValue }) => {
         try {
-            const params: any = {};
+            const params: Record<string, string | number> = {};
 
             if (args?.stationId) params.stationId = args.stationId;
             if (args?.status) params.status = args.status;
@@ -141,8 +141,11 @@ export const fetchVehicles = createAsyncThunk<Vehicle[], FetchVehiclesArgs | und
             // 매핑
             return res.data.map(mapApiToVehicle);
 
-        } catch (err: any) {
-            return rejectWithValue(err.response?.data || "차량 로드 실패");
+        } catch (err: unknown) {
+            if (axios.isAxiosError(err) && err.response) {
+                return rejectWithValue(err.response.data || "차량 로드 실패");
+            }
+            return rejectWithValue("차량 로드 실패");
         }
     }
 );
@@ -214,7 +217,7 @@ const vehicleSlice = createSlice({
         bulkUpdateStatus(state, action: PayloadAction<{ ids: string[]; status: VehicleStatus }>) {
             const { ids, status } = action.payload;
             state.vehicles.forEach(v => {
-                if (ids.includes(v.id)) v.status = status;
+                if (ids.includes(String(v.id))) v.status = status;
             });
             localStorage.setItem("vehicles", JSON.stringify(state.vehicles));
         },
@@ -339,7 +342,7 @@ export const selectStatusCounts = createSelector([selectVehicles], (items) => {
         활동: 0,
         철수: 0,
     };
-    for (const v of items) counts[v.status]++;
+    for (const v of items) counts[v.status as VehicleStatus]++;
     return counts;
 });
 

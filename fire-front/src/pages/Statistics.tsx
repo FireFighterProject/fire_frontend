@@ -15,7 +15,7 @@ const by = <T, K extends string | number>(arr: T[], key: (x: T) => K) =>
     const k = key(x);
     (m[k] ??= []).push(x);
     return m;
-  }, {} as any);
+  }, {} as Record<K, T[]>);
 
 /* ========= 서버 응답(차량) & 매핑 ========= */
 type ApiVehicleListItem = {
@@ -213,7 +213,7 @@ const TabGeneral: React.FC<{ vehicles: Vehicle[] }> = ({ vehicles }) => {
     <>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <KPI title="등록 차량" value={vehicles.length} />
-        <KPI title="총 인원 합계" value={sum(vehicles.map((v) => v.personnel ?? 0))} />
+        <KPI title="총 인원 합계" value={sum(vehicles.map((v) => Number(v.personnel) || 0))} />
         <KPI title="평균 활동 시간(분/대)" value={avg(LOGS.map((l) => l.minutes))} />
       </div>
 
