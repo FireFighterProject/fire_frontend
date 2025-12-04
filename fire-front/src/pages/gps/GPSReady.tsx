@@ -7,19 +7,40 @@ const GPSReady = () => {
     const [params] = useSearchParams();
     const navigate = useNavigate();
 
-    // 요청 정보
     const missionId = params.get("missionId") ?? "";
     const vehicle = params.get("vehicle") ?? "";
-    const title = params.get("title") ?? "";
-    const address = params.get("address") ?? "";
-    const desc = params.get("desc") ?? "";
+
+    // 🆕 서버에서 받아온 출동 정보
+    const [title, setTitle] = useState("");
+    const [address, setAddress] = useState("");
+    const [desc, setDesc] = useState("");
 
     // GPS 상태
     const [lat, setLat] = useState<number | null>(null);
     const [lon, setLon] = useState<number | null>(null);
     const [error, setError] = useState("");
 
-    // 최초 1회 GPS 정보 가져오기
+    // 🆕 출동 정보 자동 불러오기
+    useEffect(() => {
+        async function loadOrder() {
+            if (!missionId) return;
+
+            try {
+                const res = await api.get(`/dispatch-orders/${missionId}`);
+
+                setTitle(res.data.title);
+                setAddress(res.data.address);
+                setDesc(res.data.content);
+
+            } catch (e) {
+                console.error("출동 정보 조회 실패", e);
+            }
+        }
+
+        loadOrder();
+    }, [missionId]);
+
+    // GPS 최초 1회 가져오기
     useEffect(() => {
         navigator.geolocation.getCurrentPosition(
             (pos) => {
@@ -31,7 +52,7 @@ const GPSReady = () => {
         );
     }, []);
 
-//  출동 시작 버튼
+    // 출동 시작
     const handleStart = async () => {
         if (lat === null || lon === null) {
             alert("GPS 정보를 불러오는 중입니다.");
@@ -39,16 +60,14 @@ const GPSReady = () => {
         }
 
         try {
-            // GPS 1회 BE 전송
             await api.post("/gps/send", {
                 vehicleId: Number(vehicle),
                 latitude: lat,
                 longitude: lon,
             });
 
-            // Status 페이지로 전달
             navigate(
-                `/gps/status?missionId=${missionId}&vehicle=${vehicle}&title=${title}&address=${address}&desc=${desc}`
+                `/gps/status?missionId=${missionId}&vehicle=${vehicle}`
             );
         } catch (err) {
             console.error(err);
@@ -64,7 +83,7 @@ const GPSReady = () => {
                     🚨 출동 요청
                 </h2>
 
-                {/* 요청 정보 */}
+                {/* 출동 정보 */}
                 <div className="bg-white rounded-xl shadow p-4 space-y-3">
                     <p><strong>제목:</strong> {title}</p>
                     <p><strong>주소:</strong> {address}</p>
