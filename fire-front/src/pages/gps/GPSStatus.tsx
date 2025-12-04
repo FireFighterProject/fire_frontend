@@ -29,6 +29,7 @@ const GPSStatus = () => {
     const [lon, setLon] = useState<number | null>(null);
     const [gpsStatus, setGpsStatus] = useState("준비중");
 
+
     /* ============================================
      * 🔥 출동 상세 정보 자동 불러오기
      * ============================================ */
@@ -78,6 +79,22 @@ const GPSStatus = () => {
 
         return () => clearInterval(interval);
     }, [vehicleId]);
+    //페이지 꺼짐방지
+    // 🔒 브라우저 종료 방지 - GPS 추적 중 보호
+    useEffect(() => {
+        const handler = (e: BeforeUnloadEvent) => {
+            e.preventDefault();
+            e.returnValue = ""; // Chrome 기준 필수
+        };
+
+        // GPS 추적 시작 → 종료 방지 활성화
+        window.addEventListener("beforeunload", handler);
+
+        return () => {
+            // 페이지 떠날 때 자동 해제
+            window.removeEventListener("beforeunload", handler);
+        };
+    }, []);
 
     /* ============================================
      * 🔥 상황 종료
