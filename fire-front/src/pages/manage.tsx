@@ -5,11 +5,9 @@ import { useSelector, useDispatch } from "react-redux";
 import type { AppDispatch } from "../store";
 import type { RootState } from "../store";
 import type { Vehicle } from "../types/global";
-import axios from "axios";
+import apiClient from "../api/axios";
 import { fetchVehicles } from "../features/vehicle/vehicleSlice";
 
-const API_BASE = "http://172.28.5.94:8081";
-const api = axios.create({ baseURL: `${API_BASE}/api` });
 
 /* =========================
  * 타입 키
@@ -262,7 +260,7 @@ const Manage: React.FC = () => {
     if (assigned.length === 0) return alert("편성된 차량이 없습니다.");
 
     try {
-      const createRes = await api.post("/dispatch-orders", {
+      const createRes = await apiClient.post("/dispatch-orders", {
         title,
         address: addr,
         content: desc,
@@ -270,7 +268,7 @@ const Manage: React.FC = () => {
 
       const orderId = createRes.data.id;
 
-      await api.post(`/dispatch-orders/${orderId}/assign`, {
+      await apiClient.post(`/dispatch-orders/${orderId}/assign`, {
         vehicleIds: assigned.map((v) => v.id),
       });
 
