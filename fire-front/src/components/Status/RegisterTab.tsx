@@ -109,6 +109,10 @@ const toFullSido = (raw: string = "") => {
     return SIDO_MAP[cleaned] ?? cleaned;
 };
 
+const normalizeStationName = (name: string) => {
+    if (!name) return "";
+    return name.endsWith("소방서") ? name : `${name}소방서`;
+};
 
 /* ================================================
     RegisterTab
@@ -186,7 +190,7 @@ function RegisterTab() {
                 id: `${file.name}-${i}`,
 
                 sido: toFullSido(String(r["시도"] ?? "").trim()),
-                stationName: String(r["소방서"] ?? "").trim(),
+                stationName: normalizeStationName(String(r["소방서"] ?? "").trim()),
 
                 typeName: String(r["차종"] ?? "").trim(),
                 callSign: String(r["호출명"] ?? "").trim(),
@@ -268,7 +272,7 @@ function RegisterTab() {
 
         try {
             setLoading(true);
-            await apiClient.post("/Vehicles", payload);
+            await apiClient.post("/vehicles", payload);
             alert("등록 완료");
 
             setForm({
