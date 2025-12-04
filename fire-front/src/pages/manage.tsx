@@ -255,10 +255,14 @@ const Manage: React.FC = () => {
 
 
   async function sendSms(vehicleId: string | number, text: string) {
-    console.log("📨 문자 발송 요청", { vehicleId, text });
+    console.log("📨 문자 발송 요청(POST)", {
+      vehicleId,
+      text
+    });
 
-    return apiClient.get("/sms/to-vehicle", {
-      params: { vehicleId, text },
+    return apiClient.post("/sms/to-vehicle", {
+      vehicleId,
+      text
     });
   }
 
