@@ -143,15 +143,6 @@ function RegisterTab() {
     /* 🔥 소방서 전체 로드 */
     useEffect(() => {
         apiClient.get("/fire-stations").then((res) => setAllStations(res.data));
-
-        console.log(toNum("2000L"));      // 2000
-        console.log(toNum("1,500"));      // 1500
-        console.log(toNum("1500 ℓ"));     // 1500
-        console.log(toNum(" 1500 "));     // 1500
-        console.log(toNum(1500));         // 1500
-        console.log(toNum(""));           // ""
-        console.log(toNum(undefined));    // ""
-        console.log(toNum(null));         // ""
     }, []);
 
     /* 🔥 시도 바뀌면 소방서 필터링 */
