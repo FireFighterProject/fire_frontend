@@ -268,7 +268,7 @@ function RegisterTab() {
 
         try {
             setLoading(true);
-            await apiClient.post("/vehicles", payload);
+            await apiClient.post("/Vehicle/create", payload);
             alert("등록 완료");
 
             setForm({
