@@ -10,7 +10,7 @@ import type { Vehicle } from "../../types/global";
 import axios from "axios";
 
 /* API 서버 주소 */
-const API_BASE = "http://172.28.5.94:8081";
+const API_BASE = "api/";
 
 /* ======================================================
      Redux 전용 axios 인스턴스 생성
