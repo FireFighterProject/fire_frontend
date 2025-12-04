@@ -270,15 +270,25 @@ const Manage: React.FC = () => {
   }
 
   async function sendSms(vehicleId: string | number, text: string) {
+    // 안전한 문자 처리 (옵션 – 서버가 \n 잘 받으면 삭제 가능)
+    const safeText = text.replace(/\n/g, "\r\n");
+
     console.log("📨 문자 발송 요청", {
       vehicleId,
-      text,
-      encodedText: encodeURIComponent(text),
-      url: `/sms/to-vehicle?vehicleId=${vehicleId}&text=${encodeURIComponent(text)}`
+      originalText: text,
+      safeText,
+      containsEmoji: /[\p{Extended_Pictographic}]/u.test(text),
+      axiosParams: {
+        vehicleId,
+        text: safeText,
+      }
     });
 
     return apiClient.get("/sms/to-vehicle", {
-      params: { vehicleId, text },
+      params: {
+        vehicleId,
+        text: safeText,
+      },
     });
   }
 
