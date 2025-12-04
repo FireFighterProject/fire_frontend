@@ -18,7 +18,7 @@ const Home: React.FC = () => {
   // 📌 1) /api/stats 호출
   const fetchStats = async () => {
     try {
-      const res = await axios.get("/api/stats");
+      const res = await axios.get("/stats");
       setTargetStats(res.data); // 애니메이션 목표 값 설정
     } catch (e) {
       console.error("통계 불러오기 실패", e);
