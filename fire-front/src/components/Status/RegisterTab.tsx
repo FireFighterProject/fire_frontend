@@ -237,7 +237,7 @@ function RegisterTab() {
                 psLteNumber: r.psLteNumber,
             }));
 
-            const res = await api.post("/vehicles/batch", body);
+            const res = await apiClient.post("/vehicles/batch", body);
 
             alert(
                 `총 ${res.data.total} / 성공 ${res.data.inserted} / 중복 ${res.data.duplicates}`
