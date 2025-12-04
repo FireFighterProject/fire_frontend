@@ -179,36 +179,31 @@ function RegisterTab() {
             const sheet = wb.Sheets[wb.SheetNames[0]];
             const json = XLSX.utils.sheet_to_json(sheet, { defval: "" }) as ExcelRow[];
 
-            // 🔥 모든 key에서 공백 제거하는 정규화
-            const normalized = json.map(r =>
-                Object.fromEntries(
-                    Object.entries(r).map(([k, v]) => [k.trim(), v])
-                )
+            const normalized = json.map((r) =>
+                Object.fromEntries(Object.entries(r).map(([k, v]) => [k.trim(), v]))
             );
 
             const mapped = normalized.map((r, i) => ({
                 id: `${file.name}-${i}`,
-
                 sido: toFullSido(String(r["시도"] ?? "").trim()),
                 stationName: normalizeStationName(String(r["소방서"] ?? "").trim()),
-
                 typeName: String(r["차종"] ?? "").trim(),
                 callSign: String(r["호출명"] ?? "").trim(),
-
-                capacity: toNum(r["용량"]),     // ★ 이제 정상
+                capacity: toNum(r["용량"]),
                 personnel: toNum(r["인원"]),
-
                 avlNumber: String(r["AVL"] ?? "").trim(),
                 psLteNumber: String(r["PS-LTE"] ?? "").trim(),
             }));
-            
 
             setExcelRows(mapped);
         } catch (err) {
             console.error(err);
             alert("엑셀 분석 실패");
+        } finally {
+            if (fileRef.current) fileRef.current.value = "";
         }
     };
+
 
     /* ================================================
         일괄 등록
