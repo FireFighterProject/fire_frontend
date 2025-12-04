@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Activity, Building2, Truck } from "lucide-react";
 import Forecast from "../components/Home/Forecast";
-import axios from "../api/axios";
+import apiClient from "../api/axios";
 
 const Home: React.FC = () => {
   const [firefighterCount, setFirefighterCount] = useState(0);
@@ -18,7 +18,7 @@ const Home: React.FC = () => {
   // 📌 1) /api/stats 호출
   const fetchStats = async () => {
     try {
-      const res = await axios.get("/stats");
+      const res = await apiClient.get("/stats");
       setTargetStats(res.data); // 애니메이션 목표 값 설정
     } catch (e) {
       console.error("통계 불러오기 실패", e);
