@@ -42,7 +42,7 @@ export default function ManageTab() {
     // ========================================================
     useEffect(() => {
         axios
-            .get(`${API_BASE}/api/fire-stations`)
+            .get(`${API_BASE}/fire-stations`)
             .then((res) => setAllStations(res.data))
             .catch((e) => console.error("❌ fire-stations 요청 실패:", e));
     }, []);
