@@ -124,7 +124,7 @@ export default function ManageTab() {
         if (patch.pslte !== undefined) payload.psLteNumber = patch.pslte;
         if (patch.rally !== undefined) payload.rallyPoint = patch.rally ? 1 : 0;
 
-        return axios.patch(`${API_BASE}/api/vehicles/${id}`, payload);
+        return axios.patch(`${API_BASE}/vehicles/${id}`, payload);
     };
 
     // ========================================================
