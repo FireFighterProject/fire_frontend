@@ -132,9 +132,15 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
   // 재난 시: 경북 먼저
   const isGB = (v: Vehicle) => normalizeSido(v.sido) === "경상북도";
 
-  rows.push(calcRow("경상북도 전체", (v) => isGB(v) && isRally(v)));
-  rows.push(calcRow("경상북도 대기", (v) => isGB(v) && isRally(v) && normalizeStatus(v.status) === "대기"));
-  rows.push(calcRow("경상북도 활동", (v) => isGB(v) && isRally(v) && normalizeStatus(v.status) === "활동"));
+  // rows.push(calcRow("경상북도 전체", (v) => isGB(v) && isRally(v)));
+  // rows.push(calcRow("경상북도 대기", (v) => isGB(v) && isRally(v) && normalizeStatus(v.status) === "대기"));
+  // rows.push(calcRow("경상북도 활동", (v) => isGB(v) && isRally(v) && normalizeStatus(v.status) === "활동"));
+
+  // 재난모드에서도 경북 차량 모두 포함
+  rows.push(calcRow("경상북도 전체", (v) => isGB(v)));
+  rows.push(calcRow("경상북도 대기", (v) => isGB(v) && normalizeStatus(v.status) === "대기"));
+  rows.push(calcRow("경상북도 활동", (v) => isGB(v) && normalizeStatus(v.status) === "활동"));
+
 
   // 나머지 지역
   const otherRegions = Array.from(
