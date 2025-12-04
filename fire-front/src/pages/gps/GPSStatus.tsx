@@ -83,15 +83,15 @@ const GPSStatus = () => {
      * 🔥 상황 종료
      * ============================================ */
     const endMission = async () => {
-        try {
-            await api.post("/dispatch/end", { missionId });
-            alert("노고에 감사드립니다.");
-            window.close();
-        } catch (err) {
-            console.error(err);
-            alert("상황 종료 실패");
+        if (window.confirm("상황을 종료하시겠습니까?")) {
+            alert("당신의 노고에 감사드립니다.");
+
+            // GPS 추적 종료는 useEffect cleanup에서 자동 실행됨.
+            // 이제 대기 페이지로 이동
+            window.location.href = `/gps/standby`;
         }
     };
+
 
     /* ============================================
      * 🔥 렌더링 데이터

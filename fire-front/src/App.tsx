@@ -34,6 +34,7 @@ export default function App() {
 
   // 🔥 GPS 페이지에서는 Header + Toggle 둘 다 숨김
   const isGPSPage =
+    location.pathname.startsWith("/gps/standby") ||
     location.pathname.startsWith("/gps/ready") ||
     location.pathname.startsWith("/gps/status");
 
