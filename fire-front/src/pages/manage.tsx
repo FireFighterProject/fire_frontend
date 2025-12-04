@@ -43,9 +43,8 @@ function getCallname(v: Vehicle) {
 }
 
 function isRally(v: Vehicle) {
-  return v.rally === true || String(v.rallyPoint) === "O";
+  return v.rally === true || v.rallyPoint === 1;
 }
-
 
 function normalizeType(type?: string): VehicleTypeKey {
   const t = String(type ?? "");
@@ -122,7 +121,10 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
   // 평상시
   if (!isDisaster) {
     rows.push(
-      calcRow("경상북도 전체", v => normalizeSido(v.sido) === "경상북도")
+      calcRow(
+        "경상북도 전체",
+        (v) => normalizeSido(v.sido) === "경상북도"
+      )
     );
     return rows;
   }
