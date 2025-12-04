@@ -9,16 +9,13 @@ import type { RootState } from "../../store";
 import type { Vehicle } from "../../types/global";
 import axios from "axios";
 
-/* API 서버 주소 */
-const API_BASE = "api/";
-
 /* ======================================================
      Redux 전용 axios 인스턴스 생성
     - baseURL: /api/vehicles
     - ManageTab에서 사용하는 axios와 분리됨
 ====================================================== */
 const api = axios.create({
-    baseURL: `${API_BASE}/api`,
+    baseURL: `/api`,
 });
 
 
