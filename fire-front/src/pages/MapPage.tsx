@@ -62,6 +62,7 @@ function normalizeStatus(raw: unknown): MapVehicle["status"] {
 }
 
 
+
 // ===================== GPS + 차량 merge =====================
 function buildMapVehicles(
   last: ApiLastLocation[],
@@ -250,13 +251,26 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
     clearMarkers();
 
     const kakao = window.kakao;
-
+    
+      const redDot = new kakao.maps.MarkerImage(
+        "data:image/svg+xml;charset=utf-8," +
+        encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14">
+          <circle cx="7" cy="7" r="5" fill="#ff2a2a" />
+        </svg>
+      `),
+        new kakao.maps.Size(14, 14),
+        { offset: new kakao.maps.Point(7, 7) }
+      );
+      
     filtered.forEach((v) => {
       const pos = new kakao.maps.LatLng(v.lat, v.lng);
       const marker = new kakao.maps.Marker({
         map: map.current!,
         position: pos,
+        image: redDot,
       });
+
 
       const content = `
         <div style="min-width:220px;padding:8px 10px;border-radius:8px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.12);">
