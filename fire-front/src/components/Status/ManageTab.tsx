@@ -1,6 +1,6 @@
 // src/pages/ManageTab.tsx
 import { useEffect, useState, useMemo } from "react";
-import axios from "axios";
+import apiClient from "../../api/axios";
 import { useDispatch, useSelector } from "react-redux";
     import type { FilterQuery } from "../Status/manage/FilterBar";
 
@@ -11,8 +11,6 @@ import VehicleTable from "../Status/manage/VehicleTable";
 
 import type { FireStation } from "../../types/station";
 import type { Vehicle } from "../../types/vehicle";
-
-const API_BASE = "/api";
 
 
 export default function ManageTab() {
@@ -41,8 +39,8 @@ export default function ManageTab() {
     // 1) 소방서 전체 로드
     // ========================================================
     useEffect(() => {
-        axios
-            .get(`${API_BASE}/fire-stations`)
+        apiClient
+            .get(`/fire-stations`)
             .then((res) => setAllStations(res.data))
             .catch((e) => console.error("❌ fire-stations 요청 실패:", e));
     }, []);
@@ -124,7 +122,7 @@ export default function ManageTab() {
         if (patch.pslte !== undefined) payload.psLteNumber = patch.pslte;
         if (patch.rally !== undefined) payload.rallyPoint = patch.rally ? 1 : 0;
 
-        return axios.patch(`${API_BASE}/vehicles/${id}`, payload);
+        return apiClient.patch(`/vehicles/${id}`, payload);
     };
 
     // ========================================================
