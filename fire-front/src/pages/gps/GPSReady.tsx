@@ -19,7 +19,7 @@ const GPSReady = () => {
     const [lon, setLon] = useState<number | null>(null);
     const [error, setError] = useState("");
 
-    // 🔥 페이지 진입 즉시 GPS 권한 요청
+    // 최초 1회 GPS 정보 가져오기
     useEffect(() => {
         navigator.geolocation.getCurrentPosition(
             (pos) => {
@@ -31,7 +31,7 @@ const GPSReady = () => {
         );
     }, []);
 
-    // 🔥 출동 시작
+//  출동 시작 버튼
     const handleStart = async () => {
         if (lat === null || lon === null) {
             alert("GPS 정보를 불러오는 중입니다.");
@@ -39,14 +39,14 @@ const GPSReady = () => {
         }
 
         try {
-            // GPS 1회 저장
+            // GPS 1회 BE 전송
             await api.post("/gps/send", {
                 vehicleId: Number(vehicle),
                 latitude: lat,
                 longitude: lon,
             });
 
-            // 모든 정보를 GPSStatus로 전달
+            // Status 페이지로 전달
             navigate(
                 `/gps/status?missionId=${missionId}&vehicle=${vehicle}&title=${title}&address=${address}&desc=${desc}`
             );
@@ -66,13 +66,11 @@ const GPSReady = () => {
 
                 {/* 요청 정보 */}
                 <div className="bg-white rounded-xl shadow p-4 space-y-3">
-                    <div className="text-gray-800 text-lg space-y-1">
-                        <p><span className="font-semibold">제목:</span> {title}</p>
-                        <p><span className="font-semibold">주소:</span> {address}</p>
-                        <p><span className="font-semibold">내용:</span> {desc}</p>
-                        <p><span className="font-semibold">차량 번호:</span> {vehicle}호</p>
-                        <p><span className="font-semibold">출동 코드:</span> {missionId}</p>
-                    </div>
+                    <p><strong>제목:</strong> {title}</p>
+                    <p><strong>주소:</strong> {address}</p>
+                    <p><strong>내용:</strong> {desc}</p>
+                    <p><strong>차량 번호:</strong> {vehicle}호</p>
+                    <p><strong>출동 코드:</strong> {missionId}</p>
                 </div>
 
                 {/* GPS 상태 */}

@@ -6,7 +6,7 @@ import type { AppDispatch } from "../store";
 import type { RootState } from "../store";
 import type { Vehicle } from "../types/global";
 import apiClient from "../api/axios";
-import { fetchVehicles } from "../features/vehicle/vehicleSlice";
+// import { fetchVehicles } from "../features/vehicle/vehicleSlice";
 
 
 /* =========================
@@ -187,7 +187,7 @@ function buildRowPredicate(label: string) {
  * 메인 컴포넌트
  * ========================= */
 const Manage: React.FC = () => {
-  const dispatch = useDispatch<AppDispatch>();
+  // const dispatch = useDispatch<AppDispatch>();
 
   const isDisaster = useSelector((s: RootState) => s.emergency.isDisaster);
   const vehicles = useSelector((s: RootState) => s.vehicle.vehicles) as Vehicle[];
@@ -255,46 +255,74 @@ const Manage: React.FC = () => {
     });
   }
 
-  /* 출동 생성 + 차량 편성 */
+  /* 출동 생성 + 문자 자동 발송 */
   async function handleCreateSend() {
-    if (!title.trim()) return alert("출동 제목을 입력하세요.");
-    if (!addr.trim()) return alert("주소를 입력하세요.");
-    if (!desc.trim()) return alert("내용을 입력하세요.");
+    if (!title.trim() || !addr.trim() || !desc.trim()) {
+      return alert("출동 정보가 부족합니다.");
+    }
     if (assigned.length === 0) return alert("편성된 차량이 없습니다.");
 
     try {
-      setSending(true); // 🔥 버튼 비활성화 시작
+      setSending(true);
 
+      // 1) 출동 생성
       const createRes = await apiClient.post("/dispatch-orders", {
         title,
         address: addr,
         content: desc,
       });
 
-      const orderId = createRes.data.id;
+      const missionId = createRes.data.id;
 
-      await apiClient.post(`/dispatch-orders/${orderId}/assign`, {
+      // 2) 배치 차량 등록
+      await apiClient.post(`/dispatch-orders/${missionId}/assign`, {
         vehicleIds: assigned.map((v) => v.id),
       });
 
-      alert("출동 생성 및 차량 편성 완료!");
+      // 3) 🚨 문자 자동 발송
+      for (const v of assigned) {
+        const smsText = buildSmsText(v, missionId, title, addr, desc);
+        await sendSms(v.id, smsText);
+      }
 
-      dispatch(fetchVehicles({}));
+      alert("출동 생성 + 문자 발송 완료!");
 
-      setAssigned([]);
-      setAssignedIds(new Set());
-      setTitle("");
-      setDesc("");
-      setAddr("");
     } catch (e) {
       console.error(e);
-      alert("출동 생성 실패");
+      alert("출동 생성 또는 문자 발송 중 오류 발생");
     } finally {
       setSending(false);
     }
   }
 
 
+  // 차량에 SMS 발송
+  async function sendSms(vehicleId: number | string, text: string) {
+    return apiClient.get("/sms/to-vehicle", {
+      params: { vehicleId, text },
+    });
+  }
+  /* 출동 생성 + SMS 발송 */
+  function buildSmsText(v: { id: number | string; callname: string; sido: string; station: string }, missionId: number, title: string, addr: string, desc: string) { 
+    const link =
+      `https://fire.rjsgud.com/gps/ready?` +
+      `missionId=${missionId}` +
+      `&vehicle=${v.id}` +
+      `&title=${encodeURIComponent(title)}` +
+      `&address=${encodeURIComponent(addr)}` +
+      `&desc=${encodeURIComponent(desc)}`;
+
+    return (
+      `🚨 출동 요청 안내\n\n` +
+      `차량: ${v.callname}\n` +
+      `지역: ${v.sido} ${v.station}\n\n` +
+      `아래 링크를 눌러 출동을 시작하세요:\n${link}`
+    );
+  }
+
+
+
+  
   /* 지역 색상 */
   const REGION_LIST = [
     "서울특별시", "부산광역시", "대구광역시", "인천광역시", "광주광역시",
@@ -406,7 +434,7 @@ const Manage: React.FC = () => {
                   </button>
                 </li>
               ))}
-            </ul>
+            </ul>   
             <button
               onClick={handleCreateSend}
               disabled={sending}
