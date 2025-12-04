@@ -201,6 +201,9 @@ const Manage: React.FC = () => {
   const [desc, setDesc] = useState("");
   const [addr, setAddr] = useState("");
 
+  const [sending, setSending] = useState(false);
+
+
   const remaining = useMemo(
     () => vehicles.filter((v) => !assignedIds.has(Number(v.id))),
     [vehicles, assignedIds]
@@ -260,6 +263,8 @@ const Manage: React.FC = () => {
     if (assigned.length === 0) return alert("편성된 차량이 없습니다.");
 
     try {
+      setSending(true); // 🔥 버튼 비활성화 시작
+
       const createRes = await apiClient.post("/dispatch-orders", {
         title,
         address: addr,
@@ -281,12 +286,14 @@ const Manage: React.FC = () => {
       setTitle("");
       setDesc("");
       setAddr("");
-
     } catch (e) {
       console.error(e);
       alert("출동 생성 실패");
+    } finally {
+      setSending(false);
     }
   }
+
 
   /* 지역 색상 */
   const REGION_LIST = [
@@ -400,12 +407,15 @@ const Manage: React.FC = () => {
                 </li>
               ))}
             </ul>
-
             <button
               onClick={handleCreateSend}
-              className="w-full py-3 mt-3 bg-green-600 text-white rounded"
+              disabled={sending}
+              className={
+                "w-full py-3 mt-3 rounded text-white " +
+                (sending ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700")
+              }
             >
-              출동 생성 및 발송
+              {sending ? "발송중..." : "출동 생성 및 발송"}
             </button>
           </div>
         )}
