@@ -246,51 +246,22 @@ const Manage: React.FC = () => {
   /* ===============================
    * 🚨 문자용 텍스트 생성
    * =============================== */
-  function buildSmsText(
-    v: { id: number | string; callname: string; sido: string; station: string },
-    missionId: number,
-    title: string,
-    addr: string,
-    desc: string
-  ) {
+  function buildSmsText(v: { id: number | string }, missionId: number) {
     const link =
-      `https://fire.rjsgud.com/gps/ready?` +
-      `missionId=${missionId}` +
-      `&vehicle=${v.id}` +
-      `&title=${encodeURIComponent(title)}` +
-      `&address=${encodeURIComponent(addr)}` +
-      `&desc=${encodeURIComponent(desc)}`;
+      `https://fire.rjsgud.com/gps/ready?missionId=${missionId}&vehicle=${v.id}`;
 
-    return (
-      `🚨 출동 요청 안내\n\n` +
-      `차량: ${v.callname}\n` +
-      `지역: ${v.sido} ${v.station}\n\n` +
-      `아래 링크를 눌러 출동을 시작하세요:\n${link}`
-    );
+    return `출동요청\n출동링크: ${link}`;
   }
+
 
   async function sendSms(vehicleId: string | number, text: string) {
-    // 안전한 문자 처리 (옵션 – 서버가 \n 잘 받으면 삭제 가능)
-    const safeText = text.replace(/\n/g, "\r\n");
-
-    console.log("📨 문자 발송 요청", {
-      vehicleId,
-      originalText: text,
-      safeText,
-      containsEmoji: /[\p{Extended_Pictographic}]/u.test(text),
-      axiosParams: {
-        vehicleId,
-        text: safeText,
-      }
-    });
+    console.log("📨 문자 발송 요청", { vehicleId, text });
 
     return apiClient.get("/sms/to-vehicle", {
-      params: {
-        vehicleId,
-        text: safeText,
-      },
+      params: { vehicleId, text },
     });
   }
+
 
 
   /* ===============================
