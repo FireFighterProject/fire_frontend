@@ -8,18 +8,20 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
     (config) => {
-        // Add authorization token or other headers if needed
-        const token = localStorage.getItem('token');
-        if (token) {
+        const token = localStorage.getItem("token");
+
+        if (token && token !== "null" && token !== "undefined") {
             config.headers.Authorization = `Bearer ${token}`;
+        } else {
+            // 토큰이 없으면 Authorization 헤더 자체 제거
+            delete config.headers.Authorization;
         }
+
         return config;
     },
-    (error) => {
-        // Handle request error
-        return Promise.reject(error);
-    }
+    (error) => Promise.reject(error)
 );
+
 
 // Response interceptor
 apiClient.interceptors.response.use(
