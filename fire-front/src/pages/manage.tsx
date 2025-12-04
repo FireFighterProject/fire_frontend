@@ -42,9 +42,9 @@ function getCallname(v: Vehicle) {
   return v.callname ?? v.callSign ?? v.name ?? `V-${v.id}`;
 }
 
-function isRally(v: Vehicle) {
-  return v.rally === true || v.rallyPoint === 1;
-}
+// function isRally(v: Vehicle) {
+//   return v.rally === true || v.rallyPoint === 1;
+// }
 
 function normalizeType(type?: string): VehicleTypeKey {
   const t = String(type ?? "");
@@ -163,7 +163,7 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
 /* =========================
  * 조건 빌더
  * ========================= */
-function buildRowPredicate(label: string, isDisaster: boolean) {
+function buildRowPredicate(label: string) {
   const [regionRaw, statusRaw] = label.split(" ");
   const wantsWait = statusRaw === "대기";
 
@@ -175,7 +175,7 @@ function buildRowPredicate(label: string, isDisaster: boolean) {
 
     if (isGBRow) {
       if (!["경북", "경상북도"].includes(sido)) return false;
-      if (isDisaster && !isRally(v)) return false;
+      // if (isDisaster && !isRally(v)) return false;
     } else {
       if (sido !== regionRaw) return false;
     }
@@ -220,7 +220,7 @@ const Manage: React.FC = () => {
       return;
     }
 
-    const predicate = buildRowPredicate(rowLabel, isDisaster);
+    const predicate = buildRowPredicate(rowLabel,);
 
     const target = remaining.find(
       (v) => predicate(v) && normalizeType(v.type) === typeKey
