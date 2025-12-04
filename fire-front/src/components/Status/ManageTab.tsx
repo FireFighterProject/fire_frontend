@@ -12,7 +12,8 @@ import VehicleTable from "../Status/manage/VehicleTable";
 import type { FireStation } from "../../types/station";
 import type { Vehicle } from "../../types/vehicle";
 
-const API_BASE = "http://172.28.5.94:8081";
+const API_BASE = "/api";
+
 
 export default function ManageTab() {
 

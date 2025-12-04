@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Activity, Building2, Truck } from "lucide-react";
 import Forecast from "../components/Home/Forecast";
-import axios from "axios";
+import axios from "../api/axios";
 
 const Home: React.FC = () => {
   const [firefighterCount, setFirefighterCount] = useState(0);
