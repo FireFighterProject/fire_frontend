@@ -245,25 +245,25 @@ const Manage: React.FC = () => {
 
   /* ===============================
    * 🚨 문자용 텍스트 생성
-   * =============================== */
-  function buildSmsText(v: { id: number | string }, missionId: number) {
-    const link =
-      `https://fire.rjsgud.com/gps/ready?missionId=${missionId}&vehicle=${v.id}`;
+    * =============================== */
+  function buildSmsText(
+    v: { id: number | string },
+    missionId: number
+  ) {
+    // SMS API가 줄바꿈과 https:// 를 싫어하므로 ↓ 처리
+    const link = `https : //fire.rjsgud.com/gps/ready?missionId=${missionId}&vehicle=${v.id}`;
 
-    return `출동요청\n출동링크: ${link}`;
+    return `출동요청 출동링크: ${link}`;
   }
 
 
-  async function sendSms(vehicleId: string | number, missionId: number) {
-    const link = `https : //fire.rjsgud.com/gps/ready?missionId=${missionId}&vehicle=${vehicleId}`;
 
-    const text = `출동요청 출동링크: ${link}`;
-
+  async function sendSms(vehicleId: string | number, text: string) {
     console.log("📨 문자 발송 요청(POST)", { vehicleId, text });
 
     return apiClient.post("/sms/to-vehicle", {
       vehicleId,
-      text,
+      text
     });
   }
 
@@ -297,12 +297,13 @@ const Manage: React.FC = () => {
       // 3) 문자 발송 (개선됨: 실패해도 전체 stop X)
       for (const v of assigned) {
         try {
-          const smsText = buildSmsText(v, missionId);
+          const smsText = buildSmsText(v, missionId);  // 👈 변경됨
           await sendSms(v.id, smsText);
         } catch (err) {
           console.error(`문자 발송 실패 차량 ID = ${v.id}`, err);
         }
       }
+
 
       alert("출동 생성 + 문자 발송 완료!");
 
