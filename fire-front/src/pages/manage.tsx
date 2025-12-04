@@ -120,12 +120,12 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
 
   // 평상시
   if (!isDisaster) {
-    rows.push(
-      calcRow(
-        "경상북도 전체",
-        (v) => normalizeSido(v.sido) === "경상북도"
-      )
-    );
+    const isGB = (v: Vehicle) => normalizeSido(v.sido) === "경상북도";
+
+    rows.push(calcRow("경상북도 전체", isGB));
+    rows.push(calcRow("경상북도 대기", (v) => isGB(v) && normalizeStatus(v.status) === "대기"));
+    rows.push(calcRow("경상북도 활동", (v) => isGB(v) && normalizeStatus(v.status) === "활동"));
+
     return rows;
   }
 
