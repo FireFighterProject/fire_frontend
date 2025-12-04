@@ -6,8 +6,7 @@ import type { AppDispatch } from "../store";
 import type { RootState } from "../store";
 import type { Vehicle } from "../types/global";
 import apiClient from "../api/axios";
-// import { fetchVehicles } from "../features/vehicle/vehicleSlice";
-
+import { fetchVehicles } from "../features/vehicle/vehicleSlice";
 
 /* =========================
  * 타입 키
@@ -40,10 +39,6 @@ function getCallname(v: Vehicle) {
   return v.callname ?? v.callSign ?? v.name ?? `V-${v.id}`;
 }
 
-// function isRally(v: Vehicle) {
-//   return v.rally === true || v.rallyPoint === 1;
-// }
-
 function normalizeType(type?: string): VehicleTypeKey {
   const t = String(type ?? "");
   if (t.includes("경펌")) return "경펌";
@@ -73,9 +68,6 @@ function normalizeStatus(status?: string): "대기" | "활동" {
   return "대기";
 }
 
-/* =========================
- * 경상북도 경북 매칭/표 구성
- * ========================= */
 function normalizeSido(raw?: string) {
   if (!raw) return "";
   const s = raw.replace(/\s+/g, "");
@@ -97,10 +89,7 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
     const row: RowType = {
       구분: label,
       "차량(계)": subset.length,
-      "인원(계)": subset.reduce(
-        (s, v) => s + (Number(v.personnel) || 0),
-        0
-      ),
+      "인원(계)": subset.reduce((s, v) => s + (Number(v.personnel) || 0), 0),
       경펌: 0, 소펌: 0, 중펌: 0, 대펌: 0,
       중형탱크: 0, 대형탱크: 0, 급수탱크: 0,
       화학: 0, 산불: 0, 험지: 0, 로젠바우어: 0, 산불신속팀: 0,
@@ -110,46 +99,32 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
 
     subset.forEach((v) => {
       const key = normalizeType(v.type);
-      row[key] = (typeof row[key] === "number" ? row[key] : 0) + 1;
+      row[key] = (row[key] as number) + 1;
     });
 
     return row;
   };
 
-  // 평상시
-  if (!isDisaster) {
-    const isGB = (v: Vehicle) => normalizeSido(v.sido) === "경상북도";
+  const isGB = (v: Vehicle) => normalizeSido(v.sido) === "경상북도";
 
+  if (!isDisaster) {
     rows.push(calcRow("경상북도 전체", isGB));
     rows.push(calcRow("경상북도 대기", (v) => isGB(v) && normalizeStatus(v.status) === "대기"));
     rows.push(calcRow("경상북도 활동", (v) => isGB(v) && normalizeStatus(v.status) === "활동"));
-
     return rows;
   }
 
-  // 재난 시: 경북 먼저
-  const isGB = (v: Vehicle) => normalizeSido(v.sido) === "경상북도";
-
-  // rows.push(calcRow("경상북도 전체", (v) => isGB(v) && isRally(v)));
-  // rows.push(calcRow("경상북도 대기", (v) => isGB(v) && isRally(v) && normalizeStatus(v.status) === "대기"));
-  // rows.push(calcRow("경상북도 활동", (v) => isGB(v) && isRally(v) && normalizeStatus(v.status) === "활동"));
-
-  // 재난모드에서도 경북 차량 모두 포함
-  rows.push(calcRow("경상북도 전체", (v) => isGB(v)));
+  // 재난모드도 경북 전체 포함
+  rows.push(calcRow("경상북도 전체", isGB));
   rows.push(calcRow("경상북도 대기", (v) => isGB(v) && normalizeStatus(v.status) === "대기"));
   rows.push(calcRow("경상북도 활동", (v) => isGB(v) && normalizeStatus(v.status) === "활동"));
 
-
-  // 나머지 지역
-  const otherRegions = Array.from(
-    new Set(
-      vehicles
-        .map((v) => normalizeSido(v.sido))
-        .filter((s) => s && s !== "경상북도")
-    )
+  // 나머지 시·도
+  const others = Array.from(
+    new Set(vehicles.map((v) => normalizeSido(v.sido)).filter((s) => s && s !== "경상북도"))
   );
 
-  otherRegions.forEach((region) => {
+  others.forEach((region) => {
     rows.push(calcRow(`${region} 전체`, (v) => normalizeSido(v.sido) === region));
     rows.push(calcRow(`${region} 대기`, (v) => normalizeSido(v.sido) === region && normalizeStatus(v.status) === "대기"));
     rows.push(calcRow(`${region} 활동`, (v) => normalizeSido(v.sido) === region && normalizeStatus(v.status) === "활동"));
@@ -166,14 +141,11 @@ function buildRowPredicate(label: string) {
   const wantsWait = statusRaw === "대기";
 
   return (v: Vehicle) => {
-    const sido = v.sido ?? "";
+    const sido = normalizeSido(v.sido);
     const status = normalizeStatus(v.status);
 
-    const isGBRow = regionRaw === "경북" || regionRaw === "경상북도";
-
-    if (isGBRow) {
-      if (!["경북", "경상북도"].includes(sido)) return false;
-      // if (isDisaster && !isRally(v)) return false;
+    if (["경북", "경상북도"].includes(regionRaw)) {
+      if (sido !== "경상북도") return false;
     } else {
       if (sido !== regionRaw) return false;
     }
@@ -187,8 +159,7 @@ function buildRowPredicate(label: string) {
  * 메인 컴포넌트
  * ========================= */
 const Manage: React.FC = () => {
-  // const dispatch = useDispatch<AppDispatch>();
-
+  const dispatch = useDispatch<AppDispatch>();
   const isDisaster = useSelector((s: RootState) => s.emergency.isDisaster);
   const vehicles = useSelector((s: RootState) => s.vehicle.vehicles) as Vehicle[];
 
@@ -203,36 +174,24 @@ const Manage: React.FC = () => {
 
   const [sending, setSending] = useState(false);
 
-
   const remaining = useMemo(
     () => vehicles.filter((v) => !assignedIds.has(Number(v.id))),
     [vehicles, assignedIds]
   );
 
-  const rows = useMemo(
-    () => buildRows(remaining, isDisaster),
-    [remaining, isDisaster]
-  );
+  const rows = useMemo(() => buildRows(remaining, isDisaster), [remaining, isDisaster]);
 
-  /* 차량 선택 */
-  function handleAssignOne(rowLabel: string, typeKey: VehicleTypeKey) {
-    if (!rowLabel.includes("대기")) {
-      alert("대기 차량만 선택할 수 있습니다.");
-      return;
-    }
+  function handleAssignOne(label: string, key: VehicleTypeKey) {
+    if (!label.includes("대기")) return alert("대기 차량만 선택할 수 있습니다.");
 
-    const predicate = buildRowPredicate(rowLabel,);
+    const predicate = buildRowPredicate(label);
 
-    const target = remaining.find(
-      (v) => predicate(v) && normalizeType(v.type) === typeKey
-    );
-
+    const target = remaining.find((v) => predicate(v) && normalizeType(v.type) === key);
     if (!target) return;
 
     const vid = Number(target.id);
 
     setAssignedIds((prev) => new Set(prev).add(vid));
-
     setAssigned((prev) => [
       ...prev,
       {
@@ -245,65 +204,25 @@ const Manage: React.FC = () => {
     ]);
   }
 
-  /* 편성 차량 삭제 */
   function removeAssigned(id: number) {
-    setAssigned((prev) => prev.filter((a) => Number(a.id) !== id));
-    setAssignedIds((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
+    setAssigned((p) => p.filter((a) => Number(a.id) !== id));
+    setAssignedIds((p) => {
+      const n = new Set(p);
+      n.delete(id);
+      return n;
     });
   }
 
-  /* 출동 생성 + 문자 자동 발송 */
-  async function handleCreateSend() {
-    if (!title.trim() || !addr.trim() || !desc.trim()) {
-      return alert("출동 정보가 부족합니다.");
-    }
-    if (assigned.length === 0) return alert("편성된 차량이 없습니다.");
-
-    try {
-      setSending(true);
-
-      // 1) 출동 생성
-      const createRes = await apiClient.post("/dispatch-orders", {
-        title,
-        address: addr,
-        content: desc,
-      });
-
-      const missionId = createRes.data.id;
-
-      // 2) 배치 차량 등록
-      await apiClient.post(`/dispatch-orders/${missionId}/assign`, {
-        vehicleIds: assigned.map((v) => v.id),
-      });
-
-      // 3) 🚨 문자 자동 발송
-      for (const v of assigned) {
-        const smsText = buildSmsText(v, missionId, title, addr, desc);
-        await sendSms(v.id, smsText);
-      }
-
-      alert("출동 생성 + 문자 발송 완료!");
-
-    } catch (e) {
-      console.error(e);
-      alert("출동 생성 또는 문자 발송 중 오류 발생");
-    } finally {
-      setSending(false);
-    }
-  }
-
-
-  // 차량에 SMS 발송
-  async function sendSms(vehicleId: number | string, text: string) {
-    return apiClient.get("/sms/to-vehicle", {
-      params: { vehicleId, text },
-    });
-  }
-  /* 출동 생성 + SMS 발송 */
-  function buildSmsText(v: { id: number | string; callname: string; sido: string; station: string }, missionId: number, title: string, addr: string, desc: string) { 
+  /* ===============================
+   * 🚨 문자용 텍스트 생성
+   * =============================== */
+  function buildSmsText(
+    v: { id: number | string; callname: string; sido: string; station: string },
+    missionId: number,
+    title: string,
+    addr: string,
+    desc: string
+  ) {
     const link =
       `https://fire.rjsgud.com/gps/ready?` +
       `missionId=${missionId}` +
@@ -320,32 +239,68 @@ const Manage: React.FC = () => {
     );
   }
 
-
-
-  
-  /* 지역 색상 */
-  const REGION_LIST = [
-    "서울특별시", "부산광역시", "대구광역시", "인천광역시", "광주광역시",
-    "대전광역시", "울산광역시", "세종특별자치시",
-    "경기도", "강원도", "충청북도", "충청남도",
-    "전라북도", "전라남도",
-    "경상북도", "경상남도",
-    "제주특별자치도",
-  ];
-  const REGION_COLORS = ["bg-red-50", "bg-blue-50", "bg-green-50"];
-
-  function detectRegion(label: string) {
-    return REGION_LIST.find((region) => label.includes(region));
+  async function sendSms(vehicleId: string | number, text: string) {
+    return apiClient.get("/sms/to-vehicle", {
+      params: { vehicleId, text },
+    });
   }
 
-  function getRowColor(label: string) {
-    const region = detectRegion(label);
-    if (!region) return "bg-gray-50";
+  /* ===============================
+   * 출동 생성 + 차량 배치 + 문자 자동 발송
+   * =============================== */
+  async function handleCreateSend() {
+    if (!title.trim() || !addr.trim() || !desc.trim()) {
+      return alert("출동 정보가 부족합니다.");
+    }
+    if (assigned.length === 0) return alert("편성된 차량이 없습니다.");
 
-    const index = REGION_LIST.indexOf(region);
-    return REGION_COLORS[index % REGION_COLORS.length];
+    try {
+      setSending(true);
+
+      // 1) 출동 생성
+      const res = await apiClient.post("/dispatch-orders", {
+        title,
+        address: addr,
+        content: desc,
+      });
+
+      const missionId = res.data.id;
+
+      // 2) 편성 차량 등록
+      await apiClient.post(`/dispatch-orders/${missionId}/assign`, {
+        vehicleIds: assigned.map((v) => v.id),
+      });
+
+      // 3) 문자 발송 (개선됨: 실패해도 전체 stop X)
+      for (const v of assigned) {
+        try {
+          const smsText = buildSmsText(v, missionId, title, addr, desc);
+          await sendSms(v.id, smsText);
+        } catch (err) {
+          console.error(`문자 발송 실패 차량 ID = ${v.id}`, err);
+        }
+      }
+
+      alert("출동 생성 + 문자 발송 완료!");
+
+      dispatch(fetchVehicles({}));
+      setAssigned([]);
+      setAssignedIds(new Set());
+      setTitle("");
+      setDesc("");
+      setAddr("");
+
+    } catch (e) {
+      console.error(e);
+      alert("출동 생성 / 문자 발송 중 오류 발생");
+    } finally {
+      setSending(false);
+    }
   }
 
+  /* ===============================
+   * UI
+   * =============================== */
   return (
     <div className="min-h-screen bg-white text-gray-800">
       <section className="p-4 overflow-x-auto">
@@ -355,7 +310,6 @@ const Manage: React.FC = () => {
               <th className="border px-2 py-1">구분</th>
               <th className="border px-2 py-1">차량(계)</th>
               <th className="border px-2 py-1">인원(계)</th>
-
               {COL_ORDER.map((c) => (
                 <th key={c} className="border px-2 py-1">{c}</th>
               ))}
@@ -364,11 +318,8 @@ const Manage: React.FC = () => {
 
           <tbody>
             {rows.map((r, idx) => (
-              <tr
-                key={`${r["구분"]}${idx}`}
-                className={`${getRowColor(String(r["구분"]))} ${idx % 2 ? "opacity-95" : ""}`}
-              >
-                <td className="border px-2 py-1 text-left font-medium">{r["구분"]}</td>
+              <tr key={`${r["구분"]}${idx}`}>
+                <td className="border px-2 py-1 font-medium">{r["구분"]}</td>
                 <td className="border px-2 py-1 text-center">{r["차량(계)"]}</td>
                 <td className="border px-2 py-1 text-center">{r["인원(계)"]}</td>
 
@@ -417,7 +368,7 @@ const Manage: React.FC = () => {
               onChange={(e) => setAddr(e.target.value)}
             />
 
-            <h4 className="font-semibold mt-4">편성 차량</h4>
+            {/* 편성된 차량 목록 */}
             <ul className="space-y-2">
               {assigned.map((a) => (
                 <li
@@ -428,13 +379,15 @@ const Manage: React.FC = () => {
 
                   <button
                     onClick={() => removeAssigned(Number(a.id))}
-                    className="px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600"
+                    className="px-2 py-1 bg-red-500 text-white text-xs rounded"
                   >
                     삭제
                   </button>
                 </li>
               ))}
-            </ul>   
+            </ul>
+
+            {/* 제출 버튼 */}
             <button
               onClick={handleCreateSend}
               disabled={sending}
