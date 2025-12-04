@@ -270,10 +270,18 @@ const Manage: React.FC = () => {
   }
 
   async function sendSms(vehicleId: string | number, text: string) {
+    console.log("📨 문자 발송 요청", {
+      vehicleId,
+      text,
+      encodedText: encodeURIComponent(text),
+      url: `/sms/to-vehicle?vehicleId=${vehicleId}&text=${encodeURIComponent(text)}`
+    });
+
     return apiClient.get("/sms/to-vehicle", {
       params: { vehicleId, text },
     });
   }
+
 
   /* ===============================
    * 출동 생성 + 차량 배치 + 문자 자동 발송
