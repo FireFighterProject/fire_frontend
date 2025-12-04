@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/pages/Status.tsx
 import React, { useEffect, useRef, useState } from "react";
-import axios from "../../api/axios";
+import apiClient from "../../api/axios";
 
 /* ================================================
    🔥 서버 타입
@@ -138,7 +138,7 @@ function RegisterTab() {
 
     /* 🔥 소방서 전체 로드 */
     useEffect(() => {
-        axios.get("/fire-stations").then((res) => setAllStations(res.data));
+        apiClient.get("/fire-stations").then((res) => setAllStations(res.data));
 
         console.log(toNum("2000L"));      // 2000
         console.log(toNum("1,500"));      // 1500
@@ -231,7 +231,7 @@ function RegisterTab() {
                 psLteNumber: r.psLteNumber,
             }));
 
-            const res = await axios.post("/vehicles/batch", body);
+            const res = await apiClient.post("/vehicles/batch", body);
 
             alert(
                 `총 ${res.data.total} / 성공 ${res.data.inserted} / 중복 ${res.data.duplicates}`
@@ -268,7 +268,7 @@ function RegisterTab() {
 
         try {
             setLoading(true);
-            await axios.post("/vehicles", payload);
+            await apiClient.post("/vehicles", payload);
             alert("등록 완료");
 
             setForm({
