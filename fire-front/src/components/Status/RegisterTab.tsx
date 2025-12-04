@@ -214,6 +214,9 @@ function RegisterTab() {
         일괄 등록
     ================================================= */
     const handleBulkRegister = async () => {
+
+        if (loading) return;
+
         if (excelRows.length === 0) return alert("엑셀 데이터 없음");
 
         const invalid = excelRows.find(
@@ -386,11 +389,12 @@ function RegisterTab() {
 
                         <button
                             onClick={handleBulkRegister}
-                            disabled={excelRows.length === 0}
+                            disabled={loading || excelRows.length === 0}
                             className="px-4 h-9 bg-[#e1412b] text-white rounded disabled:opacity-50"
                         >
-                            일괄 등록
+                            {loading ? "등록 중..." : "일괄 등록"}
                         </button>
+
                     </div>
 
                     <div className="overflow-auto border rounded">
