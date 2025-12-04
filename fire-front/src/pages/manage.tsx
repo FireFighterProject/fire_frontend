@@ -293,7 +293,7 @@ const Manage: React.FC = () => {
       // 3) 문자 발송 (개선됨: 실패해도 전체 stop X)
       for (const v of assigned) {
         try {
-          const smsText = buildSmsText(v, missionId, title, addr, desc);
+          const smsText = buildSmsText(v, missionId);
           await sendSms(v.id, smsText);
         } catch (err) {
           console.error(`문자 발송 실패 차량 ID = ${v.id}`, err);
