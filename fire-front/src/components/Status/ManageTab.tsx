@@ -67,15 +67,22 @@ export default function ManageTab() {
                 stationId: v.stationId,
                 sido: v.sido,
                 station: station?.name ?? "-",
-                type: v.type,
-                callname: v.callname,
+
+                type: v.typeName,         // ✔ 서버: typeName
+                callname: v.callSign,     // ✔ 서버: callSign
+
                 capacity: v.capacity,
                 personnel: v.personnel,
-                avl: v.avl,
-                pslte: v.pslte,
+
+                avl: v.avlNumber,         // ✔ 서버: avlNumber
+                pslte: v.psLteNumber,     // ✔ 서버: psLteNumber
+
                 status: v.status,
-                rally: v.rally,
+
+                // rally: boolean 으로 쓸 거면 변환 필요
+                rally: String(v.rallyPoint) === "O",   // ✔ "O" → true, "X" → false
             };
+
         });
 
         if (query.sido) {
