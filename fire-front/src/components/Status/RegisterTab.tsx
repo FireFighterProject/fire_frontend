@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/pages/Status.tsx
 import React, { useEffect, useRef, useState } from "react";
-import apiClient from "../../api/axios";
+import axios from "../../api/axios";
 
 /* ================================================
    🔥 서버 타입
@@ -48,12 +48,6 @@ type ExcelPreviewRow = {
     avlNumber: string;
     psLteNumber: string;
 };
-
-/* ================================================
-    API 인스턴스
-================================================ */
-const api = apiClient;
-
 /* ===========================================================
     숫자 변환 — 빈칸이면 "", 숫자만 남기고 변환
 =========================================================== */
@@ -144,7 +138,7 @@ function RegisterTab() {
 
     /* 🔥 소방서 전체 로드 */
     useEffect(() => {
-        api.get("/fire-stations").then((res) => setAllStations(res.data));
+        axios.get("/fire-stations").then((res) => setAllStations(res.data));
 
         console.log(toNum("2000L"));      // 2000
         console.log(toNum("1,500"));      // 1500
@@ -237,7 +231,7 @@ function RegisterTab() {
                 psLteNumber: r.psLteNumber,
             }));
 
-            const res = await apiClient.post("/vehicles/batch", body);
+            const res = await axios.post("/vehicles/batch", body);
 
             alert(
                 `총 ${res.data.total} / 성공 ${res.data.inserted} / 중복 ${res.data.duplicates}`
@@ -246,7 +240,7 @@ function RegisterTab() {
             setExcelRows([]);
         } catch (err: any) {
             console.error(err);
-            alert(err?.response?.data?.message ?? "배치등록 실패");
+            alert(err?.response?.data?.message ?? "차량등록 실패");
         } finally {
             setLoading(false);
         }
@@ -274,7 +268,7 @@ function RegisterTab() {
 
         try {
             setLoading(true);
-            await api.post("/vehicles", payload);
+            await axios.post("/vehicles", payload);
             alert("등록 완료");
 
             setForm({
