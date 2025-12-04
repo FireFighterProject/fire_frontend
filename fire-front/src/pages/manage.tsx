@@ -254,18 +254,18 @@ const Manage: React.FC = () => {
   }
 
 
-  async function sendSms(vehicleId: string | number, text: string) {
-    console.log("📨 문자 발송 요청(POST)", {
-      vehicleId,
-      text
-    });
+  async function sendSms(vehicleId: string | number, missionId: number) {
+    const link = `https : //fire.rjsgud.com/gps/ready?missionId=${missionId}&vehicle=${vehicleId}`;
+
+    const text = `출동요청 출동링크: ${link}`;
+
+    console.log("📨 문자 발송 요청(POST)", { vehicleId, text });
 
     return apiClient.post("/sms/to-vehicle", {
       vehicleId,
-      text
+      text,
     });
   }
-
 
 
   /* ===============================
