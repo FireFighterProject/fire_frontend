@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/pages/gps/NavigationPage.tsx
 
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -13,15 +14,17 @@ declare global {
     }
 }
 
+/* --------------------------------------------
+ * TMAP 자동차 경로 응답 타입
+ * -------------------------------------------- */
 type TmapRouteResponse = {
     features: {
         geometry: { coordinates: number[][] };
         properties: {
             turnType?: number;
             description?: string;
-            voiceGuide?: string;
-            totalTime?: number;
             totalDistance?: number;
+            totalTime?: number;
         };
     }[];
 };
@@ -83,9 +86,12 @@ const NavigationPage = () => {
     }, [loadKakao, startLat, startLon]);
 
     /* --------------------------------------------
-     * TMAP 경로 요청
+     * TMAP 자동차 경로 요청
      * -------------------------------------------- */
     const requestTmapRoute = useCallback(async (): Promise<TmapRouteResponse> => {
+        const url =
+            "https://apis.openapi.sk.com/tmap/routes?version=1&format=json";
+
         const body = {
             startX: startLon.toString(),
             startY: startLat.toString(),
@@ -93,13 +99,13 @@ const NavigationPage = () => {
             endY: destLat.toString(),
             reqCoordType: "WGS84GEO",
             resCoordType: "WGS84GEO",
-            searchOption: "0",
+            searchOption: "0", // 추천경로
         };
 
-        const res = await fetch("https://apis.openapi.sk.com/tmap/routes", {
+        const res = await fetch(url, {
             method: "POST",
             headers: {
-                appKey: import.meta.env.VITE_TMAP_API_KEY,   // 🔥 ENV 적용
+                appKey: import.meta.env.VITE_TMAP_API_KEY, // ENV 사용
                 "Content-Type": "application/json",
             },
             body: JSON.stringify(body),
@@ -145,7 +151,7 @@ const NavigationPage = () => {
     );
 
     /* --------------------------------------------
-     * GPS 실시간 반영
+     * GPS 실시간 추적
      * -------------------------------------------- */
     useEffect(() => {
         if (!map || !markerRef.current) return;
@@ -153,8 +159,8 @@ const NavigationPage = () => {
         const watchId = navigator.geolocation.watchPosition(
             (pos) => {
                 const { latitude, longitude } = pos.coords;
-
                 const posObj = new window.kakao.maps.LatLng(latitude, longitude);
+
                 markerRef.current.setPosition(posObj);
                 map.panTo(posObj);
             },
