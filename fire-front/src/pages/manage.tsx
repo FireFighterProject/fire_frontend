@@ -30,28 +30,14 @@ const COL_ORDER: VehicleTypeKey[] = [
 
 /// =========================
   //행 색상 결정
-const REGION_LIST = [
-  "서울특별시", "부산광역시", "대구광역시", "인천광역시", "광주광역시",
-  "대전광역시", "울산광역시", "세종특별자치시",
-  "경기도", "강원도", "충청북도", "충청남도",
-  "전라북도", "전라남도",
-  "경상북도", "경상남도",
-  "제주특별자치도",
-];
-
-const REGION_COLORS = ["bg-red-50", "bg-blue-50", "bg-green-50"];
-
-function detectRegion(label: string) {
-  return REGION_LIST.find((region) => label.includes(region));
-}
 
 function getRowColor(label: string) {
-  const region = detectRegion(label);
-  if (!region) return "bg-gray-50";
-  const index = REGION_LIST.indexOf(region);
-  return REGION_COLORS[index % REGION_COLORS.length];
-}
+  if (label.includes("전체")) return "bg-white";       // 전체 → 흰색
+  if (label.includes("대기")) return "bg-green-50";   // 대기 → 녹색
+  if (label.includes("활동")) return "bg-red-50";     // 활동 → 빨간색
 
+  return "bg-gray-50"; // 그 외
+}
 
 
 
