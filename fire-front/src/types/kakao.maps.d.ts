@@ -1,173 +1,162 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-
-
+// src/types/kakao.maps.d.ts
 export { };
 
 declare global {
-    interface Window {
-        /** 카카오맵 SDK는 런타임 로드 → any 처리 필수 */
-        kakao: any;
+    namespace kakao {
+        export namespace maps {
+            /** autoload=false 일 때 SDK 로딩 콜백 */
+            export function load(callback: () => void): void;
+
+            /** ------------------------------
+             * LatLng (카카오 좌표 객체)
+             * ------------------------------ */
+            export class LatLng {
+                constructor(lat: number, lng: number);
+                getLat(): number;
+                getLng(): number;
+
+                /** 🔥 카카오 내부 필드 - optional 로 타입 오류 방지 */
+                Ma?: number;
+                La?: number;
+            }
+
+            /** 영역(남서-북동) */
+            export class LatLngBounds {
+                constructor(sw: LatLng, ne: LatLng);
+                contain(latlng: LatLng): boolean;
+            }
+
+            /** 지도 컨트롤 공통 타입 */
+            export type Control = object;
+
+            /** 컨트롤 위치 */
+            export enum ControlPosition {
+                RIGHT,
+                TOPRIGHT,
+            }
+
+            /** ------------------------------
+             * 지도 (Map)
+             * ------------------------------ */
+            export class Map {
+                constructor(container: HTMLElement, options: { center: LatLng; level: number });
+
+                addControl(control: Control, position: ControlPosition): void;
+                getBounds(): LatLngBounds;
+
+                /** 🔥 PolygonLayer에서 필요 */
+                getLevel(): number;
+            }
+
+            /** ------------------------------
+             * 마커
+             * ------------------------------ */
+            export class Marker {
+                constructor(options: { map: Map; position: LatLng });
+                setMap(map: Map | null): void;
+                getPosition(): LatLng;
+            }
+
+            /** 인포윈도우 */
+            export class InfoWindow {
+                constructor(options: { content: string });
+                open(map: Map, marker: Marker): void;
+                close(): void;
+            }
+
+            /** 지도 컨트롤 */
+            export class ZoomControl { }
+            export class MapTypeControl { }
+
+            /** ------------------------------
+             * 🔥 Polygon (지도 구역)
+             * ------------------------------ */
+            export class Polygon {
+                constructor(options: {
+                    map: Map | null;
+                    path: LatLng[];
+                    strokeWeight?: number;
+                    strokeColor?: string;
+                    strokeOpacity?: number;
+                    strokeStyle?: string;
+                    fillColor?: string;
+                    fillOpacity?: number;
+                });
+
+                setMap(map: Map | null): void;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                setOptions(options: any): void;
+                getPath(): LatLng[];
+            }
+
+            /** ------------------------------
+             * Rectangle (드래그 박스)
+             * ------------------------------ */
+            export class Rectangle {
+                constructor(options: {
+                    map: Map;
+                    bounds: LatLngBounds;
+                    strokeWeight: number;
+                    strokeColor: string;
+                    strokeOpacity: number;
+                    strokeStyle: string;
+                    fillColor: string;
+                    fillOpacity: number;
+                });
+
+                setBounds(bounds: LatLngBounds): void;
+                setMap(map: Map | null): void;
+                getBounds(): LatLngBounds;
+            }
+
+            /** ------------------------------
+             * 이벤트
+             * ------------------------------ */
+            export namespace event {
+                export interface MapMouseEvent {
+                    latLng: LatLng;
+                }
+
+                export function addListener(
+                    target: Map | Marker | Polygon | Rectangle,
+                    type: string,
+                    handler: (evt?: MapMouseEvent) => void
+                ): void;
+
+                export function removeListener(
+                    target: Map | Marker | Polygon | Rectangle,
+                    type: string,
+                    handler: (evt?: MapMouseEvent) => void
+                ): void;
+            }
+
+            /** ------------------------------
+             * 서비스 (주소/행정구역)
+             * ------------------------------ */
+            export namespace services {
+                export type RegionResult = {
+                    region_type: "H" | "B" | "S" | string;
+                    region_1depth_name: string;
+                };
+
+                export class Geocoder {
+                    coord2RegionCode(
+                        lng: number,
+                        lat: number,
+                        callback: (result: RegionResult[], status: Status) => void
+                    ): void;
+                }
+
+                export enum Status {
+                    OK = "OK",
+                }
+            }
+        }
     }
-}
 
-/** 전역 kakao 네임스페이스 선언 */
-declare namespace kakao {
-    namespace maps {
-        /** ============================
-         *  기본 좌표 클래스
-         * ============================ */
-        class LatLng {
-            constructor(lat: number, lng: number);
-            getLat(): number;
-            getLng(): number;
-        }
-
-        class LatLngBounds {
-            constructor(sw?: LatLng, ne?: LatLng);
-            extend(latlng: LatLng): void;
-            contain(latlng: LatLng): boolean;
-        }
-
-        /** ============================
-         *  Map
-         * ============================ */
-        interface MapOptions {
-            center: LatLng;
-            level?: number;
-        }
-
-        class Map {
-            constructor(container: HTMLElement, options: MapOptions);
-
-            setCenter(latlng: LatLng): void;
-            panTo(latlng: LatLng): void;
-
-            getBounds(): LatLngBounds;
-            setBounds(bounds: LatLngBounds): void;
-
-            getLevel(): number;
-        }
-
-        /** ============================
-         *  Marker
-         * ============================ */
-        class Marker {
-            constructor(options: {
-                map?: Map | null;
-                position: LatLng;
-                image?: MarkerImage;
-            });
-
-            setMap(map: Map | null): void;
-            getPosition(): LatLng;
-            setPosition(latlng: LatLng): void;
-        }
-
-        class MarkerImage {
-            constructor(src: string, size: Size, options?: any);
-        }
-
-        class Size {
-            constructor(width: number, height: number);
-        }
-
-        /** ============================
-         *  Polyline (경로선)
-         * ============================ */
-        class Polyline {
-            constructor(options: {
-                path: LatLng[];
-                map?: Map | null;
-                strokeWeight?: number;
-                strokeColor?: string;
-                strokeOpacity?: number;
-                strokeStyle?: string;
-            });
-
-            setMap(map: Map | null): void;
-            setPath(path: LatLng[]): void;
-        }
-
-        /** ============================
-         *  Polygon / Rectangle
-         * ============================ */
-        class Polygon {
-            constructor(options: {
-                map: Map | null;
-                path: LatLng[];
-                strokeWeight?: number;
-                strokeColor?: string;
-                strokeOpacity?: number;
-                fillColor?: string;
-                fillOpacity?: number;
-            });
-
-            setMap(map: Map | null): void;
-            getPath(): LatLng[];
-        }
-
-        class Rectangle {
-            constructor(options: {
-                map: Map;
-                bounds: LatLngBounds;
-                strokeWeight: number;
-                strokeColor: string;
-                strokeOpacity: number;
-                fillColor: string;
-                fillOpacity: number;
-            });
-
-            setBounds(bounds: LatLngBounds): void;
-            setMap(map: Map | null): void;
-            getBounds(): LatLngBounds;
-        }
-
-        /** ============================
-         *  이벤트
-         * ============================ */
-        namespace event {
-            interface MapMouseEvent {
-                latLng: LatLng;
-            }
-
-            function addListener(
-                target: any,
-                type: string,
-                handler: (evt?: MapMouseEvent) => void
-            ): void;
-
-            function removeListener(
-                target: any,
-                type: string,
-                handler: (evt?: MapMouseEvent) => void
-            ): void;
-        }
-
-        /** ============================
-         *  서비스 (Geocoder)
-         * ============================ */
-        namespace services {
-            class Geocoder {
-                addressSearch(
-                    query: string,
-                    callback: (result: any[], status: Status) => void
-                ): void;
-
-                coord2RegionCode(
-                    lng: number,
-                    lat: number,
-                    callback: (result: any[], status: Status) => void
-                ): void;
-            }
-
-            enum Status {
-                OK = "OK"
-            }
-        }
-
-        /** SDK 로드 */
-        function load(callback: () => void): void;
+    /** window.kakao 타입 */
+    interface Window {
+        kakao: typeof kakao;
     }
 }
 
