@@ -449,7 +449,7 @@ const Manage: React.FC = () => {
                         (canClick
                           ? [
                             // 버튼처럼 보이게 만드는 Tailwind 스타일
-                            "cursor-pointer rounded-lg font-semibold",
+                            "cursor-pointer  font-semibold",
                             "bg-gradient-to-b from-blue-50 to-blue-200",
                             "border-blue-400 shadow-[0_2px_4px_rgba(0,0,0,0.2)]",
                             "hover:from-blue-100 hover:to-blue-300 hover:shadow-lg",
