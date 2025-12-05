@@ -337,16 +337,18 @@ const Manage: React.FC = () => {
 
                 {COL_ORDER.map((k) => {
                   const val = r[k];
+                  const isWaitRow = String(r["구분"]).includes("대기"); // 대기행 체크
                   const canClick =
                     typeof val === "number" &&
                     val > 0 &&
-                    String(r["구분"]).includes("대기");
+                    isWaitRow;
 
                   return (
                     <td
                       key={k}
                       className={
                         "border px-2 py-1 text-center select-none " +
+                        (isWaitRow ? "font-bold " : "") +                  //  대기 행 볼드 적용
                         (canClick ? "cursor-pointer hover:bg-blue-100" : "text-gray-400")
                       }
                       onClick={() => canClick && handleAssignOne(String(r["구분"]), k)}
