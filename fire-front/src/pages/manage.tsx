@@ -439,39 +439,24 @@ const Manage: React.FC = () => {
 
                 {COL_ORDER.map((k) => {
                   const val = r[k];
-                  const isWaitRow = String(r["구분"]).includes("대기"); // 대기 행 여부
                   const canClick =
-                    typeof val === "number" && val > 0 && isWaitRow;
+                    typeof val === "number" &&
+                    val > 0 &&
+                    String(r["구분"]).includes("대기");
 
                   return (
-                    <td key={k} className="border px-2 py-1 text-center select-none">
-                      {canClick ? (
-                        <button
-                          onClick={() => handleAssignOne(String(r["구분"]), k)}
-                          className="
-        w-full h-full px-2 py-1
-        rounded-lg font-semibold
-        bg-gradient-to-b from-blue-50 to-blue-200
-        border border-blue-400
-        shadow-[0_2px_4px_rgba(0,0,0,0.2)]
-        hover:from-blue-100 hover:to-blue-300 hover:shadow-lg
-        active:translate-y-[1px] active:shadow-none
-        transition-all duration-150 ease-out
-      "
-                        >
-                          {val}
-                        </button>
-                      ) : (
-                        <span className={isWaitRow ? "font-bold" : "text-gray-400"}>
-                          {val}
-                        </span>
-                      )}
+                    <td
+                      key={k}
+                      className={
+                        "border px-2 py-1 text-center select-none " +
+                        (canClick ? "cursor-pointer hover:bg-blue-100" : "text-gray-400")
+                      }
+                      onClick={() => canClick && handleAssignOne(String(r["구분"]), k)}
+                    >
+                      {val}
                     </td>
-
-
                   );
                 })}
-
               </tr>
             ))}
           </tbody>
