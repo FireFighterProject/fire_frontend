@@ -199,13 +199,16 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
 
   // ===================== 필터 처리 =====================
   const filtered = useMemo(() => {
-    return data.filter(
-      (v) =>
-        (!filters.sido || v.sido === filters.sido) &&
-        (!filters.station || v.station === filters.station) &&
-        (!filters.type || v.type === filters.type)
-    );
+    return data
+      .filter((v) => v.status !== "대기")
+      .filter(
+        (v) =>
+          (!filters.sido || v.sido === filters.sido) &&
+          (!filters.station || v.station === filters.station) &&
+          (!filters.type || v.type === filters.type)
+      );
   }, [data, filters]);
+
 
 
 
