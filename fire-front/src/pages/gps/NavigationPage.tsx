@@ -1,14 +1,39 @@
-// src/pages/NavigationPage.tsx
+// src/pages/gps/NavigationPage.tsx
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 
 declare global {
     interface Window {
-        kakao: any;
-        routePolyline: any;
+        kakao: typeof kakao;
+        routePolyline?: kakao.maps.Polyline | null;
     }
 }
+
+type OSRMRoute = {
+    geometry: {
+        coordinates: number[][];
+    };
+    legs: OSRMLeg[];
+};
+
+type OSRMLeg = {
+    steps: OSRMStep[];
+};
+
+type OSRMStep = {
+    driving_side: string;
+    maneuver: {
+        type: string;
+        location: [number, number];
+    };
+    name: string;
+    duration: number;
+    distance: number;
+    geometry: {
+        coordinates: number[][];
+    };
+};
 
 const NavigationPage = () => {
     const [params] = useSearchParams();
@@ -18,190 +43,163 @@ const NavigationPage = () => {
     const destAddress = params.get("dest") ?? "";
 
     const mapRef = useRef<HTMLDivElement | null>(null);
-    const [map, setMap] = useState<any>(null);
-    const [currentPos, setCurrentPos] = useState<any>(null);
-    const markerRef = useRef<any>(null);
+    const markerRef = useRef<kakao.maps.Marker | null>(null);
 
-    let hasFitRoute = false;
+    const [map, setMap] = useState<kakao.maps.Map | null>(null);
 
-    /** ================================
-     *  0) 카카오 SDK 로드
-     * ================================= */
-    const loadKakaoSDK = () => {
-        return new Promise<void>((resolve) => {
-            if (window.kakao && window.kakao.maps) {
-                resolve();
-                return;
-            }
+    /* ================================
+     * SDK 로딩
+     * ================================ */
+    const loadKakao = useCallback((): Promise<void> => {
+        return new Promise((resolve) => {
+            if (window.kakao?.maps) resolve();
 
             const script = document.createElement("script");
             script.src =
                 `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAOMAP_API_KEY
-                }&libraries=services&autoload=false`;
+                }&autoload=false&libraries=services`;
 
-            script.onload = () => window.kakao.maps.load(resolve);
+            script.onload = () => {
+                window.kakao.maps.load(() => resolve());
+            };
+
             document.head.appendChild(script);
         });
-    };
-
-    /** ================================
-     *  1) 지도 초기화
-     * ================================= */
-    useEffect(() => {
-        (async () => {
-            await loadKakaoSDK();
-            if (!mapRef.current) return;
-
-            const kakao = window.kakao;
-            const center = new kakao.maps.LatLng(startLat, startLon);
-
-            const mapObj = new kakao.maps.Map(mapRef.current, {
-                center,
-                level: 5
-            });
-
-            setMap(mapObj);
-
-            // 🔵 파란 화살표 마커
-            markerRef.current = new kakao.maps.Marker({
-                map: mapObj,
-                position: center,
-                image: new kakao.maps.MarkerImage(
-                    "/icons/arrow-blue.png",
-                    new kakao.maps.Size(48, 48),
-                    { offset: new kakao.maps.Point(24, 24) }
-                )
-            });
-        })();
     }, []);
 
-    /** ================================
-     *  2) 주소 → 좌표 변환
-     * ================================= */
-    const geocodeAddress = () =>
-        new Promise<{ lat: number; lon: number }>((resolve, reject) => {
-            const geocoder = new window.kakao.maps.services.Geocoder();
-            geocoder.addressSearch(destAddress, (result: any, status: any) => {
-                if (status === window.kakao.maps.services.Status.OK) {
-                    resolve({
-                        lat: Number(result[0].y),
-                        lon: Number(result[0].x)
-                    });
-                } else reject("주소 변환 실패");
+    /* ================================
+     * 지도 초기화
+     * ================================ */
+    useEffect(() => {
+        (async () => {
+            await loadKakao();
+            if (!mapRef.current) return;
+
+            const center = new window.kakao.maps.LatLng(startLat, startLon);
+
+            const created = new window.kakao.maps.Map(mapRef.current, {
+                center,
+                level: 5,
             });
-        });
 
-    /** ================================
-     *  3) OSRM 경로 요청
-     * ================================= */
-    const getRoute = async (destLat: number, destLon: number) => {
-        const url =
-            `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${destLon},${destLat}?overview=full&steps=true&geometries=geojson`;
+            setMap(created);
 
-        const res = await fetch(url);
-        const data = await res.json();
+            // 차량 아이콘
+            markerRef.current = new window.kakao.maps.Marker({
+                map: created,
+                position: center,
+                zIndex: 5,
+            });
+        })();
+    }, [loadKakao, startLat, startLon]);
 
-        return data.routes[0];
-    };
+    /* ================================
+     * 주소 → 좌표
+     * ================================ */
+    const geocode = useCallback(
+        (): Promise<{ lat: number; lon: number }> => {
+            return new Promise((resolve, reject) => {
+                const geocoder = new window.kakao.maps.services.Geocoder();
 
-    /** ================================
-     *  4) 경로 그리기 (현재 위치 중심 고정)
-     * ================================= */
-    const drawRoute = (geometry: any, steps: any[]) => {
-        const kakao = window.kakao;
-        const path = geometry.coordinates.map(
-            (c: any) => new kakao.maps.LatLng(c[1], c[0])
-        );
+                geocoder.addressSearch(destAddress, (result, status) => {
+                    if (status === window.kakao.maps.services.Status.OK) {
+                        resolve({
+                            lat: Number(result[0].y),
+                            lon: Number(result[0].x),
+                        });
+                    } else reject("주소 변환 실패");
+                });
+            });
+        },
+        [destAddress]
+    );
 
-        const bounds = new kakao.maps.LatLngBounds();
-        path.forEach((p) => bounds.extend(p));
+    /* ================================
+     * OSRM 경로 요청
+     * ================================ */
+    const fetchRoute = useCallback(
+        async (lat: number, lon: number): Promise<OSRMRoute> => {
+            const res = await fetch(
+                `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${lon},${lat}?overview=full&geometries=geojson&steps=true`
+            );
+            const data = await res.json();
+            return data.routes[0];
+        },
+        [startLat, startLon]
+    );
 
-        // 🔥 최초 1회만 전체 경로 맞추기
-        if (!hasFitRoute) {
+    /* ================================
+     * 경로 표시
+     * ================================ */
+    const drawRoute = useCallback(
+        (route: OSRMRoute) => {
+            if (!map) return;
+
+            const coords = route.geometry.coordinates.map(
+                ([lon, lat]) => new window.kakao.maps.LatLng(lat, lon)
+            );
+
+            if (window.routePolyline) {
+                window.routePolyline.setMap(null);
+            }
+
+            const polyline = new window.kakao.maps.Polyline({
+                map,
+                path: coords,
+                strokeWeight: 8,
+                strokeColor: "#1E90FF",
+                strokeOpacity: 0.9,
+            });
+
+            window.routePolyline = polyline;
+
+            const bounds = new window.kakao.maps.LatLngBounds();
+            coords.forEach((p) => bounds.extend(p));
             map.setBounds(bounds);
-            hasFitRoute = true;
-        }
+        },
+        [map]
+    );
 
-        // 기존 경로 삭제
-        if (window.routePolyline) window.routePolyline.setMap(null);
-
-        const polyline = new kakao.maps.Polyline({
-            path,
-            strokeWeight: 7,
-            strokeColor: "#3478F6",
-            strokeOpacity: 0.9
-        });
-
-        polyline.setMap(map);
-        window.routePolyline = polyline;
-    };
-
-    /** ================================
-     *  5) 음성 안내
-     * ================================= */
-    const speak = (msg: string) => {
-        const utter = new SpeechSynthesisUtterance(msg);
-        utter.lang = "ko-KR";
-        utter.rate = 1;
-        speechSynthesis.cancel();
-        speechSynthesis.speak(utter);
-    };
-
-    /** ================================
-     *  6) GPS 실시간 추적 + 마커 회전
-     * ================================= */
+    /* ================================
+     * GPS 실시간
+     * ================================ */
     useEffect(() => {
         if (!map || !markerRef.current) return;
 
         const watchId = navigator.geolocation.watchPosition(
             (pos) => {
-                const { latitude, longitude, heading } = pos.coords;
+                const { latitude, longitude } = pos.coords;
+                const newPos = new window.kakao.maps.LatLng(latitude, longitude);
 
-                const kakao = window.kakao;
-                const newPos = new kakao.maps.LatLng(latitude, longitude);
-
-                setCurrentPos({ lat: latitude, lon: longitude });
-
-                markerRef.current.setPosition(newPos);
-
-                // 🔵 방향 회전
-                markerRef.current.setAngle?.(heading || 0);
-
-                // 🔥 항상 현재 위치 중심 유지
+                markerRef.current?.setPosition(newPos);
                 map.panTo(newPos);
             },
-            () => speak("GPS 신호가 약합니다."),
-            { enableHighAccuracy: true, maximumAge: 0 }
+            () => console.warn("GPS 오류"),
+            { enableHighAccuracy: true }
         );
 
         return () => navigator.geolocation.clearWatch(watchId);
     }, [map]);
 
-    /** ================================
-     *  7) 경로 계산 전체 로직
-     * ================================= */
+    /* ================================
+     * 경로 계산 전체 실행
+     * ================================ */
     useEffect(() => {
         if (!map) return;
 
         (async () => {
             try {
-                const dest = await geocodeAddress();
-                const route = await getRoute(dest.lat, dest.lon);
-
-                drawRoute(route.geometry, route.legs[0].steps);
-
-                speak("경로 안내를 시작합니다.");
+                const dest = await geocode();
+                const route = await fetchRoute(dest.lat, dest.lon);
+                drawRoute(route);
             } catch (err) {
+                console.error(err);
                 alert("경로 계산 실패");
             }
         })();
-    }, [map]);
+    }, [map, geocode, fetchRoute, drawRoute]);
 
-
-    /** ================================
-     *  화면 출력
-     * ================================= */
-    return <div className="w-full h-screen"><div ref={mapRef} className="w-full h-full" /></div>;
+    return <div ref={mapRef} className="w-full h-screen" />;
 };
 
 export default NavigationPage;
