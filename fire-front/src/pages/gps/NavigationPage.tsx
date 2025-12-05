@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 
 /* --------------------------------------------
- * 전역 kakao 타입은 무조건 any 로 통일해야 함
+ * 전역 kakao 타입 반드시 any 로 통일
  * -------------------------------------------- */
 declare global {
     interface Window {
@@ -13,58 +13,33 @@ declare global {
     }
 }
 
-/* --------------------------------------------
- * Navigation용 Kakao 타입 정의
- * (전역 kakao 타입과 절대 충돌하지 않음)
- * -------------------------------------------- */
-type NavigationKakaoMap = {
-    setCenter(pos: any): void;
-    setLevel(level: number): void;
-    panTo(pos: any): void;
-    setBounds(bounds: any): void;
+type TmapRouteResponse = {
+    features: {
+        geometry: { coordinates: number[][] };
+        properties: {
+            turnType?: number;
+            description?: string;
+            voiceGuide?: string;
+            totalTime?: number;
+            totalDistance?: number;
+        };
+    }[];
 };
 
-type NavigationKakaoMarker = {
-    setPosition(pos: any): void;
-    setMap(map: any): void;
-};
-
-type NavigationKakaoPolyline = {
-    setMap(map: any): void;
-};
-
-/* --------------------------------------------
- * OSRM 라우팅 타입
- * -------------------------------------------- */
-type NavigationStep = {
-    maneuver: { type: string; location: [number, number] };
-    distance: number;
-    duration: number;
-};
-
-type NavigationRoute = {
-    geometry: { coordinates: number[][] };
-    legs: { steps: NavigationStep[] }[];
-};
-
-/* --------------------------------------------
- * 컴포넌트 시작
- * -------------------------------------------- */
 const NavigationPage = () => {
     const [params] = useSearchParams();
 
     const startLat = Number(params.get("startLat"));
     const startLon = Number(params.get("startLon"));
-    const destAddress = params.get("dest") ?? "";
+    const destLat = Number(params.get("destLat"));
+    const destLon = Number(params.get("destLon"));
 
     const mapRef = useRef<HTMLDivElement | null>(null);
-
-    // 🔥 kakao 타입 절대 쓰지 말고 NavigationKakao 사용!
-    const markerRef = useRef<NavigationKakaoMarker | null>(null);
-    const [map, setMap] = useState<NavigationKakaoMap | null>(null);
+    const markerRef = useRef<any>(null);
+    const [map, setMap] = useState<any>(null);
 
     /* --------------------------------------------
-     * SDK 로딩
+     * Kakao SDK 로드
      * -------------------------------------------- */
     const loadKakao = useCallback((): Promise<void> => {
         return new Promise((resolve) => {
@@ -72,8 +47,7 @@ const NavigationPage = () => {
 
             const script = document.createElement("script");
             script.src =
-                `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAOMAP_API_KEY
-                }&autoload=false&libraries=services`;
+                `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAOMAP_API_KEY}&autoload=false&libraries=services`;
 
             script.onload = () => {
                 window.kakao.maps.load(() => resolve());
@@ -91,65 +65,65 @@ const NavigationPage = () => {
             await loadKakao();
             if (!mapRef.current) return;
 
-            const center = new window.kakao.maps.LatLng(startLat, startLon);
+            const startPos = new window.kakao.maps.LatLng(startLat, startLon);
 
             const created = new window.kakao.maps.Map(mapRef.current, {
-                center,
+                center: startPos,
                 level: 5,
-            }) as NavigationKakaoMap;
+            });
 
             setMap(created);
 
             markerRef.current = new window.kakao.maps.Marker({
                 map: created,
-                position: center,
+                position: startPos,
                 zIndex: 5,
-            }) as NavigationKakaoMarker;
+            });
         })();
     }, [loadKakao, startLat, startLon]);
 
     /* --------------------------------------------
-     * 주소 → 좌표 변환
+     * TMAP 경로 요청
      * -------------------------------------------- */
-    const geocode = useCallback((): Promise<{ lat: number; lon: number }> => {
-        return new Promise((resolve, reject) => {
-            const geocoder = new window.kakao.maps.services.Geocoder();
+    const requestTmapRoute = useCallback(async (): Promise<TmapRouteResponse> => {
+        const body = {
+            startX: startLon.toString(),
+            startY: startLat.toString(),
+            endX: destLon.toString(),
+            endY: destLat.toString(),
+            reqCoordType: "WGS84GEO",
+            resCoordType: "WGS84GEO",
+            searchOption: "0",
+        };
 
-            geocoder.addressSearch(destAddress, (result: any[], status: string) => {
-                if (status === window.kakao.maps.services.Status.OK) {
-                    resolve({
-                        lat: Number(result[0].y),
-                        lon: Number(result[0].x),
-                    });
-                } else reject("주소 변환 실패");
-            });
+        const res = await fetch("https://apis.openapi.sk.com/tmap/routes", {
+            method: "POST",
+            headers: {
+                appKey: import.meta.env.VITE_TMAP_API_KEY,   // 🔥 ENV 적용
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
         });
-    }, [destAddress]);
 
-    /* --------------------------------------------
-     * OSRM 경로 조회
-     * -------------------------------------------- */
-    const fetchRoute = useCallback(
-        async (lat: number, lon: number): Promise<NavigationRoute> => {
-            const res = await fetch(
-                `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${lon},${lat}?overview=full&geometries=geojson&steps=true`
-            );
-            const data = await res.json();
-            return data.routes[0] as NavigationRoute;
-        },
-        [startLat, startLon]
-    );
+        return await res.json();
+    }, [startLon, startLat, destLon, destLat]);
 
     /* --------------------------------------------
      * 경로 그리기
      * -------------------------------------------- */
-    const drawRoute = useCallback(
-        (route: NavigationRoute) => {
+    const drawTmapRoute = useCallback(
+        (route: TmapRouteResponse) => {
             if (!map) return;
 
-            const coords = route.geometry.coordinates.map(
-                ([lon, lat]) => new window.kakao.maps.LatLng(lat, lon)
-            );
+            const coords: any[] = [];
+
+            route.features.forEach((f) => {
+                if (f.geometry.coordinates.length > 1) {
+                    f.geometry.coordinates.forEach(([lon, lat]) =>
+                        coords.push(new window.kakao.maps.LatLng(lat, lon))
+                    );
+                }
+            });
 
             if (window.routePolyline) {
                 window.routePolyline.setMap(null);
@@ -161,18 +135,17 @@ const NavigationPage = () => {
                 strokeWeight: 8,
                 strokeColor: "#1E90FF",
                 strokeOpacity: 0.9,
-            }) as NavigationKakaoPolyline;
+            });
 
             const bounds = new window.kakao.maps.LatLngBounds();
             coords.forEach((p) => bounds.extend(p));
-
             map.setBounds(bounds);
         },
         [map]
     );
 
     /* --------------------------------------------
-     * GPS 실시간 업데이트
+     * GPS 실시간 반영
      * -------------------------------------------- */
     useEffect(() => {
         if (!map || !markerRef.current) return;
@@ -180,10 +153,10 @@ const NavigationPage = () => {
         const watchId = navigator.geolocation.watchPosition(
             (pos) => {
                 const { latitude, longitude } = pos.coords;
-                const newPos = new window.kakao.maps.LatLng(latitude, longitude);
 
-                markerRef.current!.setPosition(newPos);
-                map.panTo(newPos);
+                const posObj = new window.kakao.maps.LatLng(latitude, longitude);
+                markerRef.current.setPosition(posObj);
+                map.panTo(posObj);
             },
             () => console.warn("GPS 오류"),
             { enableHighAccuracy: true }
@@ -193,21 +166,21 @@ const NavigationPage = () => {
     }, [map]);
 
     /* --------------------------------------------
-     * 경로 계산 시작
+     * 네비게이션 시작
      * -------------------------------------------- */
     useEffect(() => {
         if (!map) return;
 
         (async () => {
             try {
-                const dest = await geocode();
-                const route = await fetchRoute(dest.lat, dest.lon);
-                drawRoute(route);
+                const route = await requestTmapRoute();
+                drawTmapRoute(route);
             } catch (err) {
                 console.error(err);
+                alert("경로 계산 실패");
             }
         })();
-    }, [map, geocode, fetchRoute, drawRoute]);
+    }, [map, requestTmapRoute, drawTmapRoute]);
 
     return <div ref={mapRef} className="w-full h-screen" />;
 };
