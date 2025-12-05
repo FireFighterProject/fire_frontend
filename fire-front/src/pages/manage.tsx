@@ -117,6 +117,32 @@ function convertSidoToFireLabel(sido: string) {
 
   return map[sido] ?? sido; // 혹시 매핑 누락 시 원본 유지
 }
+
+
+//역변환
+function convertFireLabelToSido(label: string) {
+  const map: Record<string, string> = {
+    "서울소방": "서울특별시",
+    "부산소방": "부산광역시",
+    "대구소방": "대구광역시",
+    "인천소방": "인천광역시",
+    "광주소방": "광주광역시",
+    "대전소방": "대전광역시",
+    "울산소방": "울산광역시",
+    "세종소방": "세종특별자치시",
+    "경기소방": "경기도",
+    "강원소방": "강원도",
+    "충북소방": "충청북도",
+    "충남소방": "충청남도",
+    "전북소방": "전라북도",
+    "전남소방": "전라남도",
+    "경북소방": "경상북도",
+    "경남소방": "경상남도",
+    "제주소방": "제주특별자치도",
+  };
+
+  return map[label] ?? label;
+}
 /* =========================
  * 표 데이터 구성
  * ========================= */
@@ -256,20 +282,20 @@ function buildRowPredicate(label: string) {
   const [regionRaw, statusRaw] = label.split(" ");
   const wantsWait = statusRaw === "대기";
 
+  // "경북소방" → "경상북도"
+  const sidoOriginal = convertFireLabelToSido(regionRaw);
+
   return (v: Vehicle) => {
     const sido = normalizeSido(v.sido);
     const status = normalizeStatus(v.status);
 
-    if (["경북", "경상북도"].includes(regionRaw)) {
-      if (sido !== "경상북도") return false;
-    } else {
-      if (sido !== regionRaw) return false;
-    }
-
+    if (sido !== sidoOriginal) return false;
     if (wantsWait && status !== "대기") return false;
+
     return true;
   };
 }
+
 
 /* =========================
  * 메인 컴포넌트
@@ -439,22 +465,35 @@ const Manage: React.FC = () => {
 
                 {COL_ORDER.map((k) => {
                   const val = r[k];
+                  const isWaitRow = String(r["구분"]).includes("대기"); // 대기 행 여부
                   const canClick =
-                    typeof val === "number" &&
-                    val > 0 &&
-                    String(r["구분"]).includes("대기");
+                    typeof val === "number" && val > 0 && isWaitRow;
 
                   return (
                     <td
                       key={k}
                       className={
                         "border px-2 py-1 text-center select-none " +
-                        (canClick ? "cursor-pointer hover:bg-blue-100" : "text-gray-400")
+                        (canClick
+                          ? [
+                            // 버튼처럼 보이게 만드는 Tailwind 스타일
+                            "cursor-pointer  font-semibold",
+                            "bg-gradient-to-b from-blue-50 to-blue-200",
+                            "border-blue-400 shadow-[0_2px_4px_rgba(0,0,0,0.2)]",
+                            "hover:from-blue-100 hover:to-blue-300 hover:shadow-lg",
+                            "active:translate-y-[1px] active:shadow-none",
+                            "transition-all duration-150 ease-out"
+                          ].join(" ")
+                          : isWaitRow
+                            ? "font-bold"
+                            : "text-gray-400"
+                        )
                       }
                       onClick={() => canClick && handleAssignOne(String(r["구분"]), k)}
                     >
                       {val}
                     </td>
+
                   );
                 })}
               </tr>
