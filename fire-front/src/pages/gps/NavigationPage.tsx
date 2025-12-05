@@ -20,14 +20,38 @@ const NavigationPage = () => {
     const [map, setMap] = useState<any>(null);
     const [routeLine, setRouteLine] = useState<any>(null);
 
-    /* ===========================
-     * 1) 카카오맵 로딩
-     * =========================== */
+    /** ================================
+     *  0) 카카오 SDK 로드 함수
+     * ================================= */
+    const loadKakaoSDK = () => {
+        return new Promise<void>((resolve) => {
+            // 이미 로드되어 있다면 바로 resolve
+            if (window.kakao && window.kakao.maps) {
+                resolve();
+                return;
+            }
+
+            const script = document.createElement("script");
+            script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAOMAP_API_KEY
+                }&libraries=services&autoload=false`;
+            script.onload = () => {
+                window.kakao.maps.load(() => resolve());
+            };
+
+            document.head.appendChild(script);
+        });
+    };
+
+    /** ================================
+     *  1) 지도 초기화
+     * ================================= */
     useEffect(() => {
-        const load = () => {
-            const kakao = window.kakao;
+        async function initMap() {
+            await loadKakaoSDK();
 
             if (!mapRef.current) return;
+
+            const kakao = window.kakao;
 
             const center = new kakao.maps.LatLng(startLat, startLon);
 
@@ -42,15 +66,14 @@ const NavigationPage = () => {
                 map: mapObj,
                 position: center,
             });
-        };
+        }
 
-        // SDK 로드
-        window.kakao.maps.load(load);
+        initMap();
     }, []);
 
-    /* ===========================
-     * 2) 주소 → 좌표 변환
-     * =========================== */
+    /** ================================
+     *  2) 주소 → 좌표 변환
+     * ================================= */
     const geocodeAddress = () =>
         new Promise<{ lat: number; lon: number }>((resolve, reject) => {
             const geocoder = new window.kakao.maps.services.Geocoder();
@@ -65,9 +88,9 @@ const NavigationPage = () => {
             });
         });
 
-    /* ===========================
-     * 3) OSRM 경로 요청
-     * =========================== */
+    /** ================================
+     *  3) OSRM 경로 요청
+     * ================================= */
     const requestRoute = async (destLat: number, destLon: number) => {
         const url = `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${destLon},${destLat}?overview=full&geometries=geojson`;
 
@@ -77,9 +100,9 @@ const NavigationPage = () => {
         return data.routes[0].geometry.coordinates;
     };
 
-    /* ===========================
-     * 4) 경로 표시
-     * =========================== */
+    /** ================================
+     *  4) 경로 표시
+     * ================================= */
     const drawRoute = (coords: any[]) => {
         if (!map) return;
 
@@ -87,9 +110,7 @@ const NavigationPage = () => {
 
         const path = coords.map((c) => new kakao.maps.LatLng(c[1], c[0]));
 
-        if (routeLine) {
-            routeLine.setMap(null);
-        }
+        if (routeLine) routeLine.setMap(null);
 
         const polyline = new kakao.maps.Polyline({
             path,
@@ -101,23 +122,22 @@ const NavigationPage = () => {
         polyline.setMap(map);
         setRouteLine(polyline);
 
-        // 지도의 범위를 경로에 맞춤
         const bounds = new kakao.maps.LatLngBounds();
-        path.forEach((p: any) => bounds.extend(p));
+        path.forEach((p) => bounds.extend(p));
         map.setBounds(bounds);
     };
 
-    /* ===========================
-     * 5) 전체 네비 흐름 시작
-     * =========================== */
+    /** ================================
+     *  5) 경로 계산 전체 플로우
+     * ================================= */
     useEffect(() => {
         if (!map) return;
 
         (async () => {
             try {
                 const dest = await geocodeAddress();
-                const route = await requestRoute(dest.lat, dest.lon);
-                drawRoute(route);
+                const routeCoords = await requestRoute(dest.lat, dest.lon);
+                drawRoute(routeCoords);
             } catch (e) {
                 alert("경로 계산 실패");
                 console.error(e);
