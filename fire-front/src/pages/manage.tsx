@@ -92,10 +92,39 @@ function normalizeSido(raw?: string) {
 }
 
 /* =========================
+ * 시·도 명칭 → 소방 표기 변환
+ * ========================= */
+function convertSidoToFireLabel(sido: string) {
+  const map: Record<string, string> = {
+    "서울특별시": "서울소방",
+    "부산광역시": "부산소방",
+    "대구광역시": "대구소방",
+    "인천광역시": "인천소방",
+    "광주광역시": "광주소방",
+    "대전광역시": "대전소방",
+    "울산광역시": "울산소방",
+    "세종특별자치시": "세종소방",
+    "경기도": "경기소방",
+    "강원도": "강원소방",
+    "충청북도": "충북소방",
+    "충청남도": "충남소방",
+    "전라북도": "전북소방",
+    "전라남도": "전남소방",
+    "경상북도": "경북소방",
+    "경상남도": "경남소방",
+    "제주특별자치도": "제주소방",
+  };
+
+  return map[sido] ?? sido; // 혹시 매핑 누락 시 원본 유지
+}
+/* =========================
  * 표 데이터 구성
  * ========================= */
 function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
-  type RowType = Record<VehicleTypeKey | "구분" | "차량(계)" | "인원(계)", string | number>;
+  type RowType = Record<
+    VehicleTypeKey | "구분" | "차량(계)" | "인원(계)",
+    string | number
+  >;
 
   const rows: RowType[] = [];
 
@@ -105,12 +134,32 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
     const row: RowType = {
       구분: label,
       "차량(계)": subset.length,
-      "인원(계)": subset.reduce((s, v) => s + (Number(v.personnel) || 0), 0),
-      경펌: 0, 소펌: 0, 중펌: 0, 대펌: 0,
-      중형탱크: 0, 대형탱크: 0, 급수탱크: 0,
-      화학: 0, 산불: 0, 험지: 0, 로젠바우어: 0, 산불신속팀: 0,
-      구조: 0, 구급: 0, 지휘: 0, 조사: 0,
-      굴절: 0, 고가: 0, 배연: 0, 회복: 0, 지원: 0, 기타: 0,
+      "인원(계)": subset.reduce(
+        (s, v) => s + (Number(v.personnel) || 0),
+        0
+      ),
+      경펌: 0,
+      소펌: 0,
+      중펌: 0,
+      대펌: 0,
+      중형탱크: 0,
+      대형탱크: 0,
+      급수탱크: 0,
+      화학: 0,
+      산불: 0,
+      험지: 0,
+      로젠바우어: 0,
+      산불신속팀: 0,
+      구조: 0,
+      구급: 0,
+      지휘: 0,
+      조사: 0,
+      굴절: 0,
+      고가: 0,
+      배연: 0,
+      회복: 0,
+      지원: 0,
+      기타: 0,
     };
 
     subset.forEach((v) => {
@@ -121,33 +170,84 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
     return row;
   };
 
-  const isGB = (v: Vehicle) => normalizeSido(v.sido) === "경상북도";
+  const isGB = (v: Vehicle) =>
+    normalizeSido(v.sido) === "경상북도";
+
+  // ★ 시도 표기 변환
+  const gbLabel = convertSidoToFireLabel("경상북도");
 
   if (!isDisaster) {
-    rows.push(calcRow("경상북도 전체", isGB));
-    rows.push(calcRow("경상북도 대기", (v) => isGB(v) && normalizeStatus(v.status) === "대기"));
-    rows.push(calcRow("경상북도 활동", (v) => isGB(v) && normalizeStatus(v.status) === "활동"));
+    rows.push(calcRow(`${gbLabel} 전체`, isGB));
+    rows.push(
+      calcRow(
+        `${gbLabel} 대기`,
+        (v) => isGB(v) && normalizeStatus(v.status) === "대기"
+      )
+    );
+    rows.push(
+      calcRow(
+        `${gbLabel} 활동`,
+        (v) => isGB(v) && normalizeStatus(v.status) === "활동"
+      )
+    );
+
     return rows;
   }
 
-  // 재난모드도 경북 전체 포함
-  rows.push(calcRow("경상북도 전체", isGB));
-  rows.push(calcRow("경상북도 대기", (v) => isGB(v) && normalizeStatus(v.status) === "대기"));
-  rows.push(calcRow("경상북도 활동", (v) => isGB(v) && normalizeStatus(v.status) === "활동"));
+  // 재난모드도 경북 포함
+  rows.push(calcRow(`${gbLabel} 전체`, isGB));
+  rows.push(
+    calcRow(
+      `${gbLabel} 대기`,
+      (v) => isGB(v) && normalizeStatus(v.status) === "대기"
+    )
+  );
+  rows.push(
+    calcRow(
+      `${gbLabel} 활동`,
+      (v) => isGB(v) && normalizeStatus(v.status) === "활동"
+    )
+  );
 
-  // 나머지 시·도
+  // 나머지 시・도
   const others = Array.from(
-    new Set(vehicles.map((v) => normalizeSido(v.sido)).filter((s) => s && s !== "경상북도"))
+    new Set(
+      vehicles
+        .map((v) => normalizeSido(v.sido))
+        .filter((s) => s && s !== "경상북도")
+    )
   );
 
   others.forEach((region) => {
-    rows.push(calcRow(`${region} 전체`, (v) => normalizeSido(v.sido) === region));
-    rows.push(calcRow(`${region} 대기`, (v) => normalizeSido(v.sido) === region && normalizeStatus(v.status) === "대기"));
-    rows.push(calcRow(`${region} 활동`, (v) => normalizeSido(v.sido) === region && normalizeStatus(v.status) === "활동"));
+    const regionLabel = convertSidoToFireLabel(region);
+
+    rows.push(
+      calcRow(
+        `${regionLabel} 전체`,
+        (v) => normalizeSido(v.sido) === region
+      )
+    );
+    rows.push(
+      calcRow(
+        `${regionLabel} 대기`,
+        (v) =>
+          normalizeSido(v.sido) === region &&
+          normalizeStatus(v.status) === "대기"
+      )
+    );
+    rows.push(
+      calcRow(
+        `${regionLabel} 활동`,
+        (v) =>
+          normalizeSido(v.sido) === region &&
+          normalizeStatus(v.status) === "활동"
+      )
+    );
   });
 
   return rows;
 }
+
 
 /* =========================
  * 조건 빌더
@@ -337,19 +437,21 @@ const Manage: React.FC = () => {
 
                 {COL_ORDER.map((k) => {
                   const val = r[k];
-                  const isWaitRow = String(r["구분"]).includes("대기"); // 대기행 체크
+                  const isWaitRow = String(r["구분"]).includes("대기"); // 대기 행 여부
                   const canClick =
-                    typeof val === "number" &&
-                    val > 0 &&
-                    isWaitRow;
+                    typeof val === "number" && val > 0 && isWaitRow;
 
                   return (
                     <td
                       key={k}
                       className={
                         "border px-2 py-1 text-center select-none " +
-                        (isWaitRow ? "font-bold " : "") +                  //  대기 행 볼드 적용
-                        (canClick ? "cursor-pointer hover:bg-blue-100" : "text-gray-400")
+                        (canClick
+                          ? "cursor-pointer bg-blue-100 border-blue-400 rounded-md shadow-md hover:shadow-lg hover:bg-blue-200 transition-all"
+                          : isWaitRow
+                            ? "font-bold"
+                            : "text-gray-400"
+                        )
                       }
                       onClick={() => canClick && handleAssignOne(String(r["구분"]), k)}
                     >
@@ -357,6 +459,7 @@ const Manage: React.FC = () => {
                     </td>
                   );
                 })}
+
               </tr>
             ))}
           </tbody>
