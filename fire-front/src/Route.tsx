@@ -11,6 +11,7 @@ import Report from "./pages/Report";
 import GPSStatus from "./pages/gps/GPSStatus";
 import GPSReady from "./pages/gps/GPSReady";
 import GPSStandby from "./pages/gps/GPSStandby";
+import NavigationPage from "./pages/gps/NavigationPage";
 
 export default function AppRoutes() {
     return (
@@ -36,7 +37,8 @@ export default function AppRoutes() {
             <Route path="/gps/ready" element={<GPSReady />} />
             <Route path="/gps/standby" element={<GPSStandby />} />
             <Route path="/gps/status" element={<GPSStatus />} />    
-    
+            <Route path="/map/navigation" element={<NavigationPage />} />
+
             {/* 404 */}
             <Route path="*" element={<div className="p-4">페이지를 찾을 수 없습니다.</div>} />
         </Routes>

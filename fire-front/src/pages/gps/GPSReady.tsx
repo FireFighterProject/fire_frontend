@@ -10,33 +10,28 @@ const GPSReady = () => {
     const missionId = params.get("missionId") ?? "";
     const vehicle = params.get("vehicle") ?? "";
 
-    // 🆕 서버에서 받아온 출동 정보
     const [title, setTitle] = useState("");
     const [address, setAddress] = useState("");
     const [desc, setDesc] = useState("");
 
-    // GPS 상태
     const [lat, setLat] = useState<number | null>(null);
     const [lon, setLon] = useState<number | null>(null);
     const [error, setError] = useState("");
 
-    // 🆕 출동 정보 자동 불러오기
+    // 출동 정보 자동 불러오기
     useEffect(() => {
         async function loadOrder() {
             if (!missionId) return;
 
             try {
                 const res = await api.get(`/dispatch-orders/${missionId}`);
-
                 setTitle(res.data.title);
                 setAddress(res.data.address);
                 setDesc(res.data.content);
-
             } catch (e) {
                 console.error("출동 정보 조회 실패", e);
             }
         }
-
         loadOrder();
     }, [missionId]);
 
@@ -52,7 +47,7 @@ const GPSReady = () => {
         );
     }, []);
 
-    // 출동 시작
+    // 🚀 출동 시작 → 네비게이션 페이지로 바로 이동
     const handleStart = async () => {
         if (lat === null || lon === null) {
             alert("GPS 정보를 불러오는 중입니다.");
@@ -60,20 +55,27 @@ const GPSReady = () => {
         }
 
         try {
+            // GPS 첫 전송
             await api.post("/gps/send", {
                 vehicleId: Number(vehicle),
                 latitude: lat,
                 longitude: lon,
             });
 
+            // ⭐⭐⭐ 바로 지도 네비 페이지로 이동 ⭐⭐⭐
+            const encodedAddress = encodeURIComponent(address);
+
             navigate(
-                `/gps/status?missionId=${missionId}&vehicle=${vehicle}`
+                `/map/navigation?startLat=${lat}&startLon=${lon}&dest=${encodedAddress}`
             );
+
         } catch (err) {
             console.error(err);
             alert("GPS 위치 전송 실패");
         }
     };
+
+
 
     return (
         <div className="w-full min-h-screen flex justify-center bg-gray-50">
@@ -83,7 +85,6 @@ const GPSReady = () => {
                     🚨 출동 요청
                 </h2>
 
-                {/* 출동 정보 */}
                 <div className="bg-white rounded-xl shadow p-4 space-y-3">
                     <p><strong>제목:</strong> {title}</p>
                     <p><strong>주소:</strong> {address}</p>
@@ -92,7 +93,6 @@ const GPSReady = () => {
                     <p><strong>출동 코드:</strong> {missionId}</p>
                 </div>
 
-                {/* GPS 상태 */}
                 <div className="bg-white rounded-xl shadow p-4 text-center">
                     <h3 className="font-semibold text-xl mb-2">현재 GPS 수신상태</h3>
 
@@ -108,7 +108,6 @@ const GPSReady = () => {
                     )}
                 </div>
 
-                {/* 버튼 */}
                 <button
                     onClick={handleStart}
                     className="bg-red-600 text-white font-bold py-4 rounded-xl text-xl shadow-md active:scale-95 transition"
