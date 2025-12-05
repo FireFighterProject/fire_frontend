@@ -412,7 +412,9 @@ const Manage: React.FC = () => {
    * =============================== */
   return (
     <div className="min-h-screen bg-white text-gray-800">
+      {/* 출동 편성 표 */}
       <section className="p-4 overflow-x-auto">
+        <h1 className="text-red-500 font-semibold">출동 편성 시 대기차량 숫자 클릭</h1>
         <table className="table-auto w-full border border-gray-300 text-sm">
           <thead className="bg-gray-100">
             <tr>
