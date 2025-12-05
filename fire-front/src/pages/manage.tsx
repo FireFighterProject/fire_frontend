@@ -447,7 +447,15 @@ const Manage: React.FC = () => {
                       className={
                         "border px-2 py-1 text-center select-none " +
                         (canClick
-                          ? "cursor-pointer bg-blue-100 border-blue-400 rounded-md shadow-md hover:shadow-lg hover:bg-blue-200 transition-all"
+                          ? [
+                            // 버튼처럼 보이게 만드는 Tailwind 스타일
+                            "cursor-pointer rounded-lg font-semibold",
+                            "bg-gradient-to-b from-blue-50 to-blue-200",
+                            "border-blue-400 shadow-[0_2px_4px_rgba(0,0,0,0.2)]",
+                            "hover:from-blue-100 hover:to-blue-300 hover:shadow-lg",
+                            "active:translate-y-[1px] active:shadow-none",
+                            "transition-all duration-150 ease-out"
+                          ].join(" ")
                           : isWaitRow
                             ? "font-bold"
                             : "text-gray-400"
@@ -457,6 +465,7 @@ const Manage: React.FC = () => {
                     >
                       {val}
                     </td>
+
                   );
                 })}
 
