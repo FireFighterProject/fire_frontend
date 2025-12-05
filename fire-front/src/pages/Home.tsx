@@ -122,7 +122,7 @@ const Home: React.FC = () => {
         </div>
 
         {/* ===== 일기예보 ===== */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[460px]">  
           <Forecast />
         </div>
       </div>
