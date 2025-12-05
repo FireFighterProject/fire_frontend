@@ -93,62 +93,79 @@ const NavigationPage = () => {
             "https://apis.openapi.sk.com/tmap/routes?version=1&format=json";
 
         const body = {
-            startX: startLon.toString(),
-            startY: startLat.toString(),
-            endX: destLon.toString(),
-            endY: destLat.toString(),
+            startX: String(startLon),
+            startY: String(startLat),
+            endX: String(destLon),
+            endY: String(destLat),
             reqCoordType: "WGS84GEO",
             resCoordType: "WGS84GEO",
-            searchOption: "0", // 추천경로
+            searchOption: "0"
         };
 
         const res = await fetch(url, {
             method: "POST",
             headers: {
-                appKey: import.meta.env.VITE_TMAP_API_KEY, // ENV 사용
+                "appKey": import.meta.env.VITE_TMAP_API_KEY,
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify(body),
+            body: JSON.stringify(body)
         });
 
-        return await res.json();
-    }, [startLon, startLat, destLon, destLat]);
+        const data = await res.json();
+
+        // 🔥 에러 방어
+        if (!data.features) {
+            console.error("TMAP Error Response:", data);
+            throw new Error("TMAP 경로 생성 실패: features 없음");
+        }
+
+        return data;
+    }, [startLat, startLon, destLat, destLon]);
+
 
     /* --------------------------------------------
      * 경로 그리기
      * -------------------------------------------- */
-    const drawTmapRoute = useCallback(
-        (route: TmapRouteResponse) => {
-            if (!map) return;
+    const drawTmapRoute = useCallback((route: TmapRouteResponse) => {
+        if (!map) return;
 
-            const coords: any[] = [];
+        if (!route.features || !Array.isArray(route.features)) {
+            console.error("경로 데이터 없음:", route);
+            return;
+        }
 
-            route.features.forEach((f) => {
-                if (f.geometry.coordinates.length > 1) {
-                    f.geometry.coordinates.forEach(([lon, lat]) =>
-                        coords.push(new window.kakao.maps.LatLng(lat, lon))
-                    );
-                }
-            });
+        const coords: any[] = [];
 
-            if (window.routePolyline) {
-                window.routePolyline.setMap(null);
+        route.features.forEach((f) => {
+            if (f.geometry?.coordinates) {
+                f.geometry.coordinates.forEach(([lon, lat]) =>
+                    coords.push(new window.kakao.maps.LatLng(lat, lon))
+                );
             }
+        });
 
-            window.routePolyline = new window.kakao.maps.Polyline({
-                map,
-                path: coords,
-                strokeWeight: 8,
-                strokeColor: "#1E90FF",
-                strokeOpacity: 0.9,
-            });
+        if (coords.length === 0) {
+            console.warn("경로 좌표 없음");
+            return;
+        }
 
-            const bounds = new window.kakao.maps.LatLngBounds();
-            coords.forEach((p) => bounds.extend(p));
-            map.setBounds(bounds);
-        },
-        [map]
-    );
+        // 기존 라인 제거
+        if (window.routePolyline) {
+            window.routePolyline.setMap(null);
+        }
+
+        window.routePolyline = new window.kakao.maps.Polyline({
+            map,
+            path: coords,
+            strokeWeight: 8,
+            strokeColor: "#1E90FF",
+            strokeOpacity: 0.9,
+        });
+
+        const bounds = new window.kakao.maps.LatLngBounds();
+        coords.forEach((p) => bounds.extend(p));
+        map.setBounds(bounds);
+    }, [map]);
 
     /* --------------------------------------------
      * GPS 실시간 추적
