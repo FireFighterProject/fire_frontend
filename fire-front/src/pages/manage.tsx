@@ -250,8 +250,7 @@ const Manage: React.FC = () => {
     v: { id: number | string },
     missionId: number
   ) {
-    // SMS API가 줄바꿈과 https:// 를 싫어하므로 ↓ 처리
-    const link = `https : //fire.rjsgud.com/gps/ready?missionId=${missionId}&vehicle=${v.id}`;
+    const link = `fire.rjsgud.com/gps/ready?missionId=${missionId}&vehicle=${v.id}`;
 
     return `출동요청 출동링크: ${link}`;
   }
