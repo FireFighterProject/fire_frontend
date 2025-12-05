@@ -3,10 +3,10 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { parseTmapRoute } from "../../services/map/tmapParser";
-import useTTS from "../../hooks/useTTS";
 
-/* Kakao는 무조건 any */
+/* --------------------------------------------
+ * 전역 kakao 타입 any 유지
+ * -------------------------------------------- */
 declare global {
     interface Window {
         kakao: any;
@@ -14,6 +14,27 @@ declare global {
     }
 }
 
+/* --------------------------------------------
+ * TMAP 응답 타입
+ * -------------------------------------------- */
+type TmapFeature = {
+    geometry: { coordinates: number[][] };
+    properties: {
+        turnType?: number;
+        description?: string;
+        distance?: number;
+        time?: number;
+    };
+};
+
+type TmapRouteResponse = {
+    type: string;
+    features: TmapFeature[];
+};
+
+/* --------------------------------------------
+ * NavigationPage
+ * -------------------------------------------- */
 const NavigationPage = () => {
     const [params] = useSearchParams();
 
@@ -26,36 +47,32 @@ const NavigationPage = () => {
     const markerRef = useRef<any>(null);
     const [map, setMap] = useState<any>(null);
 
-    const speak = useTTS();
-
-    /* -------------------------
-     * 1) Kakao SDK 로드
-     * ------------------------- */
+    /* --------------------------------------------
+     * Kakao Map SDK 로드
+     * -------------------------------------------- */
     const loadKakao = useCallback((): Promise<void> => {
         return new Promise((resolve) => {
             if (window.kakao?.maps) return resolve();
 
             const script = document.createElement("script");
-            script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAOMAP_API_KEY
-                }&autoload=false&libraries=services`;
-
+            script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAOMAP_API_KEY}&autoload=false&libraries=services`;
             script.onload = () => window.kakao.maps.load(resolve);
+
             document.head.appendChild(script);
         });
     }, []);
 
-    /* -------------------------
-     * 2) 지도 생성
-     * ------------------------- */
+    /* --------------------------------------------
+     * 지도 초기화
+     * -------------------------------------------- */
     useEffect(() => {
         (async () => {
             await loadKakao();
             if (!mapRef.current) return;
 
-            const center = new window.kakao.maps.LatLng(startLat, startLon);
-
+            const startPos = new window.kakao.maps.LatLng(startLat, startLon);
             const created = new window.kakao.maps.Map(mapRef.current, {
-                center,
+                center: startPos,
                 level: 5,
             });
 
@@ -63,64 +80,73 @@ const NavigationPage = () => {
 
             markerRef.current = new window.kakao.maps.Marker({
                 map: created,
-                position: center,
-                image: new window.kakao.maps.MarkerImage(
-                    "/nav_arrow_blue.png",
-                    new window.kakao.maps.Size(48, 48)
-                ),
+                position: startPos,
+                zIndex: 5,
             });
         })();
     }, [loadKakao, startLat, startLon]);
 
-    /* -------------------------
-     * 3) TMAP 경로 요청
-     * ------------------------- */
-    const requestRoute = useCallback(async () => {
+    /* --------------------------------------------
+     * TMAP 경로 요청
+     * -------------------------------------------- */
+    const requestTmapRoute = useCallback(async () => {
+        const body = {
+            startX: startLon.toString(),
+            startY: startLat.toString(),
+            endX: destLon.toString(),
+            endY: destLat.toString(),
+            reqCoordType: "WGS84GEO",
+            resCoordType: "WGS84GEO",
+            searchOption: "0",
+            trafficInfo: "Y",
+        };
+
         const res = await fetch(
             "https://apis.openapi.sk.com/tmap/routes?version=1&format=json",
             {
                 method: "POST",
                 headers: {
                     appKey: import.meta.env.VITE_TMAP_API_KEY,
+                    "Accept": "application/json",
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({
-                    startX: startLon,
-                    startY: startLat,
-                    endX: destLon,
-                    endY: destLat,
-                    reqCoordType: "WGS84GEO",
-                    resCoordType: "WGS84GEO",
-                    searchOption: "0",
-                    trafficInfo: "Y",
-                }),
+                body: JSON.stringify(body),
             }
         );
 
-        const data = await res.json();
-        return data;
+        const data = (await res.json()) as TmapRouteResponse;
+
+        if (!data.features) throw new Error("TMAP features 없음");
+
+        return data.features;
     }, [startLat, startLon, destLat, destLon]);
 
-    /* -------------------------
-     * 4) 경로 그리기
-     * ------------------------- */
+    /* --------------------------------------------
+     * 경로 그리기
+     * -------------------------------------------- */
     const drawRoute = useCallback(
-        (coords: any[]) => {
+        (features: TmapFeature[]) => {
             if (!map) return;
+
+            const coords: any[] = [];
+
+            features.forEach((f) => {
+                f.geometry.coordinates.forEach(([lon, lat]) => {
+                    coords.push(new window.kakao.maps.LatLng(lat, lon));
+                });
+            });
 
             if (window.routePolyline) {
                 window.routePolyline.setMap(null);
             }
 
-            const polyline = new window.kakao.maps.Polyline({
+            window.routePolyline = new window.kakao.maps.Polyline({
                 map,
                 path: coords,
-                strokeWeight: 8,
-                strokeColor: "#007AFF",
+                strokeWeight: 7,
+                strokeColor: "#1E90FF",
                 strokeOpacity: 0.9,
             });
-
-            window.routePolyline = polyline;
 
             const bounds = new window.kakao.maps.LatLngBounds();
             coords.forEach((p) => bounds.extend(p));
@@ -129,56 +155,45 @@ const NavigationPage = () => {
         [map]
     );
 
-    /* -------------------------
-     * 5) GPS 실시간 추적
-     * ------------------------- */
+    /* --------------------------------------------
+     * GPS 실시간 반영
+     * -------------------------------------------- */
     useEffect(() => {
         if (!map || !markerRef.current) return;
 
         const watchId = navigator.geolocation.watchPosition(
             (pos) => {
                 const { latitude, longitude } = pos.coords;
+                const p = new window.kakao.maps.LatLng(latitude, longitude);
 
-                const newPos = new window.kakao.maps.LatLng(latitude, longitude);
-                markerRef.current.setPosition(newPos);
-                map.panTo(newPos);
+                markerRef.current.setPosition(p);
+                map.panTo(p);
             },
-            console.warn,
+            () => console.warn("GPS 오류"),
             { enableHighAccuracy: true }
         );
 
         return () => navigator.geolocation.clearWatch(watchId);
     }, [map]);
 
-    /* -------------------------
-     * 6) 네비게이션 시작
-     * ------------------------- */
+    /* --------------------------------------------
+     * 네비게이션 시작
+     * -------------------------------------------- */
     useEffect(() => {
         if (!map) return;
 
         (async () => {
-            const raw = await requestRoute();
-            const parsed = parseTmapRoute(raw);
-
-            drawRoute(parsed.coords);
-
-            // 첫 안내 음성
-            if (parsed.instructions.length > 0) {
-                speak(parsed.instructions[0].text);
+            try {
+                const features = await requestTmapRoute();
+                drawRoute(features);
+            } catch (err) {
+                console.error(err);
+                alert("경로 생성 실패");
             }
         })();
-    }, [map, requestRoute, drawRoute, speak]);
+    }, [map, requestTmapRoute, drawRoute]);
 
-    return (
-        <div className="w-full h-screen relative">
-            <div ref={mapRef} className="w-full h-full" />
-
-            {/* ETA & 거리 표시 UI */}
-            <div className="absolute top-5 left-1/2 -translate-x-1/2 bg-black/60 text-white px-4 py-2 rounded-xl text-sm">
-                주행 중…
-            </div>
-        </div>
-    );
+    return <div ref={mapRef} className="w-full h-screen" />;
 };
 
 export default NavigationPage;
