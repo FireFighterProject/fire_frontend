@@ -523,31 +523,36 @@ const NavigationPage = () => {
     const currentInstruction = instructions[currentIdx];
 
     return (
-        <div className="relative w-full h-screen">
-            <div ref={mapRef} className="w-full h-full" />
+        <>
+            {/* 전체 화면 지도 */}
+            <div ref={mapRef} className="w-full h-screen" />
 
+            {/* 🧭 상단 고정 안내 박스 (항상 보이게) */}
             {currentInstruction && (
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-3 rounded-2xl shadow-lg flex items-center gap-3 max-w-xl">
-                    <span className="text-3xl">
-                        {getDirectionSymbol(
-                            currentInstruction.description,
-                            currentInstruction.turnType
-                        )}
-                    </span>
-                    <div className="flex flex-col">
-                        <span className="font-semibold text-lg">
-                            {currentInstruction.description}
+                <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999]">
+                    <div className="bg-black/70 text-white px-4 py-3 rounded-2xl shadow-lg flex items-center gap-3 max-w-xl pointer-events-none">
+                        <span className="text-3xl">
+                            {getDirectionSymbol(
+                                currentInstruction.description,
+                                currentInstruction.turnType
+                            )}
                         </span>
-                        {currentInstruction.nextRoadName && (
-                            <span className="text-sm text-gray-200">
-                                다음 도로: {currentInstruction.nextRoadName}
+                        <div className="flex flex-col">
+                            <span className="font-semibold text-lg">
+                                {currentInstruction.description}
                             </span>
-                        )}
+                            {currentInstruction.nextRoadName && (
+                                <span className="text-sm text-gray-200">
+                                    다음 도로: {currentInstruction.nextRoadName}
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
-        </div>
+        </>
     );
+
 };
 
 export default NavigationPage;
