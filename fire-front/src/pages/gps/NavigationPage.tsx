@@ -33,11 +33,13 @@ type TmapRouteGeometry = {
 
 type TmapRouteFeature = {
     type: string;
-    geometry?: {
+    geometry?:
+    | {
         type: string;
-        coordinates?: number[];        // Point
+        coordinates?: number[]; // Point
         traffic?: any[];
-    } | {
+    }
+    | {
         type: string;
         coordinates?: number[][];
         traffic?: any[];
@@ -78,18 +80,24 @@ const getDirectionSymbol = (desc: string, turnType?: number) => {
     if (desc.includes("우회전")) return "➡️";
     if (desc.includes("유턴")) return "↩️";
 
-    // Use turnType for additional direction symbols
-    if (turnType === 1) return "⬆️"; // Straight
-    if (turnType === 2) return "↗️"; // Slight right
-    if (turnType === 3) return "↘️"; // Right
-    if (turnType === 4) return "↙️"; // Slight left
-    if (turnType === 5) return "↖️"; // Left
+    // turnType 활용 (Tmap 문서 기준 예시 – 필요에 따라 수정 가능)
+    if (turnType === 1) return "⬆️"; // 직진
+    if (turnType === 2) return "↗️"; // 우측 방향
+    if (turnType === 3) return "↘️"; // 우회전
+    if (turnType === 4) return "↙️"; // 좌측 방향
+    if (turnType === 5) return "↖️"; // 좌회전
 
     return "⬆️";
 };
 
 const toRad = (v: number) => (v * Math.PI) / 180;
-const haversineMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+
+const haversineMeters = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+) => {
     const R = 6371000;
     const dLat = toRad(lat2 - lat1);
     const dLon = toRad(lon2 - lon1);
@@ -105,16 +113,63 @@ const haversineMeters = (lat1: number, lon1: number, lat2: number, lon2: number)
 /* ===========================
  *  Web Speech API (TTS)
  * =========================== */
+const getKoreanVoice = (): SpeechSynthesisVoice | null => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return null;
+
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices || voices.length === 0) return null;
+
+    const koreanVoices = voices.filter((v) => v.lang.startsWith("ko"));
+    if (koreanVoices.length === 0) return null;
+
+    // 이름 기반으로 "좀 더 자연스러워 보이는" 후보 먼저 선택
+    const preferred =
+        koreanVoices.find((v) =>
+            /google|female|여성|Wavenet/i.test(v.name)
+        ) ?? koreanVoices[0];
+
+    return preferred;
+};
+
 const speakKorean = (text: string) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     if (!text) return;
 
+    // 혹시 이전에 말하던 거 있으면 끊고
     window.speechSynthesis.cancel();
+
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "ko-KR";
-    utter.rate = 1.0;
-    utter.pitch = 1.0;
+
+    // 💬 부드러운 느낌을 위한 설정값
+    utter.rate = 0.9; // 기본 1.0보다 약간 느리게
+    utter.pitch = 1.05; // 살짝 높게
+    utter.volume = 1.0;
+
+    const voice = getKoreanVoice();
+    if (voice) {
+        utter.voice = voice;
+    }
+
     window.speechSynthesis.speak(utter);
+};
+
+/* ===========================
+ *  포맷 유틸
+ * =========================== */
+const formatDistance = (m: number) => {
+    if (m >= 1000) return `${(m / 1000).toFixed(1)} km`;
+    return `${Math.round(m)} m`;
+};
+
+const formatTime = (sec: number) => {
+    const total = Math.round(sec);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+
+    if (h > 0) return `${h}시간 ${m}분`;
+    if (m > 0) return `${m}분`;
+    return "1분 미만";
 };
 
 const NavigationPage = () => {
@@ -147,6 +202,23 @@ const NavigationPage = () => {
     const [instructions, setInstructions] = useState<NavInstruction[]>([]);
     const [currentIdx, setCurrentIdx] = useState(0);
     const lastSpokenIdxRef = useRef<number | null>(null);
+
+    // 🚗 경로 / 주행 상태
+    const [totalDistanceM, setTotalDistanceM] = useState<number | null>(null);
+    const [totalTimeSec, setTotalTimeSec] = useState<number | null>(null);
+    const [remainingDistanceM, setRemainingDistanceM] = useState<
+        number | null
+    >(null);
+    const [remainingTimeSec, setRemainingTimeSec] = useState<number | null>(
+        null
+    );
+    const [currentSpeedKph, setCurrentSpeedKph] = useState<number | null>(null);
+
+    // 경로 전체 좌표 / 마지막 GPS 기록
+    const pathCoordsRef = useRef<number[][]>([]);
+    const lastPosRef = useRef<{ lat: number; lon: number; t: number } | null>(
+        null
+    );
 
     /* ===========================
      * 1) 카카오맵 SDK 로더
@@ -322,6 +394,44 @@ const NavigationPage = () => {
             mergedCoords.slice(0, 5)
         );
 
+        // 1-1) 전체 거리/시간 합산
+        let sumDistance = 0;
+        let sumTime = 0;
+
+        lineFeatures.forEach((f) => {
+            const props = f.properties;
+            if (!props) return;
+
+            if (typeof props.distance === "number") {
+                sumDistance += props.distance; // m
+            }
+            if (typeof props.time === "number") {
+                sumTime += props.time; // sec
+            }
+        });
+
+        if (sumDistance > 0) {
+            setTotalDistanceM(sumDistance);
+        } else {
+            // fallback: 좌표로 대략 계산
+            let approx = 0;
+            for (let i = 1; i < mergedCoords.length; i++) {
+                const [lon1, lat1] = mergedCoords[i - 1];
+                const [lon2, lat2] = mergedCoords[i];
+                approx += haversineMeters(lat1, lon1, lat2, lon2);
+            }
+            setTotalDistanceM(approx);
+        }
+
+        if (sumTime > 0) {
+            setTotalTimeSec(sumTime);
+        } else {
+            setTotalTimeSec(null);
+        }
+
+        // 전체 경로 좌표 저장
+        pathCoordsRef.current = mergedCoords;
+
         // 2) 안내용 포인트 (Point + description 있는 것만)
         const pointInstructions: NavInstruction[] = features
             .filter(
@@ -451,7 +561,7 @@ const NavigationPage = () => {
     );
 
     /* ===========================
-     * 8) 실시간 GPS 폴링 (차량 기준 화면 이동)
+     * 8) 실시간 GPS 폴링 (차량 기준 화면 이동 + 속도/남은거리/시간)
      * =========================== */
     useEffect(() => {
         if (!map) return;
@@ -470,15 +580,66 @@ const NavigationPage = () => {
 
                 if (cancelled || !markerRef.current) return;
 
+                const now = Date.now();
                 const pos = new window.kakao.maps.LatLng(
                     latitude,
                     longitude
                 );
 
-                // 마커 이동 + 차량 기준 화면 이동
+                // 1) 마커 이동 + 차량 기준 화면 이동
                 markerRef.current.setPosition(pos);
                 map.panTo(pos);
 
+                // 2) 속도 계산 (km/h)
+                if (lastPosRef.current) {
+                    const dtSec = (now - lastPosRef.current.t) / 1000;
+                    if (dtSec > 1) {
+                        const distM = haversineMeters(
+                            lastPosRef.current.lat,
+                            lastPosRef.current.lon,
+                            latitude,
+                            longitude
+                        );
+                        const speed = (distM / dtSec) * 3.6; // m/s -> km/h
+                        if (!Number.isNaN(speed) && speed < 200) {
+                            // 200km/h 이상은 튀는 값으로 보고 버림
+                            setCurrentSpeedKph(speed);
+                        }
+                    }
+                }
+                lastPosRef.current = {
+                    lat: latitude,
+                    lon: longitude,
+                    t: now,
+                };
+
+                // 3) 남은 거리/시간 계산
+                if (totalDistanceM && pathCoordsRef.current.length > 1) {
+                    const [startLon0, startLat0] = pathCoordsRef.current[0];
+
+                    const distFromStart = haversineMeters(
+                        startLat0,
+                        startLon0,
+                        latitude,
+                        longitude
+                    );
+
+                    const remaining = Math.max(totalDistanceM - distFromStart, 0);
+                    setRemainingDistanceM(remaining);
+
+                    if (totalTimeSec) {
+                        const ratio = Math.min(
+                            Math.max(distFromStart / totalDistanceM, 0),
+                            1
+                        );
+                        const remainSec = totalTimeSec * (1 - ratio);
+                        setRemainingTimeSec(remainSec);
+                    } else {
+                        setRemainingTimeSec(null);
+                    }
+                }
+
+                // 안내 문구 갱신
                 updateInstructionForPosition(latitude, longitude);
             } catch (e) {
                 console.error("실시간 GPS 조회 실패", e);
@@ -489,7 +650,13 @@ const NavigationPage = () => {
             cancelled = true;
             window.clearInterval(intervalId);
         };
-    }, [map, vehicleId, updateInstructionForPosition]);
+    }, [
+        map,
+        vehicleId,
+        totalDistanceM,
+        totalTimeSec,
+        updateInstructionForPosition,
+    ]);
 
     /* ===========================
      * 9) 안내문 바뀔 때마다 TTS 실행
@@ -530,29 +697,59 @@ const NavigationPage = () => {
             {/* 🧭 상단 고정 안내 박스 (항상 보이게) */}
             {currentInstruction && (
                 <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999]">
-                    <div className="bg-black/70 text-white px-4 py-3 rounded-2xl shadow-lg flex items-center gap-3 max-w-xl pointer-events-none">
-                        <span className="text-3xl">
-                            {getDirectionSymbol(
-                                currentInstruction.description,
-                                currentInstruction.turnType
-                            )}
-                        </span>
-                        <div className="flex flex-col">
-                            <span className="font-semibold text-lg">
-                                {currentInstruction.description}
+                    <div className="bg-black/70 text-white px-4 py-3 rounded-2xl shadow-lg flex flex-col gap-1 max-w-xl pointer-events-none">
+                        <div className="flex items-center gap-3">
+                            <span className="text-3xl">
+                                {getDirectionSymbol(
+                                    currentInstruction.description,
+                                    currentInstruction.turnType
+                                )}
                             </span>
-                            {currentInstruction.nextRoadName && (
-                                <span className="text-sm text-gray-200">
-                                    다음 도로: {currentInstruction.nextRoadName}
+                            <div className="flex flex-col">
+                                <span className="font-semibold text-lg">
+                                    {currentInstruction.description}
                                 </span>
-                            )}
+                                {currentInstruction.nextRoadName && (
+                                    <span className="text-sm text-gray-200">
+                                        다음 도로:{" "}
+                                        {currentInstruction.nextRoadName}
+                                    </span>
+                                )}
+                            </div>
                         </div>
+
+                        {/* 🔢 거리 / 예상시간 / 속도 상태 표시 줄 */}
+                        {(remainingDistanceM != null ||
+                            remainingTimeSec != null ||
+                            currentSpeedKph != null) && (
+                                <div className="text-xs text-gray-300 mt-1">
+                                    {remainingDistanceM != null && (
+                                        <span>
+                                            남은 거리:{" "}
+                                            {formatDistance(
+                                                remainingDistanceM
+                                            )}{" "}
+                                        </span>
+                                    )}
+                                    {remainingTimeSec != null && (
+                                        <span>
+                                            · 예상 시간:{" "}
+                                            {formatTime(remainingTimeSec)}{" "}
+                                        </span>
+                                    )}
+                                    {currentSpeedKph != null && (
+                                        <span>
+                                            · 현재 속도:{" "}
+                                            {Math.round(currentSpeedKph)} km/h
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                     </div>
                 </div>
             )}
         </>
     );
-
 };
 
 export default NavigationPage;
