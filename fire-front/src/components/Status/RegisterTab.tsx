@@ -103,7 +103,7 @@ function RegisterTab() {
         return url.toString();
     };
 
-    /* 🔥 단건 등록 + (선택) 문자 발송 */
+    /* 🔥 단건 등록 + (문자 발송) */
     const handleRegister = async () => {
         if (!form.sido) return alert("시도 선택");
         if (!form.stationName) return alert("소방서 선택");
@@ -112,7 +112,8 @@ function RegisterTab() {
             ...form,
             capacity: form.capacity === "" ? null : form.capacity,
             personnel: form.personnel === "" ? null : form.personnel,
-            rallyPoint, // 주소 포함
+            // ❌ rallyPoint는 백엔드 플래그 필드(0/1)라서 절대 보내지 않는다
+            // rallyPoint: rallyPoint,
         };
 
         try {
@@ -121,11 +122,9 @@ function RegisterTab() {
             // 1) 차량 등록
             const res = await apiClient.post("/vehicles", payload);
 
-            // 백엔드에서 어떤 키로 id를 주는지에 따라 조정 필요
             const vehicleId: number | undefined =
                 res.data.id ?? res.data.vehicleId;
 
-            // 2) 문자 발송 (vehicleId 응답이 있을 때만)
             if (vehicleId) {
                 const link = getAssemblyLink(vehicleId);
                 const text = `
@@ -135,18 +134,18 @@ function RegisterTab() {
 
 아래 링크에서 '응소 OK' 버튼을 눌러주세요.
 ${link}
-                `.trim();
+            `.trim();
 
                 await apiClient.post("/sms/to-vehicle", {
                     vehicleId,
                     text,
                 });
+
                 alert("등록 + 문자 발송 완료");
             } else {
                 alert("등록은 완료되었지만 vehicleId 정보가 없어 문자를 보낼 수 없습니다.");
             }
 
-            // 폼 초기화
             setForm({
                 stationName: "",
                 sido: "",
@@ -159,7 +158,7 @@ ${link}
                 status: 0,
             });
         } catch (err: any) {
-            console.error(err);
+            console.error("🚨 /vehicles 단건 등록 실패", err?.response?.data ?? err);
             alert(err?.response?.data?.message ?? "단건 등록 실패");
         } finally {
             setLoading(false);
@@ -167,69 +166,70 @@ ${link}
     };
 
     /* 🔥 일괄 등록 + 문자 발송 */
-    const handleBulkRegister = async (rallyPointInput: string) => {
-        if (excelRows.length === 0) return alert("엑셀 데이터 없음");
+const handleBulkRegister = async (rallyPointInput: string) => {
+                    if (excelRows.length === 0) return alert("엑셀 데이터 없음");
 
-        try {
-            setLoading(true);
+                    try {
+                        setLoading(true);
 
-            // 1) 차량 다건 등록
-            const res = await apiClient.post(
-                "/vehicles/batch",
-                excelRows.map((r) => ({
-                    stationName: r.stationName,
-                    sido: r.sido,
-                    typeName: r.typeName,
-                    callSign: r.callSign,
-                    capacity: r.capacity === "" ? null : r.capacity,
-                    personnel: r.personnel === "" ? null : r.personnel,
-                    avlNumber: r.avlNumber,
-                    psLteNumber: r.psLteNumber,
-                    rallyPoint: rallyPointInput,
-                }))
-            );
+                        // 1) 차량 다건 등록
+                        const res = await apiClient.post(
+                            "/vehicles/batch",
+                            excelRows.map((r) => ({
+                                stationName: r.stationName,
+                                sido: r.sido,
+                                typeName: r.typeName,
+                                callSign: r.callSign,
+                                capacity: r.capacity === "" ? null : r.capacity,
+                                personnel: r.personnel === "" ? null : r.personnel,
+                                avlNumber: r.avlNumber,
+                                psLteNumber: r.psLteNumber,
+                                // ❌ 여기서도 rallyPoint(주소)를 절대 보내지 않는다
+                                // rallyPoint: rallyPointInput,
+                            }))
+                        );
 
-            const vehicleIds: number[] = res.data.vehicleIds ?? [];
-            const insertedCount: number = res.data.inserted ?? vehicleIds.length;
+                        const vehicleIds: number[] = res.data.vehicleIds ?? [];
+                        const insertedCount: number = res.data.inserted ?? vehicleIds.length;
 
-            if (!vehicleIds || vehicleIds.length === 0) {
-                alert("등록되었으나 vehicleId 정보를 받지 못했습니다.");
-                return;
-            }
+                        if (!vehicleIds || vehicleIds.length === 0) {
+                            alert("등록되었으나 vehicleId 정보를 받지 못했습니다.");
+                            return;
+                        }
 
-            // 2) 문자 발송 (등록된 차량 순서대로)
-            //   ⚠ 백엔드가 vehicleIds 순서를 요청 순서와 동일하게 준다고 가정
-            const count = Math.min(insertedCount, vehicleIds.length);
+                        const count = Math.min(insertedCount, vehicleIds.length);
 
-            for (let i = 0; i < count; i++) {
-                const vehicleId = vehicleIds[i];
-                const row = excelRows[i];
+                        // 2) 문자 발송
+                        for (let i = 0; i < count; i++) {
+                            const vehicleId = vehicleIds[i];
+                            const row = excelRows[i];
 
-                const link = getAssemblyLink(vehicleId);
-                const text = `
+                            const link = getAssemblyLink(vehicleId);
+                            const text = `
 [자원집결지 동원소방력 안내]
 차량: ${row.callSign}
 집결지: ${rallyPointInput}
 
 아래 링크에서 '응소 OK' 버튼을 눌러주세요.
 ${link}
-                `.trim();
+            `.trim();
 
-                await apiClient.post("/sms/to-vehicle", {
-                    vehicleId,
-                    text,
-                });
-            }
+                            await apiClient.post("/sms/to-vehicle", {
+                                vehicleId,
+                                text,
+                            });
+                        }
 
-            alert(`등록 ${insertedCount}건 + 문자 발송 완료`);
-            setExcelRows([]);
-        } catch (err: any) {
-            console.error(err);
-            alert(err?.response?.data?.message ?? "일괄 등록 실패");
-        } finally {
-            setLoading(false);
-        }
-    };
+                        alert(`등록 ${insertedCount}건 + 문자 발송 완료`);
+                        setExcelRows([]);
+                    } catch (err: any) {
+                        console.error("🚨 /vehicles/batch 일괄 등록 실패", err?.response?.data ?? err);
+                        alert(err?.response?.data?.message ?? "일괄 등록 실패");
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+
 
     return (
         <div className="p-6 space-y-6">
