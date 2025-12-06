@@ -827,7 +827,7 @@ const NavigationPage = () => {
             <button
                 type="button"
                 onClick={handleEnd}
-                className="fixed bottom-28 right-4 z-[10000] bg-red-600 text-white px-4 py-3 rounded-full shadow-xl text-sm font-bold active:scale-95"
+                className="fixed bottom-28 right-4 z-[10000] bg-red-600 text-white px-4 py-3 rounded-full shadow-xl text-lg font-bold active:scale-95"
             >
                 상황 종료
             </button>
