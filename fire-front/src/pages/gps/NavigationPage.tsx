@@ -748,6 +748,51 @@ const NavigationPage = () => {
                     </div>
                 </div>
             )}
+            {/* 🚗 운전 중에도 잘 보이는 하단 상태바 */}
+            {(remainingDistanceM != null ||
+                remainingTimeSec != null ||
+                currentSpeedKph != null) && (
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999]">
+                        <div className="bg-black/80 text-white px-6 py-3 rounded-3xl shadow-xl flex gap-8 pointer-events-none">
+                            {/* 남은 거리 */}
+                            {remainingDistanceM != null && (
+                                <div className="flex flex-col items-center min-w-[90px]">
+                                    <span className="text-[11px] text-gray-300">
+                                        남은 거리
+                                    </span>
+                                    <span className="text-xl font-semibold">
+                                        {formatDistance(remainingDistanceM)}
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* 예상 시간 */}
+                            {remainingTimeSec != null && (
+                                <div className="flex flex-col items-center min-w-[90px]">
+                                    <span className="text-[11px] text-gray-300">
+                                        예상 시간
+                                    </span>
+                                    <span className="text-xl font-semibold">
+                                        {formatTime(remainingTimeSec)}
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* 현재 속도 */}
+                            {currentSpeedKph != null && (
+                                <div className="flex flex-col items-center min-w-[90px]">
+                                    <span className="text-[11px] text-gray-300">
+                                        현재 속도
+                                    </span>
+                                    <span className="text-xl font-semibold">
+                                        {Math.round(currentSpeedKph)} km/h
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
         </>
     );
 };
