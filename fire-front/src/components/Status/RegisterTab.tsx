@@ -100,10 +100,10 @@ function RegisterTab() {
             typeof window !== "undefined" ? window.location.origin : "";
         const url = new URL("/gps/assembly", origin);
         url.searchParams.set("vehicleId", String(vehicleId));
-        // 필요하면 여기서 missionId, title, address 같은 것도 추가 가능
-        url.searchParams.set("address", rallyPoint);
+        url.searchParams.set("address", rallyPoint); // 자원집결지 주소
         return url.toString();
     };
+
 
     /* 🔥 단건 등록 + (문자 발송) */
     const handleRegister = async () => {

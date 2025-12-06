@@ -70,10 +70,11 @@ const AssemblyRequest = () => {
 
             // 3) 출동/위치 모니터링 페이지로 이동
             navigate(
-                `/gps/status?missionId=${encodeURIComponent(
-                    missionId
-                )}&vehicleId=${vehicleId}`
+                `/gps/assemblynav?vehicleId=${vehicleId}&address=${encodeURIComponent(
+                    address
+                )}`
             );
+
         } catch (err) {
             console.error(err);
             alert("응소 처리 중 오류가 발생했습니다.");
