@@ -108,44 +108,66 @@ function RegisterTab() {
         if (!form.sido) return alert("시도 선택");
         if (!form.stationName) return alert("소방서 선택");
 
+        // 👉 Swagger 스펙에 맞춰 payload 정리
         const payload = {
-            ...form,
+            stationName: form.stationName,
+            sido: form.sido,
+            callSign: form.callSign,
+            typeName: form.typeName,
             capacity: form.capacity === "" ? null : form.capacity,
             personnel: form.personnel === "" ? null : form.personnel,
-            // ❌ rallyPoint는 백엔드 플래그 필드(0/1)라서 절대 보내지 않는다
-            // rallyPoint: rallyPoint,
+            avlNumber: form.avlNumber,
+            psLteNumber: form.psLteNumber,
+            status: form.status ?? 0,
+            // rallyPoint는 단건에서는 안 보낸다고 가정
+            // 필요하면 여기에 form.sido 기준으로 0/1 넣어도 됨
+            // rallyPoint: form.sido.startsWith("경북") ? 0 : 1,
         };
 
-        try {
-            setLoading(true);
+        setLoading(true);
 
-            // 1) 차량 등록
+        try {
+            // 1️⃣ 차량 등록
             const res = await apiClient.post("/vehicles", payload);
 
+            // 백엔드 응답에서 id 꺼내기
             const vehicleId: number | undefined =
                 res.data.id ?? res.data.vehicleId;
 
-            if (vehicleId) {
-                const link = getAssemblyLink(vehicleId);
-                const text = `
+            if (!vehicleId) {
+                alert(
+                    "차량은 등록되었지만 vehicleId를 응답에서 찾지 못했습니다.\n" +
+                    "백엔드 응답 형식을 확인해주세요."
+                );
+            } else {
+                // 2️⃣ 문자 발송은 별도 try-catch로 분리
+                try {
+                    const link = getAssemblyLink(vehicleId);
+                    const text = `
 [자원집결지 동원소방력 안내]
 차량: ${form.callSign}
 집결지: ${rallyPoint}
 
 아래 링크에서 '응소 OK' 버튼을 눌러주세요.
 ${link}
-            `.trim();
+                `.trim();
 
-                await apiClient.post("/sms/to-vehicle", {
-                    vehicleId,
-                    text,
-                });
+                    await apiClient.post("/sms/to-vehicle", {
+                        vehicleId,
+                        text,
+                    });
 
-                alert("등록 + 문자 발송 완료");
-            } else {
-                alert("등록은 완료되었지만 vehicleId 정보가 없어 문자를 보낼 수 없습니다.");
+                    alert("등록 + 문자 발송 완료");
+                } catch (smsErr: any) {
+                    console.error(
+                        "🚨 /sms/to-vehicle 문자 발송 실패",
+                        smsErr?.response?.data ?? smsErr
+                    );
+                    alert("차량은 등록되었지만 문자 발송에 실패했습니다.");
+                }
             }
 
+            // 폼 초기화
             setForm({
                 stationName: "",
                 sido: "",
@@ -158,6 +180,7 @@ ${link}
                 status: 0,
             });
         } catch (err: any) {
+            // 👉 여기서 잡히는 건 진짜로 /vehicles 가 실패했을 때만
             console.error("🚨 /vehicles 단건 등록 실패", err?.response?.data ?? err);
             alert(err?.response?.data?.message ?? "단건 등록 실패");
         } finally {
@@ -165,70 +188,95 @@ ${link}
         }
     };
 
+
     /* 🔥 일괄 등록 + 문자 발송 */
-const handleBulkRegister = async (rallyPointInput: string) => {
-                    if (excelRows.length === 0) return alert("엑셀 데이터 없음");
+    const handleBulkRegister = async (rallyPointInput: string) => {
+        if (excelRows.length === 0) return alert("엑셀 데이터 없음");
 
-                    try {
-                        setLoading(true);
+        try {
+            setLoading(true);
 
-                        // 1) 차량 다건 등록
-                        const res = await apiClient.post(
-                            "/vehicles/batch",
-                            excelRows.map((r) => ({
-                                stationName: r.stationName,
-                                sido: r.sido,
-                                typeName: r.typeName,
-                                callSign: r.callSign,
-                                capacity: r.capacity === "" ? null : r.capacity,
-                                personnel: r.personnel === "" ? null : r.personnel,
-                                avlNumber: r.avlNumber,
-                                psLteNumber: r.psLteNumber,
-                                // ❌ 여기서도 rallyPoint(주소)를 절대 보내지 않는다
-                                // rallyPoint: rallyPointInput,
-                            }))
-                        );
+            const body = excelRows.map((r) => ({
+                stationName: r.stationName,
+                sido: r.sido,
+                typeName: r.typeName,
+                callSign: r.callSign,
+                capacity: r.capacity === "" ? null : r.capacity,
+                personnel: r.personnel === "" ? null : r.personnel,
+                avlNumber: r.avlNumber,
+                psLteNumber: r.psLteNumber,
+                rallyPoint: rallyPointInput,
+            }));
 
-                        const vehicleIds: number[] = res.data.vehicleIds ?? [];
-                        const insertedCount: number = res.data.inserted ?? vehicleIds.length;
+            const res = await apiClient.post("/vehicles/batch", body);
 
-                        if (!vehicleIds || vehicleIds.length === 0) {
-                            alert("등록되었으나 vehicleId 정보를 받지 못했습니다.");
-                            return;
-                        }
+            const {
+                total,
+                inserted,
+                duplicates,
+                messages,
+                vehicleIds,
+            } = res.data;
 
-                        const count = Math.min(insertedCount, vehicleIds.length);
+            alert(`총 ${total} / 성공 ${inserted} / 중복 ${duplicates}`);
 
-                        // 2) 문자 발송
-                        for (let i = 0; i < count; i++) {
-                            const vehicleId = vehicleIds[i];
-                            const row = excelRows[i];
+            console.log("BATCH RESULT:", res.data);
 
-                            const link = getAssemblyLink(vehicleId);
-                            const text = `
+            // 🔹 1) 아예 새로 등록된 차량이 없는 경우
+            if (!inserted || inserted === 0) {
+                if (messages && messages.length > 0) {
+                    alert(
+                        "신규 등록된 차량이 없습니다.\n\n사유:\n" +
+                        messages.join("\n")
+                    );
+                } else {
+                    alert("신규 등록된 차량이 없습니다.");
+                }
+                return; // 문자 발송 스킵
+            }
+
+            // 🔹 2) inserted > 0 인데 vehicleIds 가 비어있는 '진짜 이상한' 경우
+            if (!vehicleIds || vehicleIds.length === 0) {
+                alert(
+                    "신규 차량은 등록되었지만 vehicleIds가 응답에 없습니다.\n" +
+                    "백엔드 응답 구조를 확인해 주세요."
+                );
+                return;
+            }
+
+            // 🔹 3) 정상 케이스 → 문자 발송
+            const count = Math.min(inserted, vehicleIds.length);
+
+            for (let i = 0; i < count; i++) {
+                const vehicleId = vehicleIds[i];
+                const row = excelRows[i];
+
+                const link = getAssemblyLink(vehicleId);
+                const text = `
 [자원집결지 동원소방력 안내]
 차량: ${row.callSign}
 집결지: ${rallyPointInput}
 
 아래 링크에서 '응소 OK' 버튼을 눌러주세요.
 ${link}
-            `.trim();
+      `.trim();
 
-                            await apiClient.post("/sms/to-vehicle", {
-                                vehicleId,
-                                text,
-                            });
-                        }
+                await apiClient.post("/sms/to-vehicle", {
+                    vehicleId,
+                    text,
+                });
+            }
 
-                        alert(`등록 ${insertedCount}건 + 문자 발송 완료`);
-                        setExcelRows([]);
-                    } catch (err: any) {
-                        console.error("🚨 /vehicles/batch 일괄 등록 실패", err?.response?.data ?? err);
-                        alert(err?.response?.data?.message ?? "일괄 등록 실패");
-                    } finally {
-                        setLoading(false);
-                    }
-                };
+            alert(`등록 ${inserted}건 + 문자 발송 완료`);
+            setExcelRows([]);
+        } catch (err: any) {
+            console.error(err);
+            alert(err?.response?.data?.message ?? "일괄 등록 실패");
+        } finally {
+            setLoading(false);
+        }
+    };
+
 
 
     return (
