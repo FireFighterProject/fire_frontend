@@ -7,12 +7,14 @@ import type {
     KakaoMarker,
     KakaoMap,
     KakaoPolyline,
+    KakaoLatLng,
 } from "../../types/kakao-navigation";
 import api from "../../api/axios";
 
 declare global {
     interface Window {
         kakao: any;
+        speechSynthesis: SpeechSynthesis;
     }
 
     interface Document {
@@ -23,7 +25,7 @@ declare global {
 }
 
 /* ===========================
- *  Tmap 경로 타입
+ *  Tmap 경로 타입 + 안내정보 타입
  * =========================== */
 type TmapRouteGeometry = {
     type: "LineString";
@@ -34,14 +36,79 @@ type TmapRouteFeature = {
     type: string;
     geometry?: {
         type: string;
+        coordinates?: number[];        // Point
+        traffic?: any[];
+    } | {
+        type: string;
         coordinates?: number[][];
+        traffic?: any[];
     };
-    properties?: any;
+    properties?: {
+        description?: string;
+        distance?: number;
+        time?: number;
+        turnType?: number;
+        nextRoadName?: string;
+        index?: number;
+        pointIndex?: number;
+        pointType?: string;
+        name?: string;
+        [key: string]: any;
+    };
 };
 
 type TmapRouteResponse = {
     type: string; // "FeatureCollection"
     features?: TmapRouteFeature[];
+};
+
+/** 안내용 타입 */
+type NavInstruction = {
+    order: number;
+    description: string;
+    turnType?: number;
+    nextRoadName?: string;
+    point: { lat: number; lon: number };
+};
+
+/* ===========================
+ *  유틸: 방향 화살표 / 거리계산
+ * =========================== */
+const getDirectionSymbol = (desc: string, turnType?: number) => {
+    if (desc.includes("좌회전")) return "⬅️";
+    if (desc.includes("우회전")) return "➡️";
+    if (desc.includes("유턴")) return "↩️";
+    // turnType 써서 더 세밀하게 하고 싶으면 여기 확장 가능
+    return "⬆️";
+};
+
+const toRad = (v: number) => (v * Math.PI) / 180;
+const haversineMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+};
+
+/* ===========================
+ *  Web Speech API (TTS)
+ * =========================== */
+const speakKorean = (text: string) => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    if (!text) return;
+
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = "ko-KR";
+    utter.rate = 1.0;
+    utter.pitch = 1.0;
+    window.speechSynthesis.speak(utter);
 };
 
 const NavigationPage = () => {
@@ -57,10 +124,10 @@ const NavigationPage = () => {
     const startLat = startLatParam ? Number(startLatParam) : null;
     const startLon = startLonParam ? Number(startLonParam) : null;
 
-    // ====== 목적지 주소 (GPSReady 에서 넘어온 값) ======
+    // ====== 목적지 주소 ======
     const destAddress = params.get("dest") ?? "";
 
-    // ====== 목적지 좌표 (카카오 지오코딩 결과) ======
+    // ====== 목적지 좌표 ======
     const [destLat, setDestLat] = useState<number | null>(null);
     const [destLon, setDestLon] = useState<number | null>(null);
 
@@ -69,6 +136,11 @@ const NavigationPage = () => {
     const routePolylineRef = useRef<KakaoPolyline | null>(null);
 
     const [map, setMap] = useState<KakaoMap | null>(null);
+
+    // 🧭 안내문 리스트 + 현재 안내 인덱스
+    const [instructions, setInstructions] = useState<NavInstruction[]>([]);
+    const [currentIdx, setCurrentIdx] = useState(0);
+    const lastSpokenIdxRef = useRef<number | null>(null);
 
     /* ===========================
      * 1) 카카오맵 SDK 로더
@@ -95,7 +167,7 @@ const NavigationPage = () => {
     }, []);
 
     /* ===========================
-     * 2) 지도 생성 & 출발지 마커 표시
+     * 2) 지도 생성 & 출발지 마커
      * =========================== */
     useEffect(() => {
         (async () => {
@@ -116,7 +188,6 @@ const NavigationPage = () => {
 
             setMap(created);
 
-            // 🚗 차량 위치 마커 (실시간으로 이 마커만 움직일 거임)
             markerRef.current = new window.kakao.maps.Marker({
                 map: created,
                 position: startPos,
@@ -125,7 +196,7 @@ const NavigationPage = () => {
     }, [loadKakao, startLat, startLon]);
 
     /* ===========================
-     * 3) 목적지 주소 → 좌표 변환 (지오코딩)
+     * 3) 목적지 지오코딩 + 마커
      * =========================== */
     useEffect(() => {
         if (!map) return;
@@ -148,7 +219,6 @@ const NavigationPage = () => {
                     setDestLon(x);
                     console.log("DEST GEOCODE:", destAddress, y, x);
 
-                    // 🎯 도착지 마커
                     const destPos = new window.kakao.maps.LatLng(y, x);
                     new window.kakao.maps.Marker({
                         map,
@@ -163,7 +233,7 @@ const NavigationPage = () => {
     }, [map, destAddress]);
 
     /* ===========================
-     * 4) Tmap 경로 요청 (모든 LineString merge)
+     * 4) Tmap 경로 요청 + 안내문 추출
      * =========================== */
     const requestTmapRoute = useCallback(async (): Promise<TmapRouteGeometry> => {
         if (
@@ -207,14 +277,15 @@ const NavigationPage = () => {
         const raw = (await res.json()) as TmapRouteResponse;
         console.log("RAW TMAP RESPONSE:", raw);
 
+        const features = raw.features ?? [];
+
+        // 1) Polyline 데이터 (LineString)
         const lineFeatures =
-            raw.features?.filter(
+            features.filter(
                 (f) =>
                     f.geometry?.type === "LineString" &&
-                    Array.isArray(f.geometry.coordinates)
+                    Array.isArray((f.geometry as any).coordinates)
             ) ?? [];
-
-        console.log("LineString feature 개수:", lineFeatures.length);
 
         if (!lineFeatures.length) {
             throw new Error("TMAP LineString geometry 없음");
@@ -223,7 +294,8 @@ const NavigationPage = () => {
         const mergedCoords: number[][] = [];
 
         lineFeatures.forEach((f, featureIdx) => {
-            f.geometry!.coordinates!.forEach((coord, coordIdx) => {
+            const coords = (f.geometry as any).coordinates as number[][];
+            coords.forEach((coord, coordIdx) => {
                 if (
                     featureIdx > 0 &&
                     coordIdx === 0 &&
@@ -244,6 +316,48 @@ const NavigationPage = () => {
             mergedCoords.slice(0, 5)
         );
 
+        // 2) 안내용 포인트 (Point + description 있는 것만)
+        const pointInstructions: NavInstruction[] = features
+            .filter(
+                (f) =>
+                    f.geometry?.type === "Point" &&
+                    Array.isArray((f.geometry as any).coordinates) &&
+                    f.properties?.description
+            )
+            .map((f, idx) => {
+                const coords = (f.geometry as any).coordinates as number[];
+                const props = f.properties!;
+                const [lon, lat] = coords;
+
+                const order =
+                    typeof props.pointIndex === "number"
+                        ? props.pointIndex
+                        : typeof props.index === "number"
+                            ? props.index
+                            : idx;
+
+                return {
+                    order,
+                    description: props.description ?? "",
+                    turnType: props.turnType,
+                    nextRoadName: props.nextRoadName,
+                    point: { lat, lon },
+                };
+            })
+            .sort((a, b) => a.order - b.order);
+
+        console.log("Nav instructions:", pointInstructions);
+
+        setInstructions(pointInstructions);
+        setCurrentIdx(0);
+        lastSpokenIdxRef.current = null;
+
+        // 첫 안내문 TTS
+        if (pointInstructions[0]) {
+            speakKorean(pointInstructions[0].description);
+            lastSpokenIdxRef.current = pointInstructions[0].order;
+        }
+
         return {
             type: "LineString",
             coordinates: mergedCoords,
@@ -251,7 +365,7 @@ const NavigationPage = () => {
     }, [startLat, startLon, destLat, destLon]);
 
     /* ===========================
-     * 5) 경로 그리기 (카카오 Polyline)
+     * 5) 경로 그리기
      * =========================== */
     const drawRoute = useCallback(
         (geometry: TmapRouteGeometry) => {
@@ -300,8 +414,39 @@ const NavigationPage = () => {
     }, [map, destLat, destLon, requestTmapRoute, drawRoute]);
 
     /* ===========================
- * 7) 실시간 GPS 폴링 (차량 현재 위치)
- * =========================== */
+     * 7) 현재 GPS 기준으로 다음 안내문 갱신
+     * =========================== */
+    const updateInstructionForPosition = useCallback(
+        (lat: number, lon: number) => {
+            if (!instructions.length) return;
+
+            const THRESHOLD = 80; // m 이내면 해당 안내 발동
+
+            // 현재 인덱스 이후에서 "가장 가까운 포인트" 찾기
+            for (let i = currentIdx; i < instructions.length; i++) {
+                const ins = instructions[i];
+                const d = haversineMeters(
+                    lat,
+                    lon,
+                    ins.point.lat,
+                    ins.point.lon
+                );
+
+                if (d < THRESHOLD) {
+                    if (i !== currentIdx) {
+                        setCurrentIdx(i);
+                    }
+                    // TTS는 별도 effect에서 처리
+                    break;
+                }
+            }
+        },
+        [instructions, currentIdx]
+    );
+
+    /* ===========================
+     * 8) 실시간 GPS 폴링 (차량 기준 화면 이동)
+     * =========================== */
     useEffect(() => {
         if (!map) return;
         if (!vehicleId) return;
@@ -311,23 +456,24 @@ const NavigationPage = () => {
 
         const intervalId = window.setInterval(async () => {
             try {
-                // ✅ 실제 백엔드 엔드포인트에 맞게 수정
                 const res = await api.get(`/gps/location/${vehicleId}`);
-
-                // 🔍 백엔드 응답 구조에 맞게 필드명 수정 필요
-                // 예: { vehicleId, latitude, longitude, updatedAt }
                 console.log("GPS LOCATION RES:", res.data);
 
-                const { latitude, longitude } = res.data; // 필드명 다르면 여기만 수정
+                // ⚠️ 실제 응답 구조에 맞게 필드명 조정 필요
+                const { latitude, longitude } = res.data;
 
                 if (cancelled || !markerRef.current) return;
 
-                const pos = new window.kakao.maps.LatLng(latitude, longitude);
+                const pos = new window.kakao.maps.LatLng(
+                    latitude,
+                    longitude
+                );
 
+                // 마커 이동 + 차량 기준 화면 이동
                 markerRef.current.setPosition(pos);
+                map.panTo(pos);
 
-                // 따라가기 모드 켜고 싶으면:
-                // map.panTo(pos);
+                updateInstructionForPosition(latitude, longitude);
             } catch (e) {
                 console.error("실시간 GPS 조회 실패", e);
             }
@@ -337,11 +483,25 @@ const NavigationPage = () => {
             cancelled = true;
             window.clearInterval(intervalId);
         };
-    }, [map, vehicleId]);
-
+    }, [map, vehicleId, updateInstructionForPosition]);
 
     /* ===========================
-     * 8) 언마운트 시 정리
+     * 9) 안내문 바뀔 때마다 TTS 실행
+     * =========================== */
+    useEffect(() => {
+        if (!instructions.length) return;
+        const ins = instructions[currentIdx];
+        if (!ins) return;
+
+        // 같은 order는 한 번만 읽기
+        if (lastSpokenIdxRef.current === ins.order) return;
+
+        speakKorean(ins.description);
+        lastSpokenIdxRef.current = ins.order;
+    }, [currentIdx, instructions]);
+
+    /* ===========================
+     * 10) 언마운트 정리
      * =========================== */
     useEffect(() => {
         return () => {
@@ -354,7 +514,34 @@ const NavigationPage = () => {
         };
     }, []);
 
-    return <div ref={mapRef} className="w-full h-screen" />;
+    const currentInstruction = instructions[currentIdx];
+
+    return (
+        <div className="relative w-full h-screen">
+            <div ref={mapRef} className="w-full h-full" />
+
+            {currentInstruction && (
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-3 rounded-2xl shadow-lg flex items-center gap-3 max-w-xl">
+                    <span className="text-3xl">
+                        {getDirectionSymbol(
+                            currentInstruction.description,
+                            currentInstruction.turnType
+                        )}
+                    </span>
+                    <div className="flex flex-col">
+                        <span className="font-semibold text-lg">
+                            {currentInstruction.description}
+                        </span>
+                        {currentInstruction.nextRoadName && (
+                            <span className="text-sm text-gray-200">
+                                다음 도로: {currentInstruction.nextRoadName}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 };
 
 export default NavigationPage;
