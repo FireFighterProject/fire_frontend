@@ -15,7 +15,6 @@ declare global {
     }
 
     interface Document {
-        // 카카오 스크립트 중복 로드 방지용 커스텀 data 속성
         querySelector<E extends Element = Element>(
             selectors: string
         ): E | null;
@@ -44,16 +43,18 @@ type TmapRouteResponse = {
 const NavigationPage = () => {
     const [params] = useSearchParams();
 
-    // ====== 쿼리 파라미터 처리 (NaN 방어 포함) ======
+    // ====== 출발지 좌표 ======
     const startLatParam = params.get("startLat");
     const startLonParam = params.get("startLon");
-    const destLatParam = params.get("destLat");
-    const destLonParam = params.get("destLon");
-
     const startLat = startLatParam ? Number(startLatParam) : null;
     const startLon = startLonParam ? Number(startLonParam) : null;
-    const destLat = destLatParam ? Number(destLatParam) : null;
-    const destLon = destLonParam ? Number(destLonParam) : null;
+
+    // ====== 목적지 주소 ======
+    const destAddress = params.get("dest") ?? "";
+
+    // ====== 목적지 좌표 (지오코딩 결과) ======
+    const [destLat, setDestLat] = useState<number | null>(null);
+    const [destLon, setDestLon] = useState<number | null>(null);
 
     const mapRef = useRef<HTMLDivElement | null>(null);
     const markerRef = useRef<KakaoMarker | null>(null);
@@ -66,10 +67,8 @@ const NavigationPage = () => {
      * =========================== */
     const loadKakao = useCallback((): Promise<void> => {
         return new Promise((resolve) => {
-            // 이미 로드된 경우
             if (window.kakao?.maps) return resolve();
 
-            // 이미 script가 붙어 있는 경우 (중복 로드 방지)
             const existingScript = document.querySelector<HTMLScriptElement>(
                 'script[data-kakao-maps-sdk="true"]'
             );
@@ -78,7 +77,6 @@ const NavigationPage = () => {
                 return;
             }
 
-            // 새로 추가
             const script = document.createElement("script");
             script.dataset.kakaoMapsSdk = "true";
             script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAOMAP_API_KEY
@@ -93,14 +91,8 @@ const NavigationPage = () => {
      * =========================== */
     useEffect(() => {
         (async () => {
-            // 좌표가 하나라도 없으면 종료
-            if (
-                startLat == null ||
-                startLon == null ||
-                destLat == null ||
-                destLon == null
-            ) {
-                alert("좌표 정보가 잘못되었습니다.");
+            if (startLat == null || startLon == null) {
+                alert("출발지 좌표 정보가 잘못되었습니다.");
                 return;
             }
 
@@ -121,10 +113,40 @@ const NavigationPage = () => {
                 position: startPos,
             });
         })();
-    }, [loadKakao, startLat, startLon, destLat, destLon]);
+    }, [loadKakao, startLat, startLon]);
 
     /* ===========================
-     * 3) Tmap 경로 요청
+     * 3) 목적지 주소 → 좌표 변환 (지오코딩)
+     * =========================== */
+    useEffect(() => {
+        if (!map) return;
+        if (!destAddress) {
+            alert("목적지 주소가 없습니다.");
+            return;
+        }
+
+        const geocoder = new window.kakao.maps.services.Geocoder();
+        geocoder.addressSearch(
+            destAddress,
+            (result: any[], status: string) => {
+                if (
+                    status === window.kakao.maps.services.Status.OK &&
+                    result[0]
+                ) {
+                    const y = parseFloat(result[0].y); // 위도
+                    const x = parseFloat(result[0].x); // 경도
+                    setDestLat(y);
+                    setDestLon(x);
+                } else {
+                    console.error("지오코딩 실패:", status, result);
+                    alert("목적지 주소를 좌표로 변환할 수 없습니다.");
+                }
+            }
+        );
+    }, [map, destAddress]);
+
+    /* ===========================
+     * 4) Tmap 경로 요청
      * =========================== */
     const requestTmapRoute = useCallback(async (): Promise<TmapRouteGeometry> => {
         if (
@@ -133,7 +155,7 @@ const NavigationPage = () => {
             destLat == null ||
             destLon == null
         ) {
-            throw new Error("좌표 정보가 없습니다.");
+            throw new Error("출발/도착 좌표 정보가 없습니다.");
         }
 
         const body = {
@@ -168,7 +190,6 @@ const NavigationPage = () => {
         const raw = (await res.json()) as TmapRouteResponse;
         console.log("RAW TMAP RESPONSE:", raw);
 
-        // LineString geometry 찾기
         const lineFeature = raw.features?.find(
             (f) => f.geometry?.type === "LineString"
         );
@@ -181,7 +202,7 @@ const NavigationPage = () => {
     }, [startLat, startLon, destLat, destLon]);
 
     /* ===========================
-     * 4) 경로 그리기 (카카오 Polyline)
+     * 5) 경로 그리기 (카카오 Polyline)
      * =========================== */
     const drawRoute = useCallback(
         (geometry: TmapRouteGeometry) => {
@@ -191,7 +212,6 @@ const NavigationPage = () => {
                 ([lon, lat]) => new window.kakao.maps.LatLng(lat, lon)
             );
 
-            // 이전 Polyline 제거
             if (routePolylineRef.current) {
                 routePolylineRef.current.setMap(null);
             }
@@ -205,7 +225,6 @@ const NavigationPage = () => {
 
             routePolylineRef.current = poly;
 
-            // 경로 전체가 보이도록 Bounds 조정
             const bounds = new window.kakao.maps.LatLngBounds();
             coords.forEach((p) => bounds.extend(p));
 
@@ -215,10 +234,11 @@ const NavigationPage = () => {
     );
 
     /* ===========================
-     * 5) 지도 준비 후 Tmap 경로 요청 + 그리기
+     * 6) 지도 준비 + 목적지 좌표 준비되면 Tmap 경로 요청
      * =========================== */
     useEffect(() => {
         if (!map) return;
+        if (destLat == null || destLon == null) return; // 지오코딩 아직 안 끝났으면 대기
 
         (async () => {
             try {
@@ -229,10 +249,10 @@ const NavigationPage = () => {
                 alert("경로 생성에 실패했습니다. (자동차 경로 API 구조를 확인해주세요)");
             }
         })();
-    }, [map, requestTmapRoute, drawRoute]);
+    }, [map, destLat, destLon, requestTmapRoute, drawRoute]);
 
     /* ===========================
-     * 6) 언마운트 시 정리
+     * 7) 언마운트 시 정리
      * =========================== */
     useEffect(() => {
         return () => {
