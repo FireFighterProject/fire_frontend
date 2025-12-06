@@ -8,6 +8,7 @@ import type {
     KakaoMap,
     KakaoPolyline,
 } from "../../types/kakao-navigation";
+import api from "../../api/axios";
 
 declare global {
     interface Window {
@@ -46,7 +47,11 @@ type TmapRouteResponse = {
 const NavigationPage = () => {
     const [params] = useSearchParams();
 
-    // ====== 출발지 좌표 (차량 현재 위치) ======
+    // ====== 차량 ID (실시간 GPS 조회용) ======
+    const vehicleParam = params.get("vehicle");
+    const vehicleId = vehicleParam ? Number(vehicleParam) : null;
+
+    // ====== 출발지 좌표 (최초 GPS) ======
     const startLatParam = params.get("startLat");
     const startLonParam = params.get("startLon");
     const startLat = startLatParam ? Number(startLatParam) : null;
@@ -70,10 +75,8 @@ const NavigationPage = () => {
      * =========================== */
     const loadKakao = useCallback((): Promise<void> => {
         return new Promise((resolve) => {
-            // 이미 로드된 경우
             if (window.kakao?.maps) return resolve();
 
-            // 이미 script가 붙어 있으면 재사용
             const existingScript = document.querySelector<HTMLScriptElement>(
                 'script[data-kakao-maps-sdk="true"]'
             );
@@ -82,7 +85,6 @@ const NavigationPage = () => {
                 return;
             }
 
-            // 새로 추가
             const script = document.createElement("script");
             script.dataset.kakaoMapsSdk = "true";
             script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAOMAP_API_KEY
@@ -109,11 +111,12 @@ const NavigationPage = () => {
 
             const created = new window.kakao.maps.Map(mapRef.current, {
                 center: startPos,
-                level: 5,
+                level: 7,
             });
 
             setMap(created);
 
+            // 🚗 차량 위치 마커 (실시간으로 이 마커만 움직일 거임)
             markerRef.current = new window.kakao.maps.Marker({
                 map: created,
                 position: startPos,
@@ -144,6 +147,13 @@ const NavigationPage = () => {
                     setDestLat(y);
                     setDestLon(x);
                     console.log("DEST GEOCODE:", destAddress, y, x);
+
+                    // 🎯 도착지 마커
+                    const destPos = new window.kakao.maps.LatLng(y, x);
+                    new window.kakao.maps.Marker({
+                        map,
+                        position: destPos,
+                    });
                 } else {
                     console.error("지오코딩 실패:", status, result);
                     alert("목적지 주소를 좌표로 변환할 수 없습니다.");
@@ -197,7 +207,6 @@ const NavigationPage = () => {
         const raw = (await res.json()) as TmapRouteResponse;
         console.log("RAW TMAP RESPONSE:", raw);
 
-        // ✅ geometry.type === "LineString" 인 세그먼트 전부 합치기
         const lineFeatures =
             raw.features?.filter(
                 (f) =>
@@ -215,7 +224,6 @@ const NavigationPage = () => {
 
         lineFeatures.forEach((f, featureIdx) => {
             f.geometry!.coordinates!.forEach((coord, coordIdx) => {
-                // 앞 세그먼트 마지막 점과 완전 같은 첫 점이면 중복 제거
                 if (
                     featureIdx > 0 &&
                     coordIdx === 0 &&
@@ -253,7 +261,6 @@ const NavigationPage = () => {
                 ([lon, lat]) => new window.kakao.maps.LatLng(lat, lon)
             );
 
-            // 이전 Polyline 제거
             if (routePolylineRef.current) {
                 routePolylineRef.current.setMap(null);
             }
@@ -269,19 +276,17 @@ const NavigationPage = () => {
 
             const bounds = new window.kakao.maps.LatLngBounds();
             coords.forEach((p) => bounds.extend(p));
-
             map.setBounds(bounds);
         },
         [map]
     );
-
 
     /* ===========================
      * 6) 지도 + 목적지 좌표 준비되면 Tmap 경로 그리기
      * =========================== */
     useEffect(() => {
         if (!map) return;
-        if (destLat == null || destLon == null) return; // 지오코딩 대기
+        if (destLat == null || destLon == null) return;
 
         (async () => {
             try {
@@ -295,7 +300,48 @@ const NavigationPage = () => {
     }, [map, destLat, destLon, requestTmapRoute, drawRoute]);
 
     /* ===========================
-     * 7) 언마운트 시 정리
+ * 7) 실시간 GPS 폴링 (차량 현재 위치)
+ * =========================== */
+    useEffect(() => {
+        if (!map) return;
+        if (!vehicleId) return;
+        if (!markerRef.current) return;
+
+        let cancelled = false;
+
+        const intervalId = window.setInterval(async () => {
+            try {
+                // ✅ 실제 백엔드 엔드포인트에 맞게 수정
+                const res = await api.get(`/gps/location/${vehicleId}`);
+
+                // 🔍 백엔드 응답 구조에 맞게 필드명 수정 필요
+                // 예: { vehicleId, latitude, longitude, updatedAt }
+                console.log("GPS LOCATION RES:", res.data);
+
+                const { latitude, longitude } = res.data; // 필드명 다르면 여기만 수정
+
+                if (cancelled || !markerRef.current) return;
+
+                const pos = new window.kakao.maps.LatLng(latitude, longitude);
+
+                markerRef.current.setPosition(pos);
+
+                // 따라가기 모드 켜고 싶으면:
+                // map.panTo(pos);
+            } catch (e) {
+                console.error("실시간 GPS 조회 실패", e);
+            }
+        }, 3000); // 3초마다 요청
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(intervalId);
+        };
+    }, [map, vehicleId]);
+
+
+    /* ===========================
+     * 8) 언마운트 시 정리
      * =========================== */
     useEffect(() => {
         return () => {

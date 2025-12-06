@@ -47,7 +47,7 @@ const GPSReady = () => {
         );
     }, []);
 
-    // 🚀 출동 시작 → 네비게이션 페이지로 바로 이동
+    // 🚀 출동 시작 → 네비게이션 페이지로 바로 GET
     const handleStart = async () => {
         if (lat === null || lon === null) {
             alert("GPS 정보를 불러오는 중입니다.");
@@ -62,13 +62,12 @@ const GPSReady = () => {
                 longitude: lon,
             });
 
-            // ⭐⭐⭐ 바로 지도 네비 페이지로 이동 ⭐⭐⭐
             const encodedAddress = encodeURIComponent(address);
 
+            // ✅ vehicle(차량 ID)도 같이 넘기기
             navigate(
-                `/map/navigation?startLat=${lat}&startLon=${lon}&dest=${encodedAddress}`
+                `/map/navigation?vehicle=${vehicle}&startLat=${lat}&startLon=${lon}&dest=${encodedAddress}`
             );
-
         } catch (err) {
             console.error(err);
             alert("GPS 위치 전송 실패");
