@@ -205,6 +205,8 @@ const NavigationPage = () => {
                     Array.isArray(f.geometry.coordinates)
             ) ?? [];
 
+        console.log("LineString feature 개수:", lineFeatures.length);
+
         if (!lineFeatures.length) {
             throw new Error("TMAP LineString geometry 없음");
         }
@@ -228,10 +230,10 @@ const NavigationPage = () => {
         });
 
         console.log(
-            "Tmap line segments:",
-            lineFeatures.length,
-            "total points:",
-            mergedCoords.length
+            "Tmap merged total points:",
+            mergedCoords.length,
+            "첫 5개 좌표:",
+            mergedCoords.slice(0, 5)
         );
 
         return {
@@ -265,7 +267,6 @@ const NavigationPage = () => {
 
             routePolylineRef.current = poly;
 
-            // 전체 경로 보이도록 bounds 조정
             const bounds = new window.kakao.maps.LatLngBounds();
             coords.forEach((p) => bounds.extend(p));
 
@@ -273,6 +274,7 @@ const NavigationPage = () => {
         },
         [map]
     );
+
 
     /* ===========================
      * 6) 지도 + 목적지 좌표 준비되면 Tmap 경로 그리기
