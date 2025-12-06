@@ -90,6 +90,11 @@ function RegisterTab() {
         setForm((p) => ({ ...p, stationName: "" }));
     }, [form.sido, allStations]);
 
+    // RegisterTab 컴포넌트 안, 맨 위 유틸 구역에 추가
+    const makeSmsText = (callSign: string, rallyPoint: string, link: string) =>
+        `[자원집결지 동원소방력] 차량:${callSign} 집결지:${rallyPoint} 응소OK:${link}`;
+
+
     //////////////////////////////////////////////////////
     // 🔥 공통: 프론트 도메인 기반 응소 페이지 링크 생성 함수
     //////////////////////////////////////////////////////
@@ -143,14 +148,7 @@ function RegisterTab() {
                 // 2️⃣ 문자 발송은 별도 try-catch로 분리
                 try {
                     const link = getAssemblyLink(vehicleId);
-                    const text = `
-[자원집결지 동원소방력 안내]
-차량: ${form.callSign}
-집결지: ${rallyPoint}
-
-아래 링크에서 '응소 OK' 버튼을 눌러주세요.
-${link}
-                `.trim();
+                    const text = makeSmsText(form.callSign, rallyPoint, link);
 
                     await apiClient.post("/sms/to-vehicle", {
                         vehicleId,
@@ -252,15 +250,9 @@ ${link}
                 const row = excelRows[i];
 
                 const link = getAssemblyLink(vehicleId);
-                const text = `
-[자원집결지 동원소방력 안내]
-차량: ${row.callSign}
-집결지: ${rallyPointInput}
+                const text = makeSmsText(row.callSign, rallyPointInput, link);
 
-아래 링크에서 '응소 OK' 버튼을 눌러주세요.
-${link}
-      `.trim();
-
+                
                 await apiClient.post("/sms/to-vehicle", {
                     vehicleId,
                     text,
