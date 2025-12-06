@@ -3,7 +3,7 @@
 // src/pages/gps/NavigationPage.tsx
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import type {
     KakaoMarker,
     KakaoMap,
@@ -174,6 +174,7 @@ const formatTime = (sec: number) => {
 
 const NavigationPage = () => {
     const [params] = useSearchParams();
+    const navigate = useNavigate();
 
     // ====== 차량 ID (실시간 GPS 조회용) ======
     const vehicleParam = params.get("vehicle");
@@ -185,13 +186,17 @@ const NavigationPage = () => {
     const startLat = startLatParam ? Number(startLatParam) : null;
     const startLon = startLonParam ? Number(startLonParam) : null;
 
-    // ====== 목적지 주소 ======
+
+    // ====== 목적지 / 출동 정보 ======
     const destAddress = params.get("dest") ?? "";
+    const dispatchTitle = params.get("title") ?? "";
+    const dispatchDesc = params.get("desc") ?? "";
 
     // ====== 목적지 좌표 ======
     const [destLat, setDestLat] = useState<number | null>(null);
     const [destLon, setDestLon] = useState<number | null>(null);
 
+    
     const mapRef = useRef<HTMLDivElement | null>(null);
     const markerRef = useRef<KakaoMarker | null>(null);
     const routePolylineRef = useRef<KakaoPolyline | null>(null);
@@ -689,10 +694,64 @@ const NavigationPage = () => {
 
     const currentInstruction = instructions[currentIdx];
 
+    const handleEnd = () => {
+        const ok = window.confirm(
+            "상황을 종료하시겠습니까?\n내비게이션을 종료하고 대기기 화면으로 돌아갑니다."
+        );
+        if (!ok) return;
+
+        if (window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+        }
+
+        // 필요하다면 여기서 백엔드에 '상황 종료' API 호출도 가능
+        // await api.post("/dispatch-orders/xxx/end", {...})
+        navigate("/gps/standby");
+    };
+
     return (
         <>
             {/* 전체 화면 지도 */}
             <div ref={mapRef} className="w-full h-screen" />
+            {/* 📋 왼쪽 출동 정보 패널 */}
+            {(dispatchTitle || destAddress || dispatchDesc) && (
+                <div className="fixed top-24 left-4 z-[9998] max-w-xs">
+                    <div className="bg-white/95 text-gray-900 rounded-2xl shadow-lg p-4 space-y-3">
+                        {dispatchTitle && (
+                            <div>
+                                <div className="text-[11px] font-semibold text-gray-500">
+                                    출동 제목
+                                </div>
+                                <div className="text-sm font-bold">
+                                    {dispatchTitle}
+                                </div>
+                            </div>
+                        )}
+
+                        {destAddress && (
+                            <div>
+                                <div className="text-[11px] font-semibold text-gray-500">
+                                    출동 주소
+                                </div>
+                                <div className="text-sm">
+                                    {destAddress}
+                                </div>
+                            </div>
+                        )}
+
+                        {dispatchDesc && (
+                            <div>
+                                <div className="text-[11px] font-semibold text-gray-500">
+                                    출동 내용
+                                </div>
+                                <div className="text-xs leading-snug max-h-32 overflow-y-auto">
+                                    {dispatchDesc}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* 🧭 상단 고정 안내 박스 (항상 보이게) */}
             {currentInstruction && (
@@ -716,35 +775,7 @@ const NavigationPage = () => {
                                     </span>
                                 )}
                             </div>
-                        </div>
-
-                        {/* 🔢 거리 / 예상시간 / 속도 상태 표시 줄 */}
-                        {(remainingDistanceM != null ||
-                            remainingTimeSec != null ||
-                            currentSpeedKph != null) && (
-                                <div className="text-xs text-gray-300 mt-1">
-                                    {remainingDistanceM != null && (
-                                        <span>
-                                            남은 거리:{" "}
-                                            {formatDistance(
-                                                remainingDistanceM
-                                            )}{" "}
-                                        </span>
-                                    )}
-                                    {remainingTimeSec != null && (
-                                        <span>
-                                            · 예상 시간:{" "}
-                                            {formatTime(remainingTimeSec)}{" "}
-                                        </span>
-                                    )}
-                                    {currentSpeedKph != null && (
-                                        <span>
-                                            · 현재 속도:{" "}
-                                            {Math.round(currentSpeedKph)} km/h
-                                        </span>
-                                    )}
-                                </div>
-                            )}
+                        </div>\
                     </div>
                 </div>
             )}
@@ -792,7 +823,14 @@ const NavigationPage = () => {
                         </div>
                     </div>
                 )}
-
+            {/* 🔴 상황 종료 버튼 */}
+            <button
+                type="button"
+                onClick={handleEnd}
+                className="fixed bottom-28 right-4 z-[10000] bg-red-600 text-white px-4 py-3 rounded-full shadow-xl text-sm font-bold active:scale-95"
+            >
+                상황 종료
+            </button>
         </>
     );
 };
