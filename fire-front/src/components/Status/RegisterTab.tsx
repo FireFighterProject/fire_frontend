@@ -90,9 +90,6 @@ function RegisterTab() {
         setForm((p) => ({ ...p, stationName: "" }));
     }, [form.sido, allStations]);
 
-    // RegisterTab 컴포넌트 안, 맨 위 유틸 구역에 추가
-    const makeSmsText = (callSign: string, rallyPoint: string, link: string) =>
-        `[자원집결지 동원소방력] 차량:${callSign} 집결지:${rallyPoint} 응소OK:${link}`;
 
 
     //////////////////////////////////////////////////////
