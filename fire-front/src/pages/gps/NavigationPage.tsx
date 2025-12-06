@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/pages/gps/NavigationPage.tsx
 
@@ -7,14 +8,12 @@ import type {
     KakaoMarker,
     KakaoMap,
     KakaoPolyline,
-    KakaoLatLng,
 } from "../../types/kakao-navigation";
 import api from "../../api/axios";
 
 declare global {
     interface Window {
         kakao: any;
-        speechSynthesis: SpeechSynthesis;
     }
 
     interface Document {
@@ -78,7 +77,14 @@ const getDirectionSymbol = (desc: string, turnType?: number) => {
     if (desc.includes("좌회전")) return "⬅️";
     if (desc.includes("우회전")) return "➡️";
     if (desc.includes("유턴")) return "↩️";
-    // turnType 써서 더 세밀하게 하고 싶으면 여기 확장 가능
+
+    // Use turnType for additional direction symbols
+    if (turnType === 1) return "⬆️"; // Straight
+    if (turnType === 2) return "↗️"; // Slight right
+    if (turnType === 3) return "↘️"; // Right
+    if (turnType === 4) return "↙️"; // Slight left
+    if (turnType === 5) return "↖️"; // Left
+
     return "⬆️";
 };
 
