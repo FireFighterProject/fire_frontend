@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import apiClient from "../../api/axios";
-import type { KakaoMap, KakaoMarker } from "../../types/kakao-navigation";
+import type { KakaoMap, KakaoMarker, KakaoPolyline } from "../../types/kakao-navigation";
 
 declare global {
     interface Window {
@@ -48,6 +48,33 @@ const formatTime = (sec: number) => {
     return "1분 미만";
 };
 
+/* ===========================
+ *  Tmap 경로 타입
+ * =========================== */
+type TmapRouteGeometry = {
+    type: "LineString";
+    coordinates: number[][]; // [ [lon, lat], ... ]
+};
+
+type TmapRouteFeature = {
+    type: string;
+    geometry?: {
+        type: string;
+        coordinates?: any;
+        traffic?: any[];
+    };
+    properties?: {
+        distance?: number;
+        time?: number;
+        [key: string]: any;
+    };
+};
+
+type TmapRouteResponse = {
+    type: string;
+    features?: TmapRouteFeature[];
+};
+
 const AssemblyNavigationPage = () => {
     const [params] = useSearchParams();
 
@@ -61,6 +88,7 @@ const AssemblyNavigationPage = () => {
     const [map, setMap] = useState<KakaoMap | null>(null);
     const meMarkerRef = useRef<KakaoMarker | null>(null);
     const rallyMarkerRef = useRef<KakaoMarker | null>(null);
+    const routePolylineRef = useRef<KakaoPolyline | null>(null);
 
     // 좌표 상태
     const [currentLat, setCurrentLat] = useState<number | null>(null);
@@ -171,6 +199,151 @@ const AssemblyNavigationPage = () => {
     }, [map, rallyAddress]);
 
     /* ===========================
+     *  Tmap 경로 요청 (현재 위치 → 자원집결지)
+     * =========================== */
+    const requestTmapRoute = useCallback(
+        async (): Promise<TmapRouteGeometry> => {
+            if (
+                currentLat == null ||
+                currentLon == null ||
+                destLat == null ||
+                destLon == null
+            ) {
+                throw new Error("출발/도착 좌표 정보가 없습니다.");
+            }
+
+            const body = {
+                startX: currentLon.toString(), // 경도
+                startY: currentLat.toString(), // 위도
+                endX: destLon.toString(),
+                endY: destLat.toString(),
+                reqCoordType: "WGS84GEO",
+                resCoordType: "WGS84GEO",
+                searchOption: "0",
+                trafficInfo: "Y",
+            };
+
+            const res = await fetch(
+                "https://apis.openapi.sk.com/tmap/routes?version=1&format=json",
+                {
+                    method: "POST",
+                    headers: {
+                        appKey: import.meta.env.VITE_TMAP_API_KEY,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(body),
+                }
+            );
+
+            if (!res.ok) {
+                const text = await res.text();
+                console.error("TMAP ERROR:", res.status, text);
+                throw new Error(`TMAP 요청 실패: ${res.status}`);
+            }
+
+            const raw = (await res.json()) as TmapRouteResponse;
+            console.log("RAW TMAP RESPONSE (AssemblyNav):", raw);
+
+            const features = raw.features ?? [];
+
+            const lineFeatures =
+                features.filter(
+                    (f) =>
+                        f.geometry?.type === "LineString" &&
+                        Array.isArray((f.geometry as any).coordinates)
+                ) ?? [];
+
+            if (!lineFeatures.length) {
+                throw new Error("TMAP LineString geometry 없음");
+            }
+
+            const mergedCoords: number[][] = [];
+
+            lineFeatures.forEach((f, featureIdx) => {
+                const coords = (f.geometry as any).coordinates as number[][];
+                coords.forEach((coord, coordIdx) => {
+                    if (
+                        featureIdx > 0 &&
+                        coordIdx === 0 &&
+                        mergedCoords.length &&
+                        mergedCoords[mergedCoords.length - 1][0] === coord[0] &&
+                        mergedCoords[mergedCoords.length - 1][1] === coord[1]
+                    ) {
+                        return;
+                    }
+                    mergedCoords.push(coord);
+                });
+            });
+
+            console.log(
+                "Tmap merged total points (AssemblyNav):",
+                mergedCoords.length,
+                "첫 5개 좌표:",
+                mergedCoords.slice(0, 5)
+            );
+
+            return {
+                type: "LineString",
+                coordinates: mergedCoords,
+            };
+        },
+        [currentLat, currentLon, destLat, destLon]
+    );
+
+    /* ===========================
+     *  경로 Polyline 그리기
+     * =========================== */
+    const drawRoute = useCallback(
+        (geometry: TmapRouteGeometry) => {
+            if (!map) return;
+
+            const coords = geometry.coordinates.map(
+                ([lon, lat]) => new window.kakao.maps.LatLng(lat, lon)
+            );
+
+            if (routePolylineRef.current) {
+                routePolylineRef.current.setMap(null);
+            }
+
+            const poly = new window.kakao.maps.Polyline({
+                map,
+                path: coords,
+                strokeWeight: 7,
+                strokeColor: "#1E90FF",
+            });
+
+            routePolylineRef.current = poly;
+
+            const bounds = new window.kakao.maps.LatLngBounds();
+            coords.forEach((p) => bounds.extend(p));
+            map.setBounds(bounds);
+        },
+        [map]
+    );
+
+    /* ===========================
+     *  출발/도착 좌표 준비되면 1회 경로 그리기
+     * =========================== */
+    useEffect(() => {
+        if (!map) return;
+        if (currentLat == null || currentLon == null) return;
+        if (destLat == null || destLon == null) return;
+
+        // 이미 경로가 그려져 있다면 다시 요청하지 않음
+        if (routePolylineRef.current) return;
+
+        (async () => {
+            try {
+                const geometry = await requestTmapRoute();
+                drawRoute(geometry);
+            } catch (err) {
+                console.error("AssemblyNav Tmap route error:", err);
+                setError("경로를 생성하는 중 오류가 발생했습니다.");
+            }
+        })();
+    }, [map, currentLat, currentLon, destLat, destLon, requestTmapRoute, drawRoute]);
+
+    /* ===========================
      *  현재 위치 추적 (watchPosition)
      * =========================== */
     useEffect(() => {
@@ -204,8 +377,8 @@ const AssemblyNavigationPage = () => {
                     meMarkerRef.current.setPosition(mePos);
                 }
 
-                // 처음엔 내 위치 기준으로도 한번 센터 조정
-                if (!destLat || !destLon) {
+                // 자원집결지 좌표가 아직 없으면 내 위치 기준으로 센터
+                if (destLat == null || destLon == null) {
                     map.setCenter(mePos);
                 }
 
@@ -345,6 +518,23 @@ const AssemblyNavigationPage = () => {
         setAccepted(false);
         alert("위치 공유가 종료되었습니다.");
     };
+
+    /* ===========================
+     *  언마운트 시 Polyline 제거
+     * =========================== */
+    useEffect(() => {
+        return () => {
+            if (routePolylineRef.current) {
+                routePolylineRef.current.setMap(null);
+            }
+            if (meMarkerRef.current) {
+                meMarkerRef.current.setMap(null);
+            }
+            if (rallyMarkerRef.current) {
+                rallyMarkerRef.current.setMap(null);
+            }
+        };
+    }, []);
 
     return (
         <>
