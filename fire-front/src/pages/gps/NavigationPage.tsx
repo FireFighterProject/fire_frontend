@@ -719,10 +719,10 @@ const NavigationPage = () => {
                     <div className="bg-white/95 text-gray-900 rounded-2xl shadow-lg p-4 space-y-3">
                         {dispatchTitle && (
                             <div>
-                                <div className="text-[11px] font-semibold text-gray-500">
+                                <div className="text-[21px] font-semibold text-gray-500">
                                     출동 제목
                                 </div>
-                                <div className="text-sm font-bold">
+                                <div className="text-[17px] font-bold">
                                     {dispatchTitle}
                                 </div>
                             </div>
@@ -730,10 +730,10 @@ const NavigationPage = () => {
 
                         {destAddress && (
                             <div>
-                                <div className="text-[11px] font-semibold text-gray-500">
+                                <div className="text-[21px] font-semibold text-gray-500">
                                     출동 주소
                                 </div>
-                                <div className="text-sm">
+                                <div className="text-[17px] font-bold">
                                     {destAddress}
                                 </div>
                             </div>
@@ -741,10 +741,10 @@ const NavigationPage = () => {
 
                         {dispatchDesc && (
                             <div>
-                                <div className="text-[11px] font-semibold text-gray-500">
+                                <div className="text-[21px] font-semibold text-gray-500">
                                     출동 내용
                                 </div>
-                                <div className="text-xs leading-snug max-h-32 overflow-y-auto">
+                                <div className="text-[17px]  font-bold leading-snug max-h-32 overflow-y-auto">
                                     {dispatchDesc}
                                 </div>
                             </div>
@@ -775,7 +775,7 @@ const NavigationPage = () => {
                                     </span>
                                 )}
                             </div>
-                        </div>\
+                        </div>
                     </div>
                 </div>
             )}
