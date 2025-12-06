@@ -48,11 +48,11 @@ function ExcelUploader({
 
         const json = XLSX.utils.sheet_to_json<ExcelRawRow>(sheet, { defval: "" });
 
-        // ⬇ 기존 Status.tsx 처럼: 모든 헤더 key 공백 제거
-        const normalized = json.map((r) =>
-            Object.fromEntries(
-                Object.entries(r).map(([k, v]) => [k.trim(), v])
-            ) as ExcelRawRow
+        const normalized = json.map(
+            (r) =>
+                Object.fromEntries(
+                    Object.entries(r).map(([k, v]) => [k.trim(), v])
+                ) as ExcelRawRow
         );
 
         const mapped: ExcelPreviewRow[] = normalized.map((r, i) => ({
@@ -77,9 +77,9 @@ function ExcelUploader({
                 엑셀 업로드
             </header>
 
-            <div className="p-5 space-y-4">
-                {/* 🔹 버튼 영역: 기존 Status.tsx와 비슷한 배치 */}
-                <div className="flex flex-wrap gap-3">
+            <div className="p-5 space-y-3">
+                {/* 🔸 버튼 + 자원집결지 주소 한 줄 배치 */}
+                <div className="flex flex-wrap gap-3 items-center">
                     <button
                         onClick={() => fileRef.current?.click()}
                         className="px-4 h-9 bg-[#ff6b35] text-white rounded"
@@ -94,26 +94,24 @@ function ExcelUploader({
                     >
                         {loading ? "등록 중..." : "일괄 등록"}
                     </button>
-                </div>
 
-                {/* 🔹 자원집결지 주소 입력: 버튼 아래 한 줄 전체 사용 */}
-                <div className="flex flex-col max-w-xl">
-                    <label className="flex flex-col text-sm text-gray-700">
+                    {/* 👉 버튼 옆에 붙는 자원집결지 입력 */}
+                    <label className="flex flex-col text-sm text-gray-700 w-80">
                         자원집결지 주소
                         <input
                             type="text"
                             value={rallyPoint}
                             onChange={(e) => setRallyPoint(e.target.value)}
                             className="h-9 border rounded px-3 mt-1"
-                            placeholder="예: 대구광역시 중구 중앙대로 123"
+                            placeholder="예: 경상북도 구미시 상모로 71"
                         />
+                        <span className="mt-1 text-xs text-gray-500">
+                            문자 발송 시 안내에 사용됩니다. (DB rallyPoint 플래그와는 별개)
+                        </span>
                     </label>
-                    <span className="mt-1 text-xs text-gray-500">
-                        문자 발송 시 안내에 사용됩니다. (DB rallyPoint 플래그와는 별개)
-                    </span>
                 </div>
 
-                {/* 🔹 Excel 표: 기존 디자인 그대로 */}
+                {/* 🔸 엑셀 표 */}
                 <div className="overflow-auto border rounded">
                     <table className="min-w-[900px] w-full text-sm">
                         <thead className="bg-gray-100">
@@ -142,14 +140,30 @@ function ExcelUploader({
                             ) : (
                                 excelRows.map((r) => (
                                     <tr key={r.id} className="even:bg-gray-50">
-                                        <td>{r.sido}</td>
-                                        <td>{r.stationName}</td>
-                                        <td>{r.typeName}</td>
-                                        <td>{r.callSign}</td>
-                                        <td>{r.capacity}</td>
-                                        <td>{r.personnel}</td>
-                                        <td>{r.avlNumber}</td>
-                                        <td>{r.psLteNumber}</td>
+                                        <td className="px-3 py-2 border-t">
+                                            {r.sido}
+                                        </td>
+                                        <td className="px-3 py-2 border-t">
+                                            {r.stationName}
+                                        </td>
+                                        <td className="px-3 py-2 border-t">
+                                            {r.typeName}
+                                        </td>
+                                        <td className="px-3 py-2 border-t">
+                                            {r.callSign}
+                                        </td>
+                                        <td className="px-3 py-2 border-t">
+                                            {r.capacity}
+                                        </td>
+                                        <td className="px-3 py-2 border-t">
+                                            {r.personnel}
+                                        </td>
+                                        <td className="px-3 py-2 border-t">
+                                            {r.avlNumber}
+                                        </td>
+                                        <td className="px-3 py-2 border-t">
+                                            {r.psLteNumber}
+                                        </td>
                                     </tr>
                                 ))
                             )}
@@ -157,13 +171,15 @@ function ExcelUploader({
                     </table>
                 </div>
 
-                {/* 숨겨진 파일 선택 input */}
+                {/* 숨겨진 파일 input */}
                 <input
                     type="file"
                     className="hidden"
                     ref={fileRef}
                     accept=".xls,.xlsx"
-                    onChange={(e) => e.target.files?.[0] && parseExcel(e.target.files[0])}
+                    onChange={(e) =>
+                        e.target.files?.[0] && parseExcel(e.target.files[0])
+                    }
                 />
             </div>
         </section>
