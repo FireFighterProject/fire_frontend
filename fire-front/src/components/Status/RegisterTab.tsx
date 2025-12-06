@@ -113,7 +113,6 @@ function RegisterTab() {
         if (!form.sido) return alert("시도 선택");
         if (!form.stationName) return alert("소방서 선택");
 
-        // 👉 Swagger 스펙에 맞춰 payload 정리
         const payload = {
             stationName: form.stationName,
             sido: form.sido,
@@ -124,9 +123,6 @@ function RegisterTab() {
             avlNumber: form.avlNumber,
             psLteNumber: form.psLteNumber,
             status: form.status ?? 0,
-            // rallyPoint는 단건에서는 안 보낸다고 가정
-            // 필요하면 여기에 form.sido 기준으로 0/1 넣어도 됨
-            // rallyPoint: form.sido.startsWith("경북") ? 0 : 1,
         };
 
         setLoading(true);
@@ -134,8 +130,6 @@ function RegisterTab() {
         try {
             // 1️⃣ 차량 등록
             const res = await apiClient.post("/vehicles", payload);
-
-            // 백엔드 응답에서 id 꺼내기
             const vehicleId: number | undefined =
                 res.data.id ?? res.data.vehicleId;
 
@@ -145,15 +139,17 @@ function RegisterTab() {
                     "백엔드 응답 형식을 확인해주세요."
                 );
             } else {
-                // 2️⃣ 문자 발송은 별도 try-catch로 분리
+                // 2️⃣ 문자 발송
                 try {
                     const link = getAssemblyLink(vehicleId);
-                    const text = makeSmsText(form.callSign, rallyPoint, link);
+                    const text = `[자원집결지 동원소방력] 차량:${form.callSign} 집결지:${rallyPoint} 응소OK:${link}`;
 
-                    await apiClient.post("/sms/to-vehicle", {
-                        vehicleId,
-                        text,
-                    });
+                    const smsPayload = { vehicleId, text };
+
+                    // 🔍 우리가 보내는 문자 API 요청 바디 로그
+                    console.log("📨 /sms/to-vehicle 요청 payload (단건)", smsPayload);
+
+                    await apiClient.post("/sms/to-vehicle", smsPayload);
 
                     alert("등록 + 문자 발송 완료");
                 } catch (smsErr: any) {
@@ -165,7 +161,6 @@ function RegisterTab() {
                 }
             }
 
-            // 폼 초기화
             setForm({
                 stationName: "",
                 sido: "",
@@ -178,13 +173,13 @@ function RegisterTab() {
                 status: 0,
             });
         } catch (err: any) {
-            // 👉 여기서 잡히는 건 진짜로 /vehicles 가 실패했을 때만
             console.error("🚨 /vehicles 단건 등록 실패", err?.response?.data ?? err);
             alert(err?.response?.data?.message ?? "단건 등록 실패");
         } finally {
             setLoading(false);
         }
     };
+
 
 
     /* 🔥 일괄 등록 + 문자 발송 */
@@ -217,10 +212,8 @@ function RegisterTab() {
             } = res.data;
 
             alert(`총 ${total} / 성공 ${inserted} / 중복 ${duplicates}`);
-
             console.log("BATCH RESULT:", res.data);
 
-            // 🔹 1) 아예 새로 등록된 차량이 없는 경우
             if (!inserted || inserted === 0) {
                 if (messages && messages.length > 0) {
                     alert(
@@ -230,10 +223,9 @@ function RegisterTab() {
                 } else {
                     alert("신규 등록된 차량이 없습니다.");
                 }
-                return; // 문자 발송 스킵
+                return;
             }
 
-            // 🔹 2) inserted > 0 인데 vehicleIds 가 비어있는 '진짜 이상한' 경우
             if (!vehicleIds || vehicleIds.length === 0) {
                 alert(
                     "신규 차량은 등록되었지만 vehicleIds가 응답에 없습니다.\n" +
@@ -242,7 +234,6 @@ function RegisterTab() {
                 return;
             }
 
-            // 🔹 3) 정상 케이스 → 문자 발송
             const count = Math.min(inserted, vehicleIds.length);
 
             for (let i = 0; i < count; i++) {
@@ -250,13 +241,17 @@ function RegisterTab() {
                 const row = excelRows[i];
 
                 const link = getAssemblyLink(vehicleId);
-                const text = makeSmsText(row.callSign, rallyPointInput, link);
+                const text = `[자원집결지 동원소방력] 차량:${row.callSign} 집결지:${rallyPointInput} 응소OK:${link}`;
 
-                
-                await apiClient.post("/sms/to-vehicle", {
-                    vehicleId,
-                    text,
-                });
+                const smsPayload = { vehicleId, text };
+
+                // 🔍 배치 문자 API 요청 바디 로그
+                console.log(
+                    `📨 /sms/to-vehicle 요청 payload (배치 ${i + 1}/${count})`,
+                    smsPayload
+                );
+
+                await apiClient.post("/sms/to-vehicle", smsPayload);
             }
 
             alert(`등록 ${inserted}건 + 문자 발송 완료`);
@@ -268,6 +263,7 @@ function RegisterTab() {
             setLoading(false);
         }
     };
+
 
 
 
