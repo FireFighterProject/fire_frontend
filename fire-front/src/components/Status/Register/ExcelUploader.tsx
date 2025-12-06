@@ -36,9 +36,8 @@ function ExcelUploader({
     normalizeStationName,
     toNum,
     rallyPoint,
-    setRallyPoint
+    setRallyPoint,
 }: ExcelUploaderProps) {
-
     const parseExcel = async (file: File) => {
         const imported = await import("xlsx");
         const XLSX = imported.default || imported;
@@ -49,7 +48,14 @@ function ExcelUploader({
 
         const json = XLSX.utils.sheet_to_json<ExcelRawRow>(sheet, { defval: "" });
 
-        const mapped: ExcelPreviewRow[] = json.map((r, i) => ({
+        // ⬇ 기존 Status.tsx 처럼: 모든 헤더 key 공백 제거
+        const normalized = json.map((r) =>
+            Object.fromEntries(
+                Object.entries(r).map(([k, v]) => [k.trim(), v])
+            ) as ExcelRawRow
+        );
+
+        const mapped: ExcelPreviewRow[] = normalized.map((r, i) => ({
             id: `${file.name}-${i}`,
             sido: toFullSido(r["시도"]),
             stationName: normalizeStationName(r["소방서"]),
@@ -67,12 +73,13 @@ function ExcelUploader({
 
     return (
         <section className="border rounded">
-            <header className="px-5 py-3 border-b font-semibold">엑셀 업로드</header>
+            <header className="px-5 py-3 border-b font-semibold">
+                엑셀 업로드
+            </header>
 
-            <div className="p-5 space-y-3">
-
-                <div className="flex gap-3 items-center">
-
+            <div className="p-5 space-y-4">
+                {/* 🔹 버튼 영역: 기존 Status.tsx와 비슷한 배치 */}
+                <div className="flex flex-wrap gap-3">
                     <button
                         onClick={() => fileRef.current?.click()}
                         className="px-4 h-9 bg-[#ff6b35] text-white rounded"
@@ -87,29 +94,26 @@ function ExcelUploader({
                     >
                         {loading ? "등록 중..." : "일괄 등록"}
                     </button>
+                </div>
 
-                    {/* 자원집결지 주소 입력 */}
+                {/* 🔹 자원집결지 주소 입력: 버튼 아래 한 줄 전체 사용 */}
+                <div className="flex flex-col max-w-xl">
                     <label className="flex flex-col text-sm text-gray-700">
                         자원집결지 주소
                         <input
                             type="text"
                             value={rallyPoint}
                             onChange={(e) => setRallyPoint(e.target.value)}
-                            className="h-9 border rounded px-3 w-72"
+                            className="h-9 border rounded px-3 mt-1"
                             placeholder="예: 대구광역시 중구 중앙대로 123"
                         />
                     </label>
-
-                    <input
-                        type="file"
-                        className="hidden"
-                        ref={fileRef}
-                        accept=".xls,.xlsx"
-                        onChange={(e) => e.target.files?.[0] && parseExcel(e.target.files[0])}
-                    />
+                    <span className="mt-1 text-xs text-gray-500">
+                        문자 발송 시 안내에 사용됩니다. (DB rallyPoint 플래그와는 별개)
+                    </span>
                 </div>
 
-                {/* Excel 표 */}
+                {/* 🔹 Excel 표: 기존 디자인 그대로 */}
                 <div className="overflow-auto border rounded">
                     <table className="min-w-[900px] w-full text-sm">
                         <thead className="bg-gray-100">
@@ -128,7 +132,10 @@ function ExcelUploader({
                         <tbody>
                             {excelRows.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} className="text-center py-6 text-gray-400">
+                                    <td
+                                        colSpan={8}
+                                        className="text-center py-6 text-gray-400"
+                                    >
                                         선택된 파일 없음
                                     </td>
                                 </tr>
@@ -150,6 +157,14 @@ function ExcelUploader({
                     </table>
                 </div>
 
+                {/* 숨겨진 파일 선택 input */}
+                <input
+                    type="file"
+                    className="hidden"
+                    ref={fileRef}
+                    accept=".xls,.xlsx"
+                    onChange={(e) => e.target.files?.[0] && parseExcel(e.target.files[0])}
+                />
             </div>
         </section>
     );
