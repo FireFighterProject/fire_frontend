@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/pages/ManageTab.tsx
 import { useEffect, useState, useMemo } from "react";
 import apiClient from "../../api/axios";
@@ -23,13 +22,13 @@ export default function ManageTab() {
     // 🔥 소방서 목록
     const [allStations, setAllStations] = useState<FireStation[]>([]);
 
-    // 🔥 GPS 한 번이라도 수신한 차량 ID 목록
+    // 🔥 GPS 수신 차량 id 목록
     const [gpsActiveIds, setGpsActiveIds] = useState<number[]>([]);
 
     // 🔥 필터
     const [query, setQuery] = useState<FilterQuery>({
         sido: "",
-        stationId: "",   // string 유지
+        stationId: "",
         status: "",
         typeName: "",
         callSign: "",
@@ -46,25 +45,6 @@ export default function ManageTab() {
     }, []);
 
     // ========================================================
-    // 1-1) GPS 수신 이력 차량 목록 로드
-    //    (백엔드에서 제공하는 엔드포인트에 맞춰 경로는 필요 시 수정)
-    // ========================================================
-    useEffect(() => {
-        apiClient
-            .get("/gps/last-locations") // 🔁 여기 엔드포인트는 실제 것에 맞춰 조정 가능
-            .then((res) => {
-                const rows = Array.isArray(res.data) ? res.data : [];
-                const ids = rows
-                    .map((r: any) => r.vehicleId)
-                    .filter((id: any) => typeof id === "number");
-                setGpsActiveIds(ids);
-            })
-            .catch((e) => {
-                console.error("❌ gps/last-locations 요청 실패:", e);
-            });
-    }, []);
-
-    // ========================================================
     // 2) 차량 전체 로드
     // ========================================================
     useEffect(() => {
@@ -73,7 +53,22 @@ export default function ManageTab() {
     }, [dispatch]);
 
     // ========================================================
-    // 3) 필터링
+    // 3) GPS 수신 차량 id 로드 (/api/gps/all)
+    // ========================================================
+    useEffect(() => {
+        apiClient
+            .get("/gps/all")
+            .then((res) => {
+                const ids = (res.data as { vehicleId: number }[]).map((g) =>
+                    Number(g.vehicleId)
+                );
+                setGpsActiveIds(ids);
+            })
+            .catch((e) => console.error("❌ gps/all 요청 실패:", e));
+    }, []);
+
+    // ========================================================
+    // 4) 필터링
     // ========================================================
     const filteredRows = useMemo(() => {
         let list = vehicles.map((v) => {
@@ -125,7 +120,7 @@ export default function ManageTab() {
     }, [vehicles, allStations, query]);
 
     // ========================================================
-    // 4) PATCH 요청
+    // 5) PATCH 요청 (수정)
     // ========================================================
     const patchVehicle = async (id: string | number, patch: Partial<Vehicle>) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -145,7 +140,7 @@ export default function ManageTab() {
     };
 
     // ========================================================
-    // 5) 수정 UI 상태
+    // 6) 수정 UI 상태
     // ========================================================
     const [editRowId, setEditRowId] = useState<string | null>(null);
     const [editData, setEditData] = useState<Partial<Vehicle>>({});
@@ -157,8 +152,9 @@ export default function ManageTab() {
             await patchVehicle(editRowId, editData);
             dispatch(fetchVehicles({}));
             alert("수정 완료");
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (err) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            console.error(err);
             alert("수정 실패");
         }
 
@@ -186,7 +182,7 @@ export default function ManageTab() {
                 setEditRowId={setEditRowId}
                 saveEdit={saveEdit}
                 allStations={allStations}
-                gpsActiveIds={gpsActiveIds}
+                gpsActiveIds={gpsActiveIds}   // ✅ 여기!
             />
         </div>
     );

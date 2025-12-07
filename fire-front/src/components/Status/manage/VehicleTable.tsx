@@ -16,7 +16,7 @@ type Props = {
 
     saveEdit: () => void;
 
-    // ✅ GPS를 한 번이라도 수신한 차량 ID 목록
+    // ✅ GPS가 한 번이라도 등록된 차량 id 목록
     gpsActiveIds: number[];
 };
 
@@ -40,15 +40,25 @@ export default function VehicleTable({
         });
     }, [rows, allStations]);
 
-    // ✅ 빠른 포함 여부 체크용 Set
+    // ✅ 빠른 포함 체크용 Set
     const gpsActiveSet = useMemo(
         () => new Set(gpsActiveIds.map((id) => Number(id))),
         [gpsActiveIds]
     );
 
     const headers = [
-        "연번", "시도", "소방서", "차종", "호출명",
-        "용량", "인원", "AVL", "PS-LTE", "상태", "집결", "수정",
+        "연번",
+        "시도",
+        "소방서",
+        "차종",
+        "호출명",
+        "용량",
+        "인원",
+        "AVL",
+        "PS-LTE",
+        "상태",
+        "집결",
+        "수정",
     ];
 
     const change = (field: keyof Vehicle, value: any) =>
@@ -77,18 +87,17 @@ export default function VehicleTable({
                     ) : (
                         mappedRows.map((r, idx) => {
                             const editing = r.id === editRowId;
-
-                            // ✅ 이 차량이 GPS 수신 이력이 있는지 여부
                             const hasGps = gpsActiveSet.has(Number(r.id));
 
+                            // ✅ GPS 있으면 연두색, 없으면 짝수줄만 회색
+                            const rowClass = hasGps
+                                ? "bg-emerald-50/80"
+                                : idx % 2 === 1
+                                    ? "bg-gray-50/40"
+                                    : "";
+
                             return (
-                                <tr
-                                    key={r.id}
-                                    className={
-                                        "even:bg-gray-50/40 " +
-                                        (hasGps ? "bg-emerald-50/80" : "")
-                                    }
-                                >
+                                <tr key={r.id} className={rowClass}>
                                     <Td>{idx + 1}</Td>
 
                                     {/* 시도 */}
@@ -96,10 +105,14 @@ export default function VehicleTable({
                                         {editing ? (
                                             <input
                                                 value={editData.sido ?? r.sido}
-                                                onChange={(e) => change("sido", e.target.value)}
+                                                onChange={(e) =>
+                                                    change("sido", e.target.value)
+                                                }
                                                 className="border px-2 py-1 w-full rounded"
                                             />
-                                        ) : r.sido}
+                                        ) : (
+                                            r.sido
+                                        )}
                                     </Td>
 
                                     {/* 소방서 */}
@@ -110,10 +123,14 @@ export default function VehicleTable({
                                         {editing ? (
                                             <input
                                                 value={editData.type ?? r.type}
-                                                onChange={(e) => change("type", e.target.value)}
+                                                onChange={(e) =>
+                                                    change("type", e.target.value)
+                                                }
                                                 className="border px-2 py-1 w-full rounded"
                                             />
-                                        ) : r.type}
+                                        ) : (
+                                            r.type
+                                        )}
                                     </Td>
 
                                     {/* 호출명 */}
@@ -121,10 +138,14 @@ export default function VehicleTable({
                                         {editing ? (
                                             <input
                                                 value={editData.callname ?? r.callname}
-                                                onChange={(e) => change("callname", e.target.value)}
+                                                onChange={(e) =>
+                                                    change("callname", e.target.value)
+                                                }
                                                 className="border px-2 py-1 w-full rounded"
                                             />
-                                        ) : r.callname}
+                                        ) : (
+                                            r.callname
+                                        )}
                                     </Td>
 
                                     {/* 용량 */}
@@ -132,10 +153,14 @@ export default function VehicleTable({
                                         {editing ? (
                                             <input
                                                 value={editData.capacity ?? r.capacity}
-                                                onChange={(e) => change("capacity", e.target.value)}
+                                                onChange={(e) =>
+                                                    change("capacity", e.target.value)
+                                                }
                                                 className="border px-2 py-1 w-full rounded"
                                             />
-                                        ) : r.capacity}
+                                        ) : (
+                                            r.capacity
+                                        )}
                                     </Td>
 
                                     {/* 인원 */}
@@ -143,10 +168,14 @@ export default function VehicleTable({
                                         {editing ? (
                                             <input
                                                 value={editData.personnel ?? r.personnel}
-                                                onChange={(e) => change("personnel", e.target.value)}
+                                                onChange={(e) =>
+                                                    change("personnel", e.target.value)
+                                                }
                                                 className="border px-2 py-1 w-full rounded"
                                             />
-                                        ) : r.personnel}
+                                        ) : (
+                                            r.personnel
+                                        )}
                                     </Td>
 
                                     {/* AVL */}
@@ -154,10 +183,14 @@ export default function VehicleTable({
                                         {editing ? (
                                             <input
                                                 value={editData.avl ?? r.avl}
-                                                onChange={(e) => change("avl", e.target.value)}
+                                                onChange={(e) =>
+                                                    change("avl", e.target.value)
+                                                }
                                                 className="border px-2 py-1 w-full rounded"
                                             />
-                                        ) : r.avl}
+                                        ) : (
+                                            r.avl
+                                        )}
                                     </Td>
 
                                     {/* PS-LTE */}
@@ -172,7 +205,9 @@ export default function VehicleTable({
                                             <input
                                                 type="checkbox"
                                                 checked={!!editData.rally}
-                                                onChange={(e) => change("rally", e.target.checked)}
+                                                onChange={(e) =>
+                                                    change("rally", e.target.checked)
+                                                }
                                             />
                                         ) : (
                                             <input type="checkbox" checked={!!r.rally} disabled />
