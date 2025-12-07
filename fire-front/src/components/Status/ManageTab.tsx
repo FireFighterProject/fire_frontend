@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/pages/ManageTab.tsx
 import { useEffect, useState, useMemo } from "react";
 import apiClient from "../../api/axios";
 import { useDispatch, useSelector } from "react-redux";
-    import type { FilterQuery } from "../Status/manage/FilterBar";
+import type { FilterQuery } from "../Status/manage/FilterBar";
 
 import { fetchVehicles, selectVehicles } from "../../features/vehicle/vehicleSlice";
 
@@ -12,9 +13,7 @@ import VehicleTable from "../Status/manage/VehicleTable";
 import type { FireStation } from "../../types/station";
 import type { Vehicle } from "../../types/vehicle";
 
-
 export default function ManageTab() {
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dispatch = useDispatch<any>();
     const vehicles = useSelector(selectVehicles) as Vehicle[];
@@ -24,8 +23,10 @@ export default function ManageTab() {
     // 🔥 소방서 목록
     const [allStations, setAllStations] = useState<FireStation[]>([]);
 
-    // 🔥 필터
+    // 🔥 GPS 한 번이라도 수신한 차량 ID 목록
+    const [gpsActiveIds, setGpsActiveIds] = useState<number[]>([]);
 
+    // 🔥 필터
     const [query, setQuery] = useState<FilterQuery>({
         sido: "",
         stationId: "",   // string 유지
@@ -33,7 +34,6 @@ export default function ManageTab() {
         typeName: "",
         callSign: "",
     });
-
 
     // ========================================================
     // 1) 소방서 전체 로드
@@ -43,6 +43,25 @@ export default function ManageTab() {
             .get(`/fire-stations`)
             .then((res) => setAllStations(res.data))
             .catch((e) => console.error("❌ fire-stations 요청 실패:", e));
+    }, []);
+
+    // ========================================================
+    // 1-1) GPS 수신 이력 차량 목록 로드
+    //    (백엔드에서 제공하는 엔드포인트에 맞춰 경로는 필요 시 수정)
+    // ========================================================
+    useEffect(() => {
+        apiClient
+            .get("/gps/last-locations") // 🔁 여기 엔드포인트는 실제 것에 맞춰 조정 가능
+            .then((res) => {
+                const rows = Array.isArray(res.data) ? res.data : [];
+                const ids = rows
+                    .map((r: any) => r.vehicleId)
+                    .filter((id: any) => typeof id === "number");
+                setGpsActiveIds(ids);
+            })
+            .catch((e) => {
+                console.error("❌ gps/last-locations 요청 실패:", e);
+            });
     }, []);
 
     // ========================================================
@@ -138,7 +157,7 @@ export default function ManageTab() {
             await patchVehicle(editRowId, editData);
             dispatch(fetchVehicles({}));
             alert("수정 완료");
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (err) {
             alert("수정 실패");
         }
@@ -167,7 +186,8 @@ export default function ManageTab() {
                 setEditRowId={setEditRowId}
                 saveEdit={saveEdit}
                 allStations={allStations}
+                gpsActiveIds={gpsActiveIds}
             />
         </div>
-    );  
+    );
 }

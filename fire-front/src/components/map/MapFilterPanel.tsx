@@ -103,7 +103,7 @@ const MapFilterPanel: React.FC<Props> = ({
                     className="mt-1 block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                 >
                     <option value="">
-                        {loadingStations ? "소방서 불러오는 중..." : "전체"}
+                        {loadingStations ? "불러오는중" : "전체"}
                     </option>
                     {!loadingStations &&
                         stationOptions.map((st) => (
