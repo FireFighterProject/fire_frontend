@@ -15,6 +15,9 @@ type Props = {
     setEditRowId: React.Dispatch<React.SetStateAction<string | null>>;
 
     saveEdit: () => void;
+
+    // ✅ GPS를 한 번이라도 수신한 차량 ID 목록
+    gpsActiveIds: number[];
 };
 
 export default function VehicleTable({
@@ -26,6 +29,7 @@ export default function VehicleTable({
     setEditData,
     setEditRowId,
     saveEdit,
+    gpsActiveIds,
 }: Props) {
     const mappedRows = useMemo(() => {
         return rows.map((r) => {
@@ -35,6 +39,12 @@ export default function VehicleTable({
             return { ...r, station: found?.name ?? r.station };
         });
     }, [rows, allStations]);
+
+    // ✅ 빠른 포함 여부 체크용 Set
+    const gpsActiveSet = useMemo(
+        () => new Set(gpsActiveIds.map((id) => Number(id))),
+        [gpsActiveIds]
+    );
 
     const headers = [
         "연번", "시도", "소방서", "차종", "호출명",
@@ -68,8 +78,17 @@ export default function VehicleTable({
                         mappedRows.map((r, idx) => {
                             const editing = r.id === editRowId;
 
+                            // ✅ 이 차량이 GPS 수신 이력이 있는지 여부
+                            const hasGps = gpsActiveSet.has(Number(r.id));
+
                             return (
-                                <tr key={r.id} className="even:bg-gray-50/40">
+                                <tr
+                                    key={r.id}
+                                    className={
+                                        "even:bg-gray-50/40 " +
+                                        (hasGps ? "bg-emerald-50/80" : "")
+                                    }
+                                >
                                     <Td>{idx + 1}</Td>
 
                                     {/* 시도 */}
