@@ -63,28 +63,62 @@ export default function ManageTab() {
                 const res = await apiClient.get("/gps/all");
                 if (cancelled) return;
 
-                const ids = (res.data as { vehicleId: number }[]).map((g) =>
-                    Number(g.vehicleId)
-                );
+                const data = res.data as { vehicleId: number }[];
+
+                // 🔍 3-1) /gps/all 원본 응답 로그
+                console.log("[MANAGE] /gps/all 응답:", data);
+
+                const ids = data.map((g) => Number(g.vehicleId));
+
+                // 🔍 3-2) 추출된 vehicleId 목록 로그
+                console.log("[MANAGE] GPS 수신 vehicleId 목록:", ids);
+
                 setGpsActiveIds(ids);
             } catch (e) {
                 console.error("❌ gps/all 요청 실패:", e);
             }
         };
 
-        // 🔹 처음 마운트될 때 한 번 즉시 호출
+        // 처음 마운트될 때 한 번 즉시 호출
         fetchGpsActiveIds();
 
-        // 🔹 20초마다 한 번씩 재요청
+        // 20초마다 한 번씩 재요청
         const intervalId = window.setInterval(fetchGpsActiveIds, 20000);
 
-        // 🔹 언마운트 시 인터벌 정리
+        // 언마운트 시 인터벌 정리
         return () => {
             cancelled = true;
             window.clearInterval(intervalId);
         };
     }, []);
 
+    // ========================================================
+    // 3-A) GPS 수신 차량 상세 로그 (Redux vehicles와 매칭)
+    // ========================================================
+    useEffect(() => {
+        if (!gpsActiveIds.length) {
+            console.log("[MANAGE] 현재 GPS 수신 차량 없음");
+            return;
+        }
+
+        const activeVehicles = vehicles.filter((v) =>
+            gpsActiveIds.includes(Number(v.id))
+        );
+
+        console.log("[MANAGE] GPS 수신 차량 매칭 결과:", {
+            gpsIds: gpsActiveIds,
+            gpsCount: gpsActiveIds.length,
+            matchedCount: activeVehicles.length,
+            vehicles: activeVehicles.map((v) => ({
+                id: v.id,
+                stationId: v.stationId,
+                sido: v.sido,
+                callname: v.callname,
+                type: v.type,
+                status: v.status,
+            })),
+        });
+    }, [gpsActiveIds, vehicles]);
 
     // ========================================================
     // 4) 필터링
