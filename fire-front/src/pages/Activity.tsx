@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // src/pages/ActivityPage.tsx
 import React, {
@@ -19,9 +20,17 @@ import type { Vehicle } from "../types/global";
 import axios from "axios";
 
 /* -------------------------------------------------------
+ * 전역 kakao 타입
+ * ------------------------------------------------------- */
+declare global {
+  interface Window {
+    kakao: any;
+  }
+}
+
+/* -------------------------------------------------------
  * 서버 타입
  * ------------------------------------------------------- */
-
 type ApiVehicleListItem = {
   id: number;
   stationId: number;
@@ -69,6 +78,166 @@ const api = axios.create({
 });
 
 /* -------------------------------------------------------
+ * 카카오맵 SDK 로더
+ * ------------------------------------------------------- */
+const loadKakao = (): Promise<void> => {
+  return new Promise((resolve) => {
+    if (window.kakao?.maps) return resolve();
+
+    const existingScript = document.querySelector<HTMLScriptElement>(
+      'script[data-kakao-maps-sdk="true"]'
+    );
+    if (existingScript) {
+      existingScript.onload = () => window.kakao.maps.load(resolve);
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.dataset.kakaoMapsSdk = "true";
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAOMAP_API_KEY
+      }&autoload=false`;
+    script.onload = () => window.kakao.maps.load(resolve);
+    document.head.appendChild(script);
+  });
+};
+
+/* -------------------------------------------------------
+ * 지도 팝업 컴포넌트
+ * ------------------------------------------------------- */
+type MapPopupProps = {
+  vehicle: Vehicle;
+  onClose: () => void;
+};
+
+const MapPopup: React.FC<MapPopupProps> = ({ vehicle, onClose }) => {
+  const mapRef = useRef<HTMLDivElement | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let map: any;
+    let marker: any;
+    let intervalId: number | null = null;
+    let cancelled = false;
+
+    const init = async () => {
+      try {
+        await loadKakao();
+        if (!mapRef.current) return;
+
+        const kakao = window.kakao;
+        map = new kakao.maps.Map(mapRef.current, {
+          center: new kakao.maps.LatLng(36.35, 127.9),
+          level: 7,
+        });
+
+        const fetchGps = async () => {
+          try {
+            const res = await api.get(`/gps/location/${vehicle.id}`);
+            if (cancelled) return;
+
+            const { latitude, longitude } = res.data;
+            if (
+              typeof latitude !== "number" ||
+              typeof longitude !== "number"
+            ) {
+              throw new Error("invalid gps");
+            }
+
+            const pos = new kakao.maps.LatLng(latitude, longitude);
+
+            if (!marker) {
+              marker = new kakao.maps.Marker({
+                map,
+                position: pos,
+              });
+            } else {
+              marker.setPosition(pos);
+            }
+
+            map.setCenter(pos);
+            setLoading(false);
+            setError(null);
+          } catch (e) {
+            console.error("GPS 위치 조회 실패:", e);
+            if (!cancelled) {
+              setError("GPS 위치를 가져올 수 없습니다.");
+              setLoading(false);
+            }
+          }
+        };
+
+        await fetchGps();
+        // 5초마다 위치 갱신
+        intervalId = window.setInterval(fetchGps, 5000);
+      } catch (e) {
+        console.error("카카오맵 초기화 실패:", e);
+        if (!cancelled) {
+          setError("지도를 불러오는 중 오류가 발생했습니다.");
+          setLoading(false);
+        }
+      }
+    };
+
+    init();
+
+    return () => {
+      cancelled = true;
+      if (intervalId) window.clearInterval(intervalId);
+      if (marker) marker.setMap(null);
+      map = null;
+    };
+  }, [vehicle.id]);
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl h-[70vh] flex flex-col overflow-hidden">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-4 py-2 border-b">
+          <div className="font-semibold text-gray-800">
+            {vehicle.callname} 위치 보기
+          </div>
+          <button
+            onClick={onClose}
+            className="text-sm px-3 py-1 rounded-md bg-gray-200 hover:bg-gray-300"
+          >
+            닫기
+          </button>
+        </div>
+
+        {/* 정보 영역 */}
+        <div className="px-4 py-2 text-xs text-gray-600 border-b space-y-1">
+          <div>
+            <span className="font-semibold">시/도</span> {vehicle.sido}{" "}
+            <span className="font-semibold ml-2">소방서</span>{" "}
+            {vehicle.station || "-"}
+          </div>
+          <div>
+            <span className="font-semibold">출동 장소</span>{" "}
+            {vehicle.dispatchPlace || "-"}
+          </div>
+        </div>
+
+        {/* 지도 */}
+        <div className="flex-1 relative">
+          {loading && !error && (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500">
+              지도를 불러오는 중입니다...
+            </div>
+          )}
+          {error && (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-red-500 z-10">
+              {error}
+            </div>
+          )}
+          <div ref={mapRef} className="w-full h-full" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* -------------------------------------------------------
  * ActivityPage
  * ------------------------------------------------------- */
 const ActivityPage: React.FC = () => {
@@ -85,8 +254,11 @@ const ActivityPage: React.FC = () => {
     query: "",
   });
 
-  //  가장 마지막 fetch만 유효하게 하기 위한 id (레이스 컨디션 방지)
+  // 가장 마지막 fetch만 유효하게 하기 위한 id (레이스 컨디션 방지)
   const fetchIdRef = useRef(0);
+
+  // ✅ 지도 팝업용 상태
+  const [mapTarget, setMapTarget] = useState<Vehicle | null>(null);
 
   /* ------------------ 활동 차량의 최신 출동 정보 채우기 ------------------ */
   const fillLatestDispatchInfo = useCallback(
@@ -144,7 +316,7 @@ const ActivityPage: React.FC = () => {
     setFetching(true);
 
     try {
-      // 🔹 1) 차량 + 소방서를 동시에 호출 (병렬)
+      // 1) 차량 + 소방서를 동시에 호출 (병렬)
       const [vehicleRes, stationRes] = await Promise.all([
         api.get<ApiVehicleListItem[]>("/vehicles"),
         api.get<ApiFireStation[]>("/fire-stations"),
@@ -155,7 +327,7 @@ const ActivityPage: React.FC = () => {
         stationRes.data.map((s) => [s.id, s])
       );
 
-      // 🔹 2) 기본 Vehicle 리스트 구성 (출동 정보는 비워둠)
+      // 2) 기본 Vehicle 리스트 구성 (출동 정보는 비워둠)
       const baseList: Vehicle[] = vehicleList.map((v) => {
         const station = stationMap.get(v.stationId);
 
@@ -173,18 +345,18 @@ const ActivityPage: React.FC = () => {
           status: STATUS_LABELS[v.status] ?? "대기",
           rally: v.rallyPoint === 1,
 
-          // 🔥 출동 정보는 나중에 latest-by-vehicle로 채움
+          // 출동 정보는 나중에 latest-by-vehicle로 채움
           dispatchPlace: "",
           content: "",
         };
       });
 
-      // 🔹 3) 가장 최신 fetch만 반영
+      // 3) 가장 최신 fetch만 반영
       if (myFetchId === fetchIdRef.current) {
         dispatch(setVehicles(baseList));
       }
 
-      // 🔹 4) 활동 차량에 한해서 최신 출동 정보 채우기
+      // 4) 활동 차량에 한해서 최신 출동 정보 채우기
       await fillLatestDispatchInfo(baseList, myFetchId);
     } finally {
       setFetching(false);
@@ -221,12 +393,9 @@ const ActivityPage: React.FC = () => {
       await api.patch(`/vehicles/${vehicleId}/status`, {
         status: 0,
       });
-
-      // ❌ 더 이상 전체 차량/소방서/출동 정보 재조회 안 함
-      // => 표가 움찔거리는 현상 제거, API 호출 횟수 감소
     } catch {
       alert("복귀 처리 실패");
-      // 원하면 여기서 상태 롤백도 가능 (이전 값 저장해놨다가 다시 dispatch)
+      // 필요하면 여기서 상태 롤백도 가능
     } finally {
       setPendingReturn((m) => {
         const next = { ...m };
@@ -277,7 +446,16 @@ const ActivityPage: React.FC = () => {
 
       <ActivitySummary vehicles={activeVehicles} />
       <ActivityFilter filter={filter} setFilter={setFilter} />
-      <ActivityTable vehicles={activeVehicles} onReturn={onReturn} />
+      <ActivityTable
+        vehicles={activeVehicles}
+        onReturn={onReturn}
+        onOpenMap={(v) => setMapTarget(v)} // ✅ 지도 팝업 열기
+      />
+
+      {/* ✅ 지도 팝업 표시 */}
+      {mapTarget && (
+        <MapPopup vehicle={mapTarget} onClose={() => setMapTarget(null)} />
+      )}
     </div>
   );
 };
