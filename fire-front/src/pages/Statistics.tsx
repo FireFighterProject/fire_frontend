@@ -478,83 +478,6 @@ const TabByPlace: React.FC = () => {
   );
 };
 
-/* ========= 탭: 출동 명령별 (메모 가능) ========= */
-const TabByCommand: React.FC = () => {
-  const grouped = useMemo(() => by(LOGS, (l) => l.command), []);
-  const items = Object.entries(grouped).map(([cmd, logs]) => ({
-    cmd,
-    cnt: logs.length,
-    minutes: sum(logs.map((l) => l.minutes)),
-  }));
-
-  const [memoMap, setMemoMap] = useState<Record<string, string>>({});
-  const [editing, setEditing] = useState<string | null>(null);
-  const [temp, setTemp] = useState("");
-
-  const max = Math.max(...items.map((x) => x.minutes), 1);
-
-  const save = () => {
-    if (!editing) return;
-    setMemoMap((m) => ({ ...m, [editing]: temp }));
-    setEditing(null);
-  };
-
-  return (
-    <>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <KPI title="총 활동시간(분)" value={sum(items.map((x) => x.minutes))} />
-        <KPI title="평균(분/대)" value={avg(LOGS.map((l) => l.minutes))} />
-        <KPI title="최대(분/대)" value={Math.max(...LOGS.map((l) => l.minutes))} />
-      </div>
-
-      <div className="mt-3">
-        <Table
-          columns={[
-            { key: "cmd", header: "명령", align: "left" },
-            { key: "cnt", header: "출동 건수", width: "120px", align: "right" },
-            { key: "minutes", header: "총 활동시간(분)", width: "160px", align: "right" },
-            { key: "bar", header: "미니차트" },
-            { key: "memo", header: "메모", align: "left" },
-          ]}
-          rows={items.map((r) => ({
-            cmd: (
-              <button
-                className="text-blue-600 underline-offset-2 hover:underline"
-                onClick={() => {
-                  setEditing(r.cmd);
-                  setTemp(memoMap[r.cmd] ?? "");
-                }}
-              >
-                {r.cmd}
-              </button>
-            ),
-            cnt: r.cnt.toLocaleString(),
-            minutes: r.minutes.toLocaleString(),
-            bar: <MiniBar value={r.minutes} max={max} />,
-            memo: memoMap[r.cmd] ?? "-",
-          }))}
-        />
-      </div>
-
-      <Modal open={editing !== null} onClose={() => setEditing(null)} title={editing ? `메모: ${editing}` : ""}>
-        <textarea
-          className="h-40 w-full resize-y rounded-xl border border-gray-300 p-3"
-          placeholder="출동 명령에 대한 비고/메모를 작성하세요."
-          value={temp}
-          onChange={(e) => setTemp(e.target.value)}
-        />
-        <div className="mt-3 flex justify-end gap-2">
-          <button className="h-9 rounded-lg border border-gray-300 px-3 hover:bg-gray-50" onClick={() => setEditing(null)}>
-            취소
-          </button>
-          <button className="h-9 rounded-lg bg-red-600 px-4 text-white hover:bg-red-700" onClick={save}>
-            저장
-          </button>
-        </div>
-      </Modal>
-    </>
-  );
-};
 
 /* ========= 탭: 활동 시간별 ========= */
 const TabByDuration: React.FC<{ vehicles: Vehicle[] }> = ({ vehicles }) => {
@@ -650,7 +573,6 @@ export default function StatisticsPage() {
           {tab === "byRegion" && <TabByRegion vehicles={vehicles} />}
           {tab === "byType" && <TabByType vehicles={vehicles} />}
           {tab === "byPlace" && <TabByPlace />}
-          {tab === "byCommand" && <TabByCommand />}
           {tab === "byDuration" && <TabByDuration vehicles={vehicles} />}
         </main>
       </div>

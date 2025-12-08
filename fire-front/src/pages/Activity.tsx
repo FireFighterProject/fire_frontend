@@ -213,54 +213,33 @@ const ActivityPage: React.FC = () => {
     if (!window.confirm("복귀 처리하시겠습니까?")) return;
     if (pendingReturn[vehicleId]) return; // 같은 차량 중복 클릭 방지
 
-    let orderId = orderIdMap[vehicleId];
-
-    // 💡 아직 orderIdMap에 없으면, 한번 더 latest-by-vehicle로 조회해서 확보
-    if (!orderId) {
-      try {
-        const res = await api.get<LatestDispatchResponse>(
-          `/dispatch-orders/latest-by-vehicle/${vehicleId}`
-        );
-        const data = res.data;
-        if (
-          !data ||
-          typeof data !== "object" ||
-          (data.message &&
-            data.message.includes("출동 이력이 없습니다"))
-        ) {
-          alert("이 차량에 대한 출동 이력이 없어 복귀 처리할 수 없습니다.");
-          return;
-        }
-        orderId = data.orderId;
-        setOrderIdMap((prev) => ({
-          ...prev,
-          [vehicleId]: orderId!,
-        }));
-      } catch {
-        alert("출동 정보를 조회할 수 없어 복귀 처리에 실패했습니다.");
-        return;
-      }
-    }
-
+    // 이 차량은 지금 복귀 요청 처리 중
     setPendingReturn((m) => ({ ...m, [vehicleId]: true }));
 
     try {
-      // 1) 낙관적 업데이트 (바로 화면에서 대기로 변경 + 출동 정보 제거)
+      // 1) 낙관적 업데이트 (화면에서 먼저 대기로 변경 + 출동 정보 제거)
       dispatch(
         updateVehicle({
           id: vehicleId,
-          patch: { status: "대기", dispatchPlace: "", content: "" },
+          patch: {
+            status: "대기",
+            dispatchPlace: "",
+            content: "",
+          },
         })
       );
 
-      // 2) 서버에 출동명령 복귀 요청
-      await api.post(`/dispatch-orders/${orderId}/return`);
+      // 2) 실제 서버에 상태 변경 요청 (0 = 대기)
+      await api.patch(`/vehicles/${vehicleId}/status`, {
+        status: 0,
+      });
 
-      // 3) 서버 최신 상태와 동기화 (선택)
+      // 3) 서버 최신 데이터 다시 로드해서 동기화
       await fetchVehiclesOptimized();
-    } catch {
+    } catch (e) {
       alert("복귀 처리 실패");
     } finally {
+      // pendingReturn 해제
       setPendingReturn((m) => {
         const next = { ...m };
         delete next[vehicleId];
@@ -268,6 +247,7 @@ const ActivityPage: React.FC = () => {
       });
     }
   };
+
 
   /* ----------------------- 필터 ---------------------- */
   const filteredVehicles = useMemo(() => {
