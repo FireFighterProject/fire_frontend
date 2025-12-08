@@ -1,11 +1,10 @@
+// src/pages/Report.tsx
 import React, { useMemo, useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../store";
 import type { VehicleStatus } from "../types/global";
 
-/* 유틸 */
-const unique = <T,>(arr: T[]) => Array.from(new Set(arr));
-
+/* UTILS */
 function groupBy<T, K extends string | number>(
   arr: T[],
   keyFn: (x: T) => K
@@ -17,56 +16,50 @@ function groupBy<T, K extends string | number>(
   }, {} as Record<K, T[]>);
 }
 
-/* 타입 */
-type Topic =
-  | "전체 통계"
-  | "지역별 통계"
-  | "차종별 통계"
-  | "상태별 통계"
-  | "출동 목록";
+const unique = <T,>(arr: T[]) => Array.from(new Set(arr));
 
-/* 메인 컴포넌트 */
+type Topic = "전체 통계" | "지역별 통계" | "차종별 통계" | "상태별 통계" | "출동 목록";
+type TabStep = 1 | 2 | 3 | 4;
+
 export default function ReportPage() {
   const vehicles = useSelector((s: RootState) => s.vehicle.vehicles);
 
-  /* 상태 */
+  const [step, setStep] = useState<TabStep>(1);
   const [topic, setTopic] = useState<Topic>("전체 통계");
 
-  const [periodStart, setPeriodStart] = useState("");
-  const [periodEnd, setPeriodEnd] = useState("");
-
-  const [filterSido, setFilterSido] = useState("");
-  const [filterType, setFilterType] = useState("");
-  const [filterStatus, setFilterStatus] = useState<VehicleStatus | "">("");
+  const [periodStart, setPeriodStart] = useState<string>("");
+  const [periodEnd, setPeriodEnd] = useState<string>("");
 
   const sidos = useMemo(() => unique(vehicles.map((v) => v.sido)), [vehicles]);
   const types = useMemo(() => unique(vehicles.map((v) => v.type)), [vehicles]);
 
-  /* 보고서 내용 */
-  const [title, setTitle] = useState("");
-  const [summary, setSummary] = useState("");
-  const [memoText, setMemoText] = useState("");
+  const [filterSido, setFilterSido] = useState<string>("");
+  const [filterType, setFilterType] = useState<string>("");
+  const [filterStatus, setFilterStatus] = useState<"" | VehicleStatus>("");
 
-  const [loadingAI, setLoadingAI] = useState(false);
+  // report fields
+  const [title, setTitle] = useState<string>("");
+  const [memo, setMemo] = useState<string>("");
 
-  /* 임시저장 불러오기 */
+  // Load draft
   useEffect(() => {
-    const saved = localStorage.getItem("report_draft");
-    if (!saved) return;
-
-    const d = JSON.parse(saved);
-    setTopic(d.topic ?? "전체 통계");
-    setPeriodStart(d.periodStart ?? "");
-    setPeriodEnd(d.periodEnd ?? "");
-    setFilterSido(d.filterSido ?? "");
-    setFilterType(d.filterType ?? "");
-    setFilterStatus(d.filterStatus ?? "");
-    setTitle(d.title ?? "");
-    setSummary(d.summary ?? "");
-    setMemoText(d.memo ?? "");
+    const draft = localStorage.getItem("report_draft");
+    if (!draft) return;
+    try {
+      const data = JSON.parse(draft);
+      setTopic(data.topic ?? "전체 통계");
+      setPeriodStart(data.periodStart ?? "");
+      setPeriodEnd(data.periodEnd ?? "");
+      setFilterSido(data.filterSido ?? "");
+      setFilterType(data.filterType ?? "");
+      setFilterStatus(data.filterStatus ?? "");
+      setTitle(data.title ?? "");
+      setMemo(data.memo ?? "");
+    } catch (err){
+      console.warn("Failed to load draft:", err);
+    }
   }, []);
 
-  /* 필터링 */
   const filteredVehicles = useMemo(() => {
     return vehicles.filter((v) => {
       if (filterSido && v.sido !== filterSido) return false;
@@ -76,75 +69,27 @@ export default function ReportPage() {
     });
   }, [vehicles, filterSido, filterType, filterStatus]);
 
-  /* 집계 */
+  // SUMMARY
   const aggregates = useMemo(() => {
     const bySido = groupBy(filteredVehicles, (v) => v.sido);
     const byType = groupBy(filteredVehicles, (v) => v.type);
     const byStatus = groupBy(filteredVehicles, (v) => v.status);
 
-    const dispatched = filteredVehicles.filter((v) =>
-      ["출동중", "활동"].includes(v.status)
+    const totalVehicles = filteredVehicles.length;
+    const totalPersonnel = filteredVehicles.reduce(
+      (s, v) => s + (Number(v.personnel) || 0),
+      0
     );
 
-    return {
-      totalVehicles: filteredVehicles.length,
-      totalPersonnel: filteredVehicles.reduce(
-        (s, v) => s + (Number(v.personnel) || 0),
-        0
-      ),
-      bySido,
-      byType,
-      byStatus,
-      dispatched,
-    };
+    const dispatchedStatuses: VehicleStatus[] = ["출동중", "활동"];
+    const dispatched = filteredVehicles.filter((v) =>
+      dispatchedStatuses.includes(v.status as VehicleStatus)
+    );
+
+    return { totalVehicles, totalPersonnel, bySido, byType, byStatus, dispatched };
   }, [filteredVehicles]);
 
-  /* AI 자동 생성 */
-  const generateAI = () => {
-    setLoadingAI(true);
-
-    const range =
-      periodStart || periodEnd
-        ? `${periodStart || "—"} ~ ${periodEnd || "—"}`
-        : "현 시점";
-
-    const newTitle = title || `${range} ${topic} 보고`;
-    setTitle(newTitle);
-
-    const parts = [
-      `• 기간: ${range}`,
-      `• 총 차량: ${aggregates.totalVehicles}대`,
-      `• 총 인원: ${aggregates.totalPersonnel}명`,
-      `• 출동중/활동 차량: ${aggregates.dispatched.length}대`,
-    ];
-
-    if (filterSido || filterType || filterStatus) {
-      parts.push(
-        `• 필터: 시도=${filterSido || "전체"}, 차종=${filterType || "전체"}, 상태=${filterStatus || "전체"
-        }`
-      );
-    }
-
-    setSummary(parts.join("\n"));
-
-    const memoContent =
-      aggregates.dispatched.length === 0
-        ? "- 현재 출동 차량 없음"
-        : aggregates.dispatched
-          .slice(0, 5)
-          .map(
-            (v) =>
-              `- [${v.callname}] ${v.sido}/${v.station} (${v.type}) 상태:${v.status}`
-          )
-          .join("\n");
-
-    setMemoText(`점검 메모:\n${memoContent}`);
-
-    setLoadingAI(false);
-  };
-
-  /* 임시저장 */
-  const saveDraft = () => {
+  const handleTempSave = () => {
     const payload = {
       topic,
       periodStart,
@@ -153,301 +98,327 @@ export default function ReportPage() {
       filterType,
       filterStatus,
       title,
-      summary,
-      memo: memoText,
+      memo,
     };
     localStorage.setItem("report_draft", JSON.stringify(payload));
     alert("임시저장 완료!");
   };
 
-  /* PDF 출력 */
-  const printReport = () => {
-    window.print();
-  };
+  const handlePrint = () => window.print();
 
   return (
-    <div className="flex h-[calc(100vh-64px)] gap-4 p-4 text-gray-800 print:bg-white">
+    <div className="flex h-[calc(100vh-64px)] gap-4 p-4 text-gray-800 min-h-0">
 
-      {/* 좌측 패널 */}
-      <aside className="w-[260px] border rounded-xl bg-white shadow-sm p-4 print:hidden">
-        <p className="text-sm font-semibold mb-2">STEP 1. 주제 선택</p>
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          {(
-            ["전체 통계", "지역별 통계", "차종별 통계", "상태별 통계", "출동 목록"] as Topic[]
-          ).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTopic(t)}
-              className={`rounded-md border px-2 py-1 text-xs ${topic === t
-                  ? "border-red-500 text-red-600"
-                  : "border-gray-300"
-                }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
+      {/* Sidebar */}
+      <aside className="w-[260px] shrink-0 rounded-xl border border-gray-200 bg-white shadow-sm overflow-y-auto">
 
-        <p className="text-sm font-semibold mb-2">STEP 2. 필터 선택</p>
-
-        <Labeled label="기간 시작">
-          <input
-            type="date"
-            value={periodStart}
-            onChange={(e) => setPeriodStart(e.target.value)}
-            className="border rounded px-2 py-1 text-sm w-full"
-          />
-        </Labeled>
-
-        <Labeled label="기간 종료">
-          <input
-            type="date"
-            value={periodEnd}
-            onChange={(e) => setPeriodEnd(e.target.value)}
-            className="border rounded px-2 py-1 text-sm w-full"
-          />
-        </Labeled>
-
-        <Labeled label="지역">
-          <select
-            value={filterSido}
-            onChange={(e) => setFilterSido(e.target.value)}
-            className="border rounded px-2 py-1 text-sm w-full"
-          >
-            <option value="">전체</option>
-            {sidos.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
-        </Labeled>
-
-        <Labeled label="차종">
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="border rounded px-2 py-1 text-sm w-full"
-          >
-            <option value="">전체</option>
-            {types.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
-        </Labeled>
-
-        <Labeled label="상태">
-          <select
-            value={filterStatus}
-            onChange={(e) =>
-              setFilterStatus(e.target.value as VehicleStatus | "")
-            }
-            className="border rounded px-2 py-1 text-sm w-full"
-          >
-            <option value="">전체</option>
-            {["대기", "활동", "출동중", "대기중", "복귀", "철수"].map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
-        </Labeled>
-
-        <button
-          onClick={generateAI}
-          className="w-full mt-3 bg-indigo-600 text-white rounded-md py-2 text-sm"
-        >
-          {loadingAI ? "AI 작성 중..." : "AI 자동 작성"}
-        </button>
-
-        <button
-          onClick={saveDraft}
-          className="w-full mt-2 border rounded-md py-2 text-sm hover:bg-gray-50"
-        >
-          임시저장
-        </button>
-
-        <button
-          onClick={() => window.scrollTo(0, 99999)}
-          className="w-full mt-2 bg-emerald-600 text-white rounded-md py-2 text-sm"
-        >
-          미리보기로 이동
-        </button>
-      </aside>
-
-      {/* 우측 보고서 영역 */}
-      <main className="flex-1 border rounded-xl bg-gray-50 overflow-auto">
-
-        {/* 출력할 부분 */}
-        <div id="print-area" className="p-4 space-y-4">
-
-          <div className="bg-white rounded-xl p-4 shadow-sm">
-            <h2 className="text-lg font-bold">동원차량 현황 보고서</h2>
-            <p className="text-xs text-gray-500">
-              {new Date().toLocaleString()} · {topic}
-            </p>
+        {/* Step 1 */}
+        <div className="border-b p-4">
+          <p className="mb-2 text-sm font-semibold">STEP 1. 보고서 주제</p>
+          <div className="grid grid-cols-2 gap-2">
+            {(["전체 통계", "지역별 통계", "차종별 통계", "상태별 통계", "출동 목록"] as Topic[])
+              .map((t) => (
+                <button
+                  key={t}
+                  onClick={() => { setTopic(t); setStep(2); }}
+                  className={`rounded-md border px-2 py-1 text-xs hover:bg-gray-50 
+                ${topic === t ? "border-red-500 text-red-600" : "border-gray-200"}`}
+                >
+                  {t}
+                </button>
+              ))}
           </div>
-
-          <PreviewSection title="사용자 작성 정보">
-            <InfoRow label="보고서 제목" value={title || "제목 없음"} />
-
-            <InfoRow
-              label="기간"
-              value={`${periodStart || "—"} ~ ${periodEnd || "—"}`}
-            />
-
-            <InfoRow
-              label="필터"
-              value={
-                filterSido || filterType || filterStatus
-                  ? `${filterSido || "전체"} / ${filterType || "전체"} / ${filterStatus || "전체"
-                  }`
-                  : "없음"
-              }
-            />
-
-            {summary && (
-              <InfoBlock label="요약" value={summary} />
-            )}
-
-            {memoText && (
-              <InfoBlock label="메모" value={memoText} />
-            )}
-          </PreviewSection>
-
-          <PreviewSection title="요약 집계">
-            <div className="grid sm:grid-cols-4 gap-3">
-              <KPICard label="총 차량 수" value={aggregates.totalVehicles} />
-              <KPICard label="총 인원 수" value={aggregates.totalPersonnel} />
-              <KPICard
-                label="출동중/활동"
-                value={aggregates.dispatched.length}
-              />
-              <KPICard label="주제" value={topic} />
-            </div>
-          </PreviewSection>
-
-          <PreviewSection title="지역별 차량 수">
-            <SimpleTable
-              headers={["시도", "대수"]}
-              rows={Object.entries(aggregates.bySido).map(([k, arr]) => [
-                k,
-                arr.length,
-              ])}
-            />
-          </PreviewSection>
-
-          <PreviewSection title="차종별 차량 수">
-            <SimpleTable
-              headers={["차종", "대수"]}
-              rows={Object.entries(aggregates.byType).map(([k, arr]) => [
-                k,
-                arr.length,
-              ])}
-            />
-          </PreviewSection>
-
-          <PreviewSection title="상태별 차량 수">
-            <SimpleTable
-              headers={["상태", "대수"]}
-              rows={Object.entries(aggregates.byStatus).map(([k, arr]) => [
-                k,
-                arr.length,
-              ])}
-            />
-          </PreviewSection>
-
-          <PreviewSection title="출동중/활동 차량 목록">
-            <SimpleTable
-              headers={[
-                "호출명",
-                "시도",
-                "소방서",
-                "차종",
-                "상태",
-                "집결지",
-                "연락처",
-                "지시사항",
-              ]}
-              rows={aggregates.dispatched.map((v) => [
-                v.callname,
-                v.sido,
-                v.station,
-                v.type,
-                v.status,
-                v.dispatchPlace || "-",
-                v.contact || "-",
-                v.content || "-",
-              ])}
-            />
-          </PreviewSection>
         </div>
 
-        {/* 출력 버튼 */}
-        <div className="p-4 border-t bg-white flex gap-2 print:hidden">
+        {/* Step 2 */}
+        <div className="border-b p-4">
+          <p className="mb-3 text-sm font-semibold">STEP 2. 필터/항목 선택</p>
+
+          <Labeled label="기간 (시작일)">
+            <input
+              type="date"
+              value={periodStart}
+              onChange={(e) => setPeriodStart(e.target.value)}
+              className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+            />
+          </Labeled>
+
+          <Labeled label="기간 (종료일)">
+            <input
+              type="date"
+              value={periodEnd}
+              onChange={(e) => setPeriodEnd(e.target.value)}
+              className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+            />
+          </Labeled>
+
+          <Labeled label="지역 (시/도)">
+            <select
+              value={filterSido}
+              onChange={(e) => setFilterSido(e.target.value)}
+              className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+            >
+              <option value="">전체</option>
+              {sidos.map((s) => (
+                <option key={s}>{s}</option>
+              ))}
+            </select>
+          </Labeled>
+
+          <Labeled label="차종">
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+            >
+              <option value="">전체</option>
+              {types.map((t) => (
+                <option key={t}>{t}</option>
+              ))}
+            </select>
+          </Labeled>
+
+          <Labeled label="상태">
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as VehicleStatus | "")}
+              className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+            >
+              <option value="">전체</option>
+              {(["대기", "활동", "대기중", "출동중", "복귀", "철수"] as VehicleStatus[])
+                .map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+            </select>
+          </Labeled>
+
           <button
-            onClick={printReport}
-            className="border rounded-md px-4 py-2 text-sm hover:bg-gray-50"
+            onClick={() => setStep(3)}
+            className="mt-2 w-full rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
           >
-            PDF 출력
+            작성하기
           </button>
 
           <button
-            onClick={saveDraft}
-            className="border rounded-md px-4 py-2 text-sm hover:bg-gray-50"
+            onClick={handleTempSave}
+            className="mt-4 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50"
           >
             임시저장
           </button>
+        </div>
+
+        {/* Step 3: Editing */}
+        <div className="p-4">
+          <p className="text-sm font-semibold mb-2">보고서 내용 작성</p>
+
+          <Labeled label="보고서 제목">
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="예) 9월 1주차 차량 현황 보고"
+              className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+            />
+          </Labeled>
+
+          <Labeled label="메모 / 비고">
+            <textarea
+              value={memo}
+              onChange={(e) => setMemo(e.target.value)}
+              rows={4}
+              className="w-full rounded border border-gray-300 px-2 py-1 text-sm resize-none"
+            />
+          </Labeled>
+
+          <button
+            onClick={() => setStep(4)}
+            className="mt-2 w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            출력/저장 단계로
+          </button>
+        </div>
+      </aside>
+
+      {/* Right Panel */}
+      <main className="flex-1 overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-2 border-b bg-white px-4 py-3">
+          <div className="flex items-center gap-2">
+            {([1, 2, 3, 4] as TabStep[]).map((n) => {
+              const labels: Record<TabStep, string> = {
+                1: "1.주제",
+                2: "2.설정",
+                3: "3.작성",
+                4: "4.출력",
+              };
+              return (
+                <button
+                  key={n}
+                  onClick={() => setStep(n)}
+                  className={`rounded-full px-3 py-1 text-sm ${step === n
+                      ? "bg-gray-900 text-white"
+                      : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                    }`}
+                >
+                  {labels[n]}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={handlePrint}
+            className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50"
+          >
+            PDF 출력
+          </button>
+        </div>
+
+        {/* Print Area */}
+        <div className="h-full overflow-auto p-4 print:p-0">
+          <div
+            id="print-area"
+            className="mx-auto w-full max-w-[1100px] space-y-4 print:rounded-none print:border-none print:shadow-none"
+          >
+            {/* Header */}
+            <div className="rounded-xl bg-white p-4 shadow-sm print:shadow-none print:border-none">
+              <h2 className="text-lg font-bold">동원차량 관리 프로그램 – 보고서</h2>
+              <p className="text-xs text-gray-500">
+                {new Date().toLocaleString()} · {topic}
+              </p>
+            </div>
+
+            {/* User Info */}
+            <PreviewSection title="보고서 정보">
+              <InfoRow label="제목" value={title || "제목 미입력"} />
+              <InfoRow
+                label="기간"
+                value={`${periodStart || "—"} ~ ${periodEnd || "—"}`}
+              />
+              <InfoRow
+                label="필터"
+                value={
+                  filterSido || filterType || filterStatus
+                    ? `${filterSido || "전체"} / ${filterType || "전체"} / ${filterStatus || "전체"
+                    }`
+                    : "없음"
+                }
+              />
+              {memo && <InfoRow label="메모" value={memo} />}
+            </PreviewSection>
+
+            <PreviewSection title="집계 요약">
+              <div className="grid gap-3 sm:grid-cols-4">
+                <KPICard label="총 차량 수" value={`${aggregates.totalVehicles}대`} />
+                <KPICard label="총 인원 수" value={`${aggregates.totalPersonnel}명`} />
+                <KPICard
+                  label="출동(활동·출동중)"
+                  value={`${aggregates.dispatched.length}대`}
+                />
+                <KPICard label="주제" value={topic} />
+              </div>
+            </PreviewSection>
+
+            <PreviewSection title="지역별 차량 수">
+              <SimpleTable
+                headers={["시도", "대수"]}
+                rows={Object.entries(aggregates.bySido).map(([k, arr]) => [
+                  k,
+                  arr.length,
+                ])}
+              />
+            </PreviewSection>
+
+            <PreviewSection title="차종별 차량 수">
+              <SimpleTable
+                headers={["차종", "대수"]}
+                rows={Object.entries(aggregates.byType).map(([k, arr]) => [
+                  k,
+                  arr.length,
+                ])}
+              />
+            </PreviewSection>
+
+            <PreviewSection title="상태별 차량 수">
+              <SimpleTable
+                headers={["상태", "대수"]}
+                rows={Object.entries(aggregates.byStatus).map(([k, arr]) => [
+                  k,
+                  arr.length,
+                ])}
+              />
+            </PreviewSection>
+
+            <PreviewSection title="출동(활동·출동중) 차량">
+              <SimpleTable
+                headers={[
+                  "호출명",
+                  "시도",
+                  "소방서",
+                  "차종",
+                  "상태",
+                  "자원집결지",
+                  "연락처",
+                ]}
+                rows={aggregates.dispatched.map((v) => [
+                  v.callname,
+                  v.sido,
+                  v.station,
+                  v.type,
+                  v.status,
+                  v.dispatchPlace ?? "-",
+                  v.contact ?? "-",
+                ])}
+              />
+            </PreviewSection>
+          </div>
         </div>
       </main>
     </div>
   );
 }
 
-/* ------------------------ 보조 UI ------------------------ */
-
-function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
+/* COMPONENTS */
+function PreviewSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="mb-3">
-      <p className="text-xs text-gray-500">{label}</p>
-      {children}
-    </div>
-  );
-}
-
-function PreviewSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="p-4 bg-white rounded-xl shadow-sm">
-      <p className="text-sm font-semibold mb-2">{title}</p>
+    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm print:border-0 print:shadow-none print:rounded-none">
+      <h3 className="mb-2 text-sm font-semibold text-gray-700">{title}</h3>
       {children}
     </section>
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="mb-2">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="font-medium whitespace-pre-wrap">{value}</p>
+    <div className="flex text-sm mb-1">
+      <div className="w-32 text-gray-500">{label}</div>
+      <div className="font-medium">{value}</div>
     </div>
   );
 }
 
-function InfoBlock({ label, value }: { label: string; value: string }) {
+function KPICard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
   return (
-    <div className="mt-3">
+    <div className="rounded-lg border border-gray-200 bg-white p-3 text-center shadow-sm print:shadow-none">
       <p className="text-xs text-gray-500">{label}</p>
-      <p className="whitespace-pre-wrap">{value}</p>
+      <p className="mt-1 text-lg font-bold">{value}</p>
     </div>
   );
 }
 
-function KPICard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="p-3 bg-white border rounded-lg text-center">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-lg font-bold">{value}</p>
-    </div>
-  );
-}
-
-/* ✔ 여기 TS 오류 해결 핵심 */
 function SimpleTable({
   headers,
   rows,
@@ -456,30 +427,38 @@ function SimpleTable({
   rows: (string | number)[][];
 }) {
   return (
-    <div className="overflow-x-auto border rounded-lg">
-      <table className="min-w-full bg-white text-sm">
-        <thead className="bg-gray-100">
-          <tr>
+    <div className="overflow-x-auto rounded-lg border border-gray-200 print:border-0">
+      <table className="min-w-full border-collapse bg-white text-sm">
+        <thead>
+          <tr className="bg-gray-100">
             {headers.map((h) => (
-              <th key={h} className="border-b px-3 py-2 text-left font-semibold">
+              <th
+                key={h}
+                className="whitespace-nowrap border-b px-3 py-2 text-left font-semibold text-gray-700"
+              >
                 {h}
               </th>
             ))}
           </tr>
         </thead>
-
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={headers.length} className="text-center py-6 text-gray-500">
-                데이터 없음
+              <td
+                className="px-3 py-6 text-center text-gray-500"
+                colSpan={headers.length}
+              >
+                데이터가 없습니다.
               </td>
             </tr>
           ) : (
             rows.map((row, i) => (
               <tr key={i} className="even:bg-gray-50">
                 {row.map((cell, j) => (
-                  <td key={j} className="px-3 py-2 border-t whitespace-nowrap">
+                  <td
+                    key={j}
+                    className="whitespace-nowrap border-t px-3 py-2 text-gray-800"
+                  >
                     {cell}
                   </td>
                 ))}
@@ -488,6 +467,22 @@ function SimpleTable({
           )}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+
+function Labeled({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mb-3">
+      <p className="mb-1 text-xs text-gray-600">{label}</p>
+      {children}
     </div>
   );
 }
