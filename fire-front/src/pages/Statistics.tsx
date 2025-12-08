@@ -438,43 +438,6 @@ const TabByType: React.FC<{ vehicles: Vehicle[] }> = ({ vehicles }) => {
   );
 };
 
-/* ========= 탭: 장소별 ========= */
-const TabByPlace: React.FC = () => {
-  const grouped = useMemo(() => by(LOGS, (l) => l.dispatchPlace.split(" ")[0] ?? "미상"), []);
-  const rows = Object.entries(grouped).map(([place, logs]) => ({
-    place,
-    cnt: logs.length,
-    vehicles: uniq(logs.map((l) => String(l.vehicleId))).length,
-    minutes: sum(logs.map((l) => l.minutes)),
-  }));
-
-  return (
-    <>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <KPI title="장소 수" value={rows.length} />
-        <KPI title="총 출동 건수" value={sum(rows.map((r) => r.cnt))} />
-        <KPI title="평균 소요(분/장소)" value={avg(rows.map((r) => r.minutes))} />
-      </div>
-
-      <div className="mt-3">
-        <Table
-          columns={[
-            { key: "place", header: "출동 장소", align: "left" },
-            { key: "cnt", header: "출동 건수", width: "120px", align: "right" },
-            { key: "vehicles", header: "참여 차량수", width: "120px", align: "right" },
-            { key: "minutes", header: "총 활동시간(분)", width: "160px", align: "right" },
-          ]}
-          rows={rows.map((r) => ({
-            place: r.place,
-            cnt: r.cnt.toLocaleString(),
-            vehicles: r.vehicles.toLocaleString(),
-            minutes: r.minutes.toLocaleString(),
-          }))}
-        />
-      </div>
-    </>
-  );
-};
 
 
 /* ========= 탭: 활동 시간별 ========= */
