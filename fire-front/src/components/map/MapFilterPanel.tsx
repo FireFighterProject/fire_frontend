@@ -73,8 +73,8 @@ const MapFilterPanel: React.FC<Props> = ({
 
     return (
         <div
-            className="fixed right-30 z-40 grid gap-2 min-w-[120px] rounded-lg bg-white/95 p-3 shadow-lg ring-1 ring-gray-200
-                 grid-cols-1 sm:grid-cols-3 items-center"
+            className="fixed right-30 z-40 grid gap-2 w-[120px] rounded-lg bg-white/95 p-3 shadow-lg ring-1 ring-gray-200
+               grid-cols-1 sm:grid-cols-3 items-center"
             style={{ top }}
         >
             {/* 시/도 필터 */}
@@ -94,7 +94,7 @@ const MapFilterPanel: React.FC<Props> = ({
                 </select>
             </label>
 
-            {/* 소방서 필터 – 🔥 백엔드에서 가져온 stationOptions 사용 */}
+            {/* 소방서 필터 */}
             <label className="text-xs text-gray-700">
                 소방서
                 <select
@@ -148,6 +148,7 @@ const MapFilterPanel: React.FC<Props> = ({
             </div>
         </div>
     );
+
 };
 
 export default MapFilterPanel;
