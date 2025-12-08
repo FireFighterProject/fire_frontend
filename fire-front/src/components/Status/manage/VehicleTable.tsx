@@ -91,7 +91,7 @@ export default function VehicleTable({
 
                             //  GPS 있으면 연두색, 없으면 짝수줄만 회색
                             const rowClass = hasGps
-                                ? "bg-red-60/50"
+                                ? "bg-red-100/40"
                                 : idx % 2 === 1
                                     ? "bg-gray-50/40"
                                     : "";
