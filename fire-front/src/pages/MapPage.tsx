@@ -360,7 +360,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
       {map.current && (
         <PolygonLayer
           map={map.current}
-          vehicles={data}
+          vehicles={filtered}
           onRegionSelect={handleRegionSelect}
         />
       )}
@@ -368,7 +368,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
       {map.current && (
         <DragSelectLayer
           map={map.current}
-          vehicles={data}
+          vehicles={filtered}
           onSelect={(selected) => {
             setStats((s) => ({
               ...s,
