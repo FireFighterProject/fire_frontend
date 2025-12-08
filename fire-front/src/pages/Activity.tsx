@@ -85,9 +85,6 @@ const ActivityPage: React.FC = () => {
     query: "",
   });
 
-    // vehicleId(string) → orderId 매핑 (가장 최근 출동명령)
-    const [, setOrderIdMap] = useState<Record<string, number>>({});
-
   //  가장 마지막 fetch만 유효하게 하기 위한 id (레이스 컨디션 방지)
   const fetchIdRef = useRef(0);
 
@@ -122,13 +119,7 @@ const ActivityPage: React.FC = () => {
               return;
             }
 
-            // 1) vehicleId → orderId 매핑 저장
-            setOrderIdMap((prev) => ({
-              ...prev,
-              [String(v.id)]: data.orderId,
-            }));
-
-            // 2) 화면 출동 장소 / 내용 업데이트
+            // 화면 출동 장소 / 내용만 채워줌
             dispatch(
               updateVehicle({
                 id: String(v.id),
@@ -153,9 +144,6 @@ const ActivityPage: React.FC = () => {
     setFetching(true);
 
     try {
-      // 호출할 때마다 orderIdMap 초기화
-      setOrderIdMap({});
-
       // 🔹 1) 차량 + 소방서를 동시에 호출 (병렬)
       const [vehicleRes, stationRes] = await Promise.all([
         api.get<ApiVehicleListItem[]>("/vehicles"),
@@ -234,10 +222,11 @@ const ActivityPage: React.FC = () => {
         status: 0,
       });
 
-      // 3) 서버 최신 상태와 동기화
-      await fetchVehiclesOptimized();
+      // ❌ 더 이상 전체 차량/소방서/출동 정보 재조회 안 함
+      // => 표가 움찔거리는 현상 제거, API 호출 횟수 감소
     } catch {
       alert("복귀 처리 실패");
+      // 원하면 여기서 상태 롤백도 가능 (이전 값 저장해놨다가 다시 dispatch)
     } finally {
       setPendingReturn((m) => {
         const next = { ...m };
@@ -246,8 +235,6 @@ const ActivityPage: React.FC = () => {
       });
     }
   };
-
-
 
   /* ----------------------- 필터 ---------------------- */
   const filteredVehicles = useMemo(() => {
