@@ -1,22 +1,23 @@
 // src/components/statistics/tabs/RegionTab.tsx
 import React, { useMemo } from "react";
 import type { Vehicle } from "../../../types/global";
-import { DUMMY_LOGS as LOGS } from "../../../data/logs";
+import type { StatLog } from "../../../types/stats.ts";
 import { avg, groupBy, sum } from "../../../services/statistics/stats";
 import { KPI, StatsTable } from "../common";
 
 type Props = {
     vehicles: Vehicle[];
+    logs: StatLog[];
 };
 
-const RegionTab: React.FC<Props> = ({ vehicles }) => {
+const RegionTab: React.FC<Props> = ({ vehicles, logs }) => {
     const grouped = useMemo(
         () =>
-            groupBy(LOGS, (l) => {
+            groupBy(logs, (l) => {
                 const v = vehicles.find((v) => v.id === String(l.vehicleId));
                 return v?.sido || "미상";
             }),
-        [vehicles]
+        [vehicles, logs]
     );
 
     const rows = Object.entries(grouped).map(([sido, logs]) => ({
