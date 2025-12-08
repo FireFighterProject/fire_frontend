@@ -118,8 +118,23 @@ export default function ReportPage() {
     alert("임시저장 완료!");
   };
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => {
+    const printContents = document.getElementById("print-area")?.innerHTML;
+    if (!printContents) return alert("print-area를 찾을 수 없습니다.");
 
+    const originalContents = document.body.innerHTML;
+
+    // 화면 전체를 print-area 내용으로 교체
+    document.body.innerHTML = printContents;
+
+    window.print();
+
+    // 출력이 끝나면 원래 화면 복원
+    document.body.innerHTML = originalContents;
+
+    // React 이벤트 다시 연결 필요 → 새로고침
+    window.location.reload();
+  };
 
   return (
     <div className="flex h-[calc(100vh-64px)] gap-4 p-4 text-gray-800 min-h-0">
