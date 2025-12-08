@@ -1,23 +1,29 @@
 // src/components/statistics/tabs/DateTab.tsx
 import React, { useMemo, useState } from "react";
-import { DUMMY_LOGS as LOGS } from "../../../data/logs";
+import type { StatLog } from "../../../types/stats.ts";
 import { sum } from "../../../services/statistics/stats";
 import { KPI, MiniBar, StatsTable } from "../common";
 
-const DateTab: React.FC = () => {
+type Props = {
+    logs: StatLog[];
+};
+
+const DateTab: React.FC<Props> = ({ logs }) => {
     const [from, setFrom] = useState<string>("");
     const [to, setTo] = useState<string>("");
 
     const list = useMemo(() => {
         const f = from ? new Date(from) : null;
         const t = to ? new Date(to) : null;
-        return LOGS.filter((l) => {
-            const d = new Date(l.date);
-            if (f && d < f) return false;
-            if (t && d > t) return false;
-            return true;
-        }).sort((a, b) => (a.date < b.date ? 1 : -1));
-    }, [from, to]);
+        return logs
+            .filter((l) => {
+                const d = new Date(l.date);
+                if (f && d < f) return false;
+                if (t && d > t) return false;
+                return true;
+            })
+            .sort((a, b) => (a.date < b.date ? 1 : -1));
+    }, [logs, from, to]);
 
     return (
         <>

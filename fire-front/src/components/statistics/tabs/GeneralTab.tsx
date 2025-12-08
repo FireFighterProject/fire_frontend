@@ -1,30 +1,34 @@
 // src/components/statistics/tabs/GeneralTab.tsx
 import React, { useMemo, useState } from "react";
 import type { Vehicle } from "../../../types/global";
-import { DUMMY_LOGS as LOGS } from "../../../data/logs";
+import type { StatLog } from "../../../types/stats.ts";
 import { uniq, sum, avg } from "../../../services/statistics/stats";
 import { KPI, StatsModal, StatsTable } from "../common";
 
 type Props = {
     vehicles: Vehicle[];
+    logs: StatLog[];
 };
 
-const GeneralTab: React.FC<Props> = ({ vehicles }) => {
+const GeneralTab: React.FC<Props> = ({ vehicles, logs }) => {
     const [sido, setSido] = useState<string>("");
     const [type, setType] = useState<string>("");
     const [detailVehicle, setDetailVehicle] = useState<Vehicle | null>(null);
 
     const filtered = useMemo(
-        () => vehicles.filter((v) => (!sido || v.sido === sido) && (!type || v.type === type)),
+        () =>
+            vehicles.filter(
+                (v) => (!sido || v.sido === sido) && (!type || v.type === type)
+            ),
         [vehicles, sido, type]
     );
 
     const logsForDetail = useMemo(
         () =>
-            LOGS
+            logs
                 .filter((l) => String(l.vehicleId) === (detailVehicle?.id ?? ""))
                 .sort((a, b) => (a.dispatchTime < b.dispatchTime ? 1 : -1)),
-        [detailVehicle]
+        [logs, detailVehicle]
     );
 
     return (
@@ -35,7 +39,10 @@ const GeneralTab: React.FC<Props> = ({ vehicles }) => {
                     title="총 인원 합계"
                     value={sum(vehicles.map((v) => Number(v.personnel) || 0))}
                 />
-                <KPI title="평균 활동 시간(분/대)" value={avg(LOGS.map((l) => l.minutes))} />
+                <KPI
+                    title="평균 활동 시간(분/대)"
+                    value={logs.length ? avg(logs.map((l) => l.minutes)) : 0}
+                />
             </div>
 
             <div className="mt-4 flex flex-wrap items-end gap-4">

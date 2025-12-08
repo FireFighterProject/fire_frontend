@@ -1,26 +1,30 @@
 // src/components/statistics/tabs/DurationTab.tsx
 import React, { useMemo } from "react";
 import type { Vehicle } from "../../../types/global";
-import { DUMMY_LOGS as LOGS } from "../../../data/logs";
+import type { StatLog } from "../../../types/stats.ts";
 import { avg, sum } from "../../../services/statistics/stats";
 import { KPI, MiniBar, StatsTable } from "../common";
 
 type Props = {
     vehicles: Vehicle[];
+    logs: StatLog[];
 };
 
-const DurationTab: React.FC<Props> = ({ vehicles }) => {
+const DurationTab: React.FC<Props> = ({ vehicles, logs }) => {
     const sorted = useMemo(
-        () => [...LOGS].sort((a, b) => b.minutes - a.minutes),
-        []
+        () => [...logs].sort((a, b) => b.minutes - a.minutes),
+        [logs]
     );
     const max = Math.max(...sorted.map((l) => l.minutes), 1);
 
     return (
         <>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <KPI title="총 활동시간(분)" value={sum(LOGS.map((l) => l.minutes))} />
-                <KPI title="평균(분/대)" value={avg(LOGS.map((l) => l.minutes))} />
+                <KPI
+                    title="총 활동시간(분)"
+                    value={sum(logs.map((l) => l.minutes))}
+                />
+                <KPI title="평균(분/대)" value={avg(logs.map((l) => l.minutes))} />
                 <KPI title="최대(분/대)" value={max} />
             </div>
 

@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/pages/Statistics.tsx
-import  { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 
 /* ========= 타입 ========= */
 import type { Vehicle } from "../types/global";
+import type { StatLog } from "../types/stats.ts";
 
 /* ========= 공통 컴포넌트 & 탭 ========= */
 import { SideMenu, KPI } from "../components/statistics/common";
@@ -36,8 +37,13 @@ type ApiFireStation = {
   address: string;
 };
 
-// /api/stats 응답은 아직 정확한 스키마를 정하지 않았으니 any로 받아서 유연하게 사용
-type ApiStats = any;
+type ApiStats = {
+  totalVehicles: number;
+  totalDispatchCount: number;
+  totalMinutes: number;
+};
+
+type ApiLogItem = StatLog; // 백엔드 스키마가 다르면 여기 바꿔서 맵핑하면 됨
 
 /* ========= 상태 라벨 ========= */
 const STATUS_LABELS: Record<number, Vehicle["status"] | string> = {
@@ -61,7 +67,6 @@ const mapApiToVehicle = (
   return {
     id: String(v.id),
     sido: v.sido ?? "",
-    // 🔥 stationId → 소방서 이름 매핑
     station: stationMap?.get(v.stationId) ?? "",
     type: v.typeName ?? "",
     callname: v.callSign ?? "",
@@ -83,6 +88,20 @@ const mapApiToVehicle = (
   } as Vehicle;
 };
 
+/* ========= 서버 → StatLog 매핑 ========= */
+const mapApiToLog = (l: ApiLogItem): StatLog => ({
+  id: l.id,
+  vehicleId: l.vehicleId,
+  date: l.date,
+  dispatchTime: l.dispatchTime,
+  returnTime: l.returnTime,
+  dispatchPlace: l.dispatchPlace,
+  moved: Boolean(l.moved),
+  minutes: Number(l.minutes ?? 0),
+  command: l.command ?? "",
+  crewCount: Number(l.crewCount ?? 0),
+});
+
 /* ========= 탭 관련 ========= */
 type TabKey = "general" | "byDate" | "byRegion" | "byType" | "byDuration";
 
@@ -100,6 +119,7 @@ export default function StatisticsPage() {
   const [tab, setTab] = useState<TabKey>("general");
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [logs, setLogs] = useState<StatLog[]>([]);
   const [summary, setSummary] = useState<ApiStats | null>(null);
 
   const [fetching, setFetching] = useState(false);
@@ -108,16 +128,18 @@ export default function StatisticsPage() {
     try {
       setFetching(true);
 
-      // 🔥 차량 + 소방서 + 통계 요약을 동시에 요청
-      const [vehicleRes, stationRes, statsRes] = await Promise.all([
+      // 🔥 차량 + 소방서 + 통계 요약 + 로그를 동시에 요청
+      const [vehicleRes, stationRes, statsRes, logRes] = await Promise.all([
         api.get<ApiVehicleListItem[]>("/vehicles"),
         api.get<ApiFireStation[]>("/fire-stations"),
         api.get<ApiStats>("/stats"),
+        api.get<ApiLogItem[]>("/logs"),
       ]);
 
       const vehicleList = vehicleRes.data ?? [];
       const stations = stationRes.data ?? [];
       const stats = statsRes.data ?? null;
+      const logsData = logRes.data ?? [];
 
       // 🔥 id → 소방서 이름 매핑 테이블
       const stationMap = new Map<number, string>();
@@ -126,13 +148,19 @@ export default function StatisticsPage() {
       });
 
       // 🔥 Vehicle에 station 이름 주입
-      const mapped = vehicleList.map((v) => mapApiToVehicle(v, stationMap));
+      const mappedVehicles = vehicleList.map((v) =>
+        mapApiToVehicle(v, stationMap)
+      );
 
-      setVehicles(mapped);
+      // 🔥 Log 매핑
+      const mappedLogs = logsData.map(mapApiToLog);
+
+      setVehicles(mappedVehicles);
+      setLogs(mappedLogs);
       setSummary(stats);
     } catch (e) {
       console.error(e);
-      alert("차량/소방서/통계 정보를 불러오지 못했습니다.");
+      alert("차량/소방서/통계/로그 정보를 불러오지 못했습니다.");
     } finally {
       setFetching(false);
     }
@@ -158,7 +186,7 @@ export default function StatisticsPage() {
             className="h-8 rounded-lg bg-gray-700 px-3 text-white disabled:opacity-60"
             onClick={fetchAll}
             disabled={fetching}
-            title="서버에서 최신 통계/차량/소방서 정보 재조회"
+            title="서버에서 최신 통계/차량/소방서/로그 정보 재조회"
           >
             {fetching ? "불러오는 중..." : "새로고침"}
           </button>
@@ -171,8 +199,7 @@ export default function StatisticsPage() {
           <KPI
             title="등록 차량 수"
             value={
-              summary?.totalVehicles ??
-              vehicles.length.toLocaleString()
+              summary?.totalVehicles ?? vehicles.length.toLocaleString()
             }
           />
           <KPI
@@ -184,8 +211,6 @@ export default function StatisticsPage() {
             value={summary?.totalMinutes ?? "-"}
           />
         </div>
-        {/* 필요하다면 추가 KPI도 요 아래에 더 배치 가능 */}
-        {/* 예: 평균 활동시간, 금일 출동 건수 등 */}
       </div>
 
       <div className="relative grid flex-1 grid-cols-[240px_1fr] overflow-hidden">
@@ -197,11 +222,19 @@ export default function StatisticsPage() {
         />
 
         <main className="overflow-auto p-4">
-          {tab === "general" && <GeneralTab vehicles={vehicles} />}
-          {tab === "byDate" && <DateTab />}
-          {tab === "byRegion" && <RegionTab vehicles={vehicles} />}
-          {tab === "byType" && <TypeTab vehicles={vehicles} />}
-          {tab === "byDuration" && <DurationTab vehicles={vehicles} />}
+          {tab === "general" && (
+            <GeneralTab vehicles={vehicles} logs={logs} />
+          )}
+          {tab === "byDate" && <DateTab logs={logs} />}
+          {tab === "byRegion" && (
+            <RegionTab vehicles={vehicles} logs={logs} />
+          )}
+          {tab === "byType" && (
+            <TypeTab vehicles={vehicles} logs={logs} />
+          )}
+          {tab === "byDuration" && (
+            <DurationTab vehicles={vehicles} logs={logs} />
+          )}
         </main>
       </div>
     </div>
