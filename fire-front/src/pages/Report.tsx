@@ -18,7 +18,13 @@ function groupBy<T, K extends string | number>(
 
 const unique = <T,>(arr: T[]) => Array.from(new Set(arr));
 
-type Topic = "전체 통계" | "지역별 통계" | "차종별 통계" | "상태별 통계" | "출동 목록";
+type Topic =
+  | "전체 통계"
+  | "지역별 통계"
+  | "차종별 통계"
+  | "상태별 통계"
+  | "출동 목록";
+
 type TabStep = 1 | 2 | 3 | 4;
 
 export default function ReportPage() {
@@ -41,7 +47,7 @@ export default function ReportPage() {
   const [title, setTitle] = useState<string>("");
   const [memo, setMemo] = useState<string>("");
 
-  // Load draft
+  /* Load Draft (로컬스토리지 로딩) */
   useEffect(() => {
     const draft = localStorage.getItem("report_draft");
     if (!draft) return;
@@ -55,11 +61,12 @@ export default function ReportPage() {
       setFilterStatus(data.filterStatus ?? "");
       setTitle(data.title ?? "");
       setMemo(data.memo ?? "");
-    } catch (err){
+    } catch (err) {
       console.warn("Failed to load draft:", err);
     }
   }, []);
 
+  /* 필터링된 차량 */
   const filteredVehicles = useMemo(() => {
     return vehicles.filter((v) => {
       if (filterSido && v.sido !== filterSido) return false;
@@ -69,7 +76,7 @@ export default function ReportPage() {
     });
   }, [vehicles, filterSido, filterType, filterStatus]);
 
-  // SUMMARY
+  /* SUMMARY */
   const aggregates = useMemo(() => {
     const bySido = groupBy(filteredVehicles, (v) => v.sido);
     const byType = groupBy(filteredVehicles, (v) => v.type);
@@ -86,7 +93,14 @@ export default function ReportPage() {
       dispatchedStatuses.includes(v.status as VehicleStatus)
     );
 
-    return { totalVehicles, totalPersonnel, bySido, byType, byStatus, dispatched };
+    return {
+      totalVehicles,
+      totalPersonnel,
+      bySido,
+      byType,
+      byStatus,
+      dispatched,
+    };
   }, [filteredVehicles]);
 
   const handleTempSave = () => {
@@ -105,6 +119,7 @@ export default function ReportPage() {
   };
 
   const handlePrint = () => window.print();
+
 
   return (
     <div className="flex h-[calc(100vh-64px)] gap-4 p-4 text-gray-800 min-h-0">
