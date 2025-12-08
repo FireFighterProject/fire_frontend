@@ -109,13 +109,13 @@ function buildMapVehicles(
 const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
   const kakaoReady = useKakaoLoader();
 
-  // 🔥 Redux 차량
+  //  Redux 차량
   const storeVehicles = useSelector((s: RootState) => s.vehicle.vehicles) as MapVehicle[];
 
-  // 🔥 GPS 데이터
+  //  GPS 데이터
   const [lastLocs, setLastLocs] = useState<ApiLastLocation[]>([]);
 
-  // 🔥 UI 상태
+  //  UI 상태
   const [selectedSido, setSelectedSido] = useState("");
 
   const [stats, setStats] = useState<MapStats>({
@@ -201,7 +201,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
   // ===================== 필터 처리 =====================
   const filtered = useMemo(() => {
     return data
-      .filter((v) => v.status !== "대기")
+      .filter((v) => v.status === "활동")
       .filter(
         (v) =>
           (!filters.sido || v.sido === filters.sido) &&
