@@ -152,7 +152,6 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
         if (!res.ok) throw new Error("GPS fetch error");
 
         const data: ApiGps[] = await res.json();
-        console.log("Fetched GPS data:", data);
         setLastLocs(Array.isArray(data) ? data : []);
       } catch (err) {
         if (!(err instanceof DOMException && err.name === "AbortError")) {
@@ -207,7 +206,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
           (!filters.sido || v.sido === filters.sido) &&
           (!filters.station || v.station === filters.station) &&
           (!filters.type || v.type === filters.type)
-      );
+    );
   }, [data, filters]);
 
 
@@ -331,6 +330,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
 
   // ===================== 필터 리셋 =====================
   const resetFilters = () => {
+    console.log("Filtered Vehicles:", filtered);
     setFilters({ sido: "", station: "", type: "" });
     setSelectedSido("");
 
