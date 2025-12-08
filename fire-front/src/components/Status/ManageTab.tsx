@@ -19,13 +19,13 @@ export default function ManageTab() {
 
     const [loading, setLoading] = useState(false);
 
-    // 🔥 소방서 목록
+    //  소방서 목록
     const [allStations, setAllStations] = useState<FireStation[]>([]);
 
-    // 🔥 GPS 수신 차량 id 목록
+    //  GPS 수신 차량 id 목록
     const [gpsActiveIds, setGpsActiveIds] = useState<number[]>([]);
 
-    // 🔥 필터
+    //  필터
     const [query, setQuery] = useState<FilterQuery>({
         sido: "",
         stationId: "",
@@ -53,19 +53,38 @@ export default function ManageTab() {
     }, [dispatch]);
 
     // ========================================================
-    // 3) GPS 수신 차량 id 로드 (/api/gps/all)
+    // 3) GPS 수신 차량 id 로드 (/api/gps/all) + 20초마다 폴링
     // ========================================================
     useEffect(() => {
-        apiClient
-            .get("/gps/all")
-            .then((res) => {
+        let cancelled = false;
+
+        const fetchGpsActiveIds = async () => {
+            try {
+                const res = await apiClient.get("/gps/all");
+                if (cancelled) return;
+
                 const ids = (res.data as { vehicleId: number }[]).map((g) =>
                     Number(g.vehicleId)
                 );
                 setGpsActiveIds(ids);
-            })
-            .catch((e) => console.error("❌ gps/all 요청 실패:", e));
+            } catch (e) {
+                console.error("❌ gps/all 요청 실패:", e);
+            }
+        };
+
+        // 🔹 처음 마운트될 때 한 번 즉시 호출
+        fetchGpsActiveIds();
+
+        // 🔹 20초마다 한 번씩 재요청
+        const intervalId = window.setInterval(fetchGpsActiveIds, 20000);
+
+        // 🔹 언마운트 시 인터벌 정리
+        return () => {
+            cancelled = true;
+            window.clearInterval(intervalId);
+        };
     }, []);
+
 
     // ========================================================
     // 4) 필터링
@@ -182,7 +201,7 @@ export default function ManageTab() {
                 setEditRowId={setEditRowId}
                 saveEdit={saveEdit}
                 allStations={allStations}
-                gpsActiveIds={gpsActiveIds}   // ✅ 여기!
+                gpsActiveIds={gpsActiveIds}
             />
         </div>
     );
