@@ -4,9 +4,10 @@ import type { Vehicle } from "../../../types/global";
 interface Props {
     vehicle: Vehicle;
     onReturn: (id: string) => void;
+    onOpenMap: (vehicle: Vehicle) => void; // ✅ 추가
 }
 
-const ActivityRow: React.FC<Props> = ({ vehicle, onReturn}) => {
+const ActivityRow: React.FC<Props> = ({ vehicle, onReturn, onOpenMap }) => {
     return (
         <tr className="even:bg-gray-50">
             <td className="border border-black px-3 py-2">{vehicle.sido}</td>
@@ -22,12 +23,14 @@ const ActivityRow: React.FC<Props> = ({ vehicle, onReturn}) => {
             <td className="border border-black px-3 py-2">{vehicle.status}</td>
             <td className="border border-black px-2 py-2">
                 <div className="flex gap-1 justify-center">
-                    <button className="bg-green-500 text-white text-xs px-2 py-1 rounded hover:bg-green-600">
+                    <button
+                        className="bg-green-500 text-white text-xs px-2 py-1 rounded hover:bg-green-600"
+                        onClick={() => onOpenMap(vehicle)}  // ✅ 팝업 열기
+                    >
                         지도
                     </button>
                     <button
                         onClick={() => onReturn(String(vehicle.id))}
-
                         className="bg-blue-500 text-white text-xs px-2 py-1 rounded hover:bg-blue-600"
                     >
                         복귀
