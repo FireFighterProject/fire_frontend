@@ -85,8 +85,8 @@ const ActivityPage: React.FC = () => {
     query: "",
   });
 
-  // vehicleId(string) → orderId 매핑 (가장 최근 출동명령)
-  const [orderIdMap, setOrderIdMap] = useState<Record<string, number>>({});
+    // vehicleId(string) → orderId 매핑 (가장 최근 출동명령)
+    const [, setOrderIdMap] = useState<Record<string, number>>({});
 
   //  가장 마지막 fetch만 유효하게 하기 위한 id (레이스 컨디션 방지)
   const fetchIdRef = useRef(0);
@@ -213,11 +213,11 @@ const ActivityPage: React.FC = () => {
     if (!window.confirm("복귀 처리하시겠습니까?")) return;
     if (pendingReturn[vehicleId]) return; // 같은 차량 중복 클릭 방지
 
-    // 이 차량은 지금 복귀 요청 처리 중
+    // 이 차량은 지금 복귀 처리 중
     setPendingReturn((m) => ({ ...m, [vehicleId]: true }));
 
     try {
-      // 1) 낙관적 업데이트 (화면에서 먼저 대기로 변경 + 출동 정보 제거)
+      // 1) 낙관적 업데이트 (바로 "대기" + 출동 정보 제거)
       dispatch(
         updateVehicle({
           id: vehicleId,
@@ -229,17 +229,16 @@ const ActivityPage: React.FC = () => {
         })
       );
 
-      // 2) 실제 서버에 상태 변경 요청 (0 = 대기)
+      // 2) 서버에 차량 상태를 0(대기)로 변경 요청
       await api.patch(`/vehicles/${vehicleId}/status`, {
         status: 0,
       });
 
-      // 3) 서버 최신 데이터 다시 로드해서 동기화
+      // 3) 서버 최신 상태와 동기화
       await fetchVehiclesOptimized();
-    } catch (e) {
+    } catch {
       alert("복귀 처리 실패");
     } finally {
-      // pendingReturn 해제
       setPendingReturn((m) => {
         const next = { ...m };
         delete next[vehicleId];
@@ -247,6 +246,7 @@ const ActivityPage: React.FC = () => {
       });
     }
   };
+
 
 
   /* ----------------------- 필터 ---------------------- */
