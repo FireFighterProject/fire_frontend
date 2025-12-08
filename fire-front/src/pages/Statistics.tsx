@@ -55,6 +55,12 @@ const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+/* ========= 날짜 포맷 유틸 (LocalDateTime용) ========= */
+// 예: 2025-12-08T16:50:27.608Z  ->  2025-12-08T16:50:27
+const formatDateParam = (d: Date): string => {
+  return d.toISOString().slice(0, 19);
+};
+
 /* ========= 서버 → Vehicle 매핑 ========= */
 const mapApiToVehicle = (
   v: ApiVehicleListItem,
@@ -104,7 +110,7 @@ const buildStatLogs = (events: RawLogEvent[]): StatLog[] => {
   const result: StatLog[] = [];
 
   groups.forEach((list) => {
-    // 시간 순으로 정렬
+    // 시간 순 정렬
     const sorted = [...list].sort((a, b) =>
       a.eventTime.localeCompare(b.eventTime)
     );
@@ -133,7 +139,7 @@ const buildStatLogs = (events: RawLogEvent[]): StatLog[] => {
       moved: sorted.length > 1,
       minutes,
       command: first.content ?? "",
-      crewCount: 0, // 현재 API에서 알 수 없으니 0으로
+      crewCount: 0, // 현재 API에서 알 수 없으니 0으로 둠
     });
   });
 
@@ -168,10 +174,10 @@ export default function StatisticsPage() {
 
       // ✅ 기본 조회 기간: 최근 30일
       const now = new Date();
-      const to = now.toISOString();
+      const to = formatDateParam(now);
       const fromDate = new Date(now);
       fromDate.setDate(fromDate.getDate() - 30);
-      const from = fromDate.toISOString();
+      const from = formatDateParam(fromDate);
 
       // 🔥 차량 + 소방서 + 통계 + 로그 동시에 요청
       const [vehicleRes, stationRes, statsRes, logsRes] = await Promise.all([
@@ -179,7 +185,7 @@ export default function StatisticsPage() {
         api.get<ApiFireStation[]>("/fire-stations"),
         api.get<ApiStats>("/stats"),
         api.get<RawLogEvent[]>("/logs", {
-          params: { from, to }, // ⬅⬅⬅ 여기서 from / to 붙여서 400 해결
+          params: { from, to }, // ⬅ from/to 쿼리로 전송
         }),
       ]);
 
@@ -213,6 +219,11 @@ export default function StatisticsPage() {
   useEffect(() => {
     fetchAll();
   }, []);
+
+  // 총 활동시간(분) fallback 계산
+  const totalMinutesFallback = logs
+    .reduce((s, l) => s + (l.minutes || 0), 0)
+    .toLocaleString();
 
   return (
     <div className="flex h-full flex-col">
@@ -250,9 +261,7 @@ export default function StatisticsPage() {
           />
           <KPI
             title="총 활동 시간(분)"
-            value={summary?.totalMinutes ?? logs
-              .reduce((s, l) => s + (l.minutes || 0), 0)
-              .toLocaleString()}
+            value={summary?.totalMinutes ?? totalMinutesFallback}
           />
         </div>
       </div>
