@@ -1,45 +1,28 @@
-/* -----------------------------------------
-   PRINT ONLY #print-area
-   ----------------------------------------- */
 @media print {
 
-    /* 화면 전체 숨기기 */
-    body * {
+    * {
+        display: none !important;
         visibility: hidden !important;
     }
 
-    /* print-area만 보이기 */
+    body * {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
     #print-area,
     #print-area * {
+        display: block !important;
         visibility: visible !important;
     }
 
-    /* 위치 고정 */
     #print-area {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        margin: 0;
-        padding: 0;
+        position: absolute !important;
+        inset: 0 !important;
     }
 
-    /* 스크롤 제거 */
-    html,
-    body {
-        overflow: hidden !important;
-    }
-
-    /* 그림자, 배경 제거 (PDF 더 깔끔) */
-    .shadow-sm,
-    .shadow,
-    .shadow-md,
-    .shadow-lg {
-        box-shadow: none !important;
-    }
-
-    /* 페이지 여백 최소화 */
     @page {
-        margin: 10mm;
+        size: A4;
+        margin: 12mm;
     }
 }
