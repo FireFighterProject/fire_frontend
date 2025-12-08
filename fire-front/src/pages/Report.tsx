@@ -486,7 +486,7 @@ export default function ReportPage() {
                   "소방서",
                   "차종",
                   "상태",
-                  "자원집결지",
+                  "츌동장소",
                   "연락처",
                 ]}
                 rows={aggregates.dispatched.map((v) => [
@@ -496,7 +496,7 @@ export default function ReportPage() {
                   v.type,
                   v.status,
                   v.stationInfo?.address || "-",
-                  v.contact || "-",
+                  v.avl || "-",
                 ])}
               />
             </PreviewSection>
