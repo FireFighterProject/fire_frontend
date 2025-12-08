@@ -1,5 +1,12 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // src/pages/ActivityPage.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useDispatch, useSelector } from "react-redux";
 
 import ActivitySummary from "../components/Activity/ActivitySummary";
@@ -41,11 +48,17 @@ type DispatchOrder = {
   title: string;
   address: string;
   content: string;
-
+  // createdAt?: string; // 있으면 써도 됨
   vehicles: {
     vehicleId: number;
     callSign: string;
   }[];
+};
+
+type FilterState = {
+  sido: string;
+  type: string;
+  query: string;
 };
 
 /* 상태 코드 변환 */
@@ -60,27 +73,6 @@ const api = axios.create({
 });
 
 /* -------------------------------------------------------
- * API → Vehicle 변환
- * ------------------------------------------------------- */
-// const mapApiToVehicle = (v: ApiVehicleListItem, station?: ApiFireStation): Vehicle => ({
-//   id: String(v.id),
-//   sido: v.sido ?? station?.sido ?? "",
-//   station: station?.name ?? "",
-//   type: v.typeName ?? "",
-//   callname: v.callSign ?? "",
-//   capacity: v.capacity ?? 0,
-//   personnel: v.personnel ?? 0,
-//   avl: v.avlNumber ?? "",
-//   pslte: v.psLteNumber ?? "",
-//   status: STATUS_LABELS[v.status] ?? "대기",
-//   rally: v.rallyPoint === 1,
-
-//   // 출동 정보 기본값
-//   dispatchPlace: "",
-//   content: "",
-// });
-
-/* -------------------------------------------------------
  * ActivityPage
  * ------------------------------------------------------- */
 const ActivityPage: React.FC = () => {
@@ -88,36 +80,53 @@ const ActivityPage: React.FC = () => {
   const vehicles = useSelector((s: RootState) => s.vehicle.vehicles);
 
   const [fetching, setFetching] = useState(false);
-  const [pendingReturn, setPendingReturn] = useState<Record<string, boolean>>({});
-  const [filter, setFilter] = useState({ sido: "전체", type: "전체", query: "" });
+  const [pendingReturn, setPendingReturn] = useState<Record<string, boolean>>(
+    {}
+  );
+  const [filter, setFilter] = useState<FilterState>({
+    sido: "전체",
+    type: "전체",
+    query: "",
+  });
+
+  // 🔁 가장 마지막 fetch만 유효하게 하기 위한 id
+  const fetchIdRef = useRef(0);
 
   /* ------------------ 최적화된 차량 + 소방서 + 출동명령 로딩 ------------------ */
-  const fetchVehiclesOptimized = React.useCallback(async () => {
+  const fetchVehiclesOptimized = useCallback(async () => {
+    const myFetchId = ++fetchIdRef.current; // 이번 fetch 번호
+    setFetching(true);
+
     try {
-      setFetching(true);
+      // 🔹 1) 세 API를 동시에 호출 (병렬)
+      const [vehicleRes, stationRes, ordersRes] = await Promise.all([
+        api.get<ApiVehicleListItem[]>("/vehicles"),
+        api.get<ApiFireStation[]>("/fire-stations"),
+        api.get<DispatchOrder[]>("/dispatch-orders"),
+      ]);
 
-      // 차량
-      const vehicleRes = await api.get<ApiVehicleListItem[]>("/vehicles");
       const vehicleList = vehicleRes.data;
-
-      // 소방서 전체
-      const stationRes = await api.get<ApiFireStation[]>("/fire-stations");
-      const stationMap = new Map(stationRes.data.map((s) => [s.id, s]));
-
-      // 출동명령 전체
-      const ordersRes = await api.get<DispatchOrder[]>("/dispatch-orders");
+      const stationMap = new Map<number, ApiFireStation>(
+        stationRes.data.map((s) => [s.id, s])
+      );
       const orders = ordersRes.data;
 
-      // vehicleId → order 매핑
-      const orderMap = new Map<string, DispatchOrder>();
-      orders.forEach((order) =>
-        order.vehicles.forEach((vh) => orderMap.set(String(vh.vehicleId), order))
-      );
+      // 🔹 2) vehicleId → "가장 최근" DispatchOrder 매핑
+      //     - orderId가 클수록 최신이라고 가정
+      const orderMap = new Map<number, DispatchOrder>();
+      orders.forEach((order) => {
+        order.vehicles.forEach((vh) => {
+          const prev = orderMap.get(vh.vehicleId);
+          if (!prev || order.orderId > prev.orderId) {
+            orderMap.set(vh.vehicleId, order);
+          }
+        });
+      });
 
-      // 병합
+      // 🔹 3) 병합
       const finalList: Vehicle[] = vehicleList.map((v) => {
         const station = stationMap.get(v.stationId);
-        const order = orderMap.get(String(v.id));
+        const order = orderMap.get(v.id);
 
         return {
           id: String(v.id),
@@ -130,19 +139,33 @@ const ActivityPage: React.FC = () => {
           personnel: String(v.personnel ?? "0"),
           avl: v.avlNumber ?? "",
           pslte: v.psLteNumber ?? "",
-          status: STATUS_LABELS[v.status],
+          status: STATUS_LABELS[v.status] ?? "대기",
           rally: v.rallyPoint === 1,
+
+          // 🔥 가장 최신 출동 정보
           dispatchPlace: order?.address ?? "",
           content: order?.content ?? "",
         };
       });
 
-      dispatch(setVehicles(finalList));
+      // 🔹 4) 출동이 있는 차량 기준으로 정렬 (최신 출동이 위로 오게)
+      finalList.sort((a, b) => {
+        const orderA = orderMap.get(Number(a.id));
+        const orderB = orderMap.get(Number(b.id));
+        const idA = orderA?.orderId ?? 0;
+        const idB = orderB?.orderId ?? 0;
+        return idB - idA;
+      });
+
+      // 🔹 5) 마지막 fetch가 아니면 버림 (레이스 컨디션 방지)
+      if (myFetchId === fetchIdRef.current) {
+        dispatch(setVehicles(finalList));
+      }
     } finally {
+      // 마지막 fetch 여부와 상관없이 로딩 표시만 끔
       setFetching(false);
-    } 
-  }, [dispatch]
-  );
+    }
+  }, [dispatch]);
 
   /* ----------------------- 초기 로딩 ---------------------- */
   useEffect(() => {
@@ -152,8 +175,8 @@ const ActivityPage: React.FC = () => {
   /* ----------------------- 복귀 처리 ---------------------- */
   const onReturn = async (id: string) => {
     if (!window.confirm("복귀 처리하시겠습니까?")) return;
+    if (pendingReturn[id]) return; // 같은 차량 중복 클릭 방지
 
-    if (pendingReturn[id]) return;
     setPendingReturn((m) => ({ ...m, [id]: true }));
 
     try {
@@ -168,9 +191,11 @@ const ActivityPage: React.FC = () => {
       // 2) 서버 상태 변경
       await api.patch(`/vehicles/${id}/status`, { status: 0 });
 
-      // 3) 서버 최신상태 갱신 (정확한 값으로)
+      // 3) 서버 최신상태 갱신
+      //    - fetchIdRef로 이전 요청 결과는 무시되므로
+      //      여러 차량 빠르게 눌러도 마지막 결과만 반영됨
       await fetchVehiclesOptimized();
-    } catch {
+    } catch (e) {
       alert("복귀 처리 실패");
     } finally {
       setPendingReturn((m) => {
@@ -222,8 +247,10 @@ const ActivityPage: React.FC = () => {
 
       <ActivitySummary vehicles={activeVehicles} />
       <ActivityFilter filter={filter} setFilter={setFilter} />
-
-      <ActivityTable vehicles={activeVehicles} onReturn={onReturn} />
+      <ActivityTable
+        vehicles={activeVehicles}
+        onReturn={onReturn}
+      />
     </div>
   );
 };
