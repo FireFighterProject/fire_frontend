@@ -89,9 +89,9 @@ export default function VehicleTable({
                             const editing = r.id === editRowId;
                             const hasGps = gpsActiveSet.has(Number(r.id));
 
-                            // ✅ GPS 있으면 연두색, 없으면 짝수줄만 회색
+                            //  GPS 있으면 연두색, 없으면 짝수줄만 회색
                             const rowClass = hasGps
-                                ? "bg-emerald-50/80"
+                                ? "bg-red-60/50"
                                 : idx % 2 === 1
                                     ? "bg-gray-50/40"
                                     : "";
