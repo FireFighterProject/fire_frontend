@@ -43,16 +43,12 @@ type ApiFireStation = {
   address: string;
 };
 
-type DispatchOrder = {
+//  /dispatch-orders/latest-by-vehicle/{vehicleId} 응답 타입
+type LatestDispatchResponse = {
   orderId: number;
-  title: string;
   address: string;
   content: string;
-  status: string;
-  vehicles: {
-    vehicleId: number;
-    callSign: string;
-  }[];
+  message: string; // "현재 출동 중입니다." 또는 "출동 이력이 없습니다" 등
 };
 
 type FilterState = {
@@ -92,51 +88,88 @@ const ActivityPage: React.FC = () => {
   // vehicleId(string) → orderId 매핑 (가장 최근 출동명령)
   const [orderIdMap, setOrderIdMap] = useState<Record<string, number>>({});
 
-  // 🔁 가장 마지막 fetch만 유효하게 하기 위한 id (레이스 컨디션 방지)
+  //  가장 마지막 fetch만 유효하게 하기 위한 id (레이스 컨디션 방지)
   const fetchIdRef = useRef(0);
 
-  /* ------------------ 차량 + 소방서 + 출동명령 로딩 ------------------ */
+  /* ------------------ 활동 차량의 최신 출동 정보 채우기 ------------------ */
+  const fillLatestDispatchInfo = useCallback(
+    async (vehicleList: Vehicle[], fetchId: number) => {
+      // "활동" 또는 "출동중"인 차량만 요청
+      const activeVehicles = vehicleList.filter(
+        (v) => v.status === "활동" || v.status === "출동중"
+      );
+      if (activeVehicles.length === 0) return;
+
+      await Promise.all(
+        activeVehicles.map(async (v) => {
+          try {
+            const res = await api.get<LatestDispatchResponse>(
+              `/dispatch-orders/latest-by-vehicle/${v.id}`
+            );
+
+            // 더 최신 fetch가 있으면 이 응답은 버림
+            if (fetchId !== fetchIdRef.current) return;
+
+            const data = res.data;
+
+            // "출동 이력이 없습니다" 같은 메시지면 무시
+            if (
+              !data ||
+              typeof data !== "object" ||
+              (data.message &&
+                data.message.includes("출동 이력이 없습니다"))
+            ) {
+              return;
+            }
+
+            // 1) vehicleId → orderId 매핑 저장
+            setOrderIdMap((prev) => ({
+              ...prev,
+              [String(v.id)]: data.orderId,
+            }));
+
+            // 2) 화면 출동 장소 / 내용 업데이트
+            dispatch(
+              updateVehicle({
+                id: String(v.id),
+                patch: {
+                  dispatchPlace: data.address ?? "",
+                  content: data.content ?? "",
+                },
+              })
+            );
+          } catch {
+            // 404, 500 등 오류는 일단 무시 (해당 차량 출동정보 없음 처리)
+          }
+        })
+      );
+    },
+    [dispatch]
+  );
+
+  /* ------------------ 차량 + 소방서 먼저 로딩 ------------------ */
   const fetchVehiclesOptimized = useCallback(async () => {
     const myFetchId = ++fetchIdRef.current; // 이번 fetch 번호
     setFetching(true);
 
     try {
-      // 🔹 1) 세 API를 동시에 호출 (병렬)
-      const [vehicleRes, stationRes, ordersRes] = await Promise.all([
+      // 호출할 때마다 orderIdMap 초기화
+      setOrderIdMap({});
+
+      // 🔹 1) 차량 + 소방서를 동시에 호출 (병렬)
+      const [vehicleRes, stationRes] = await Promise.all([
         api.get<ApiVehicleListItem[]>("/vehicles"),
         api.get<ApiFireStation[]>("/fire-stations"),
-        api.get<DispatchOrder[]>("/dispatch-orders"),
       ]);
 
       const vehicleList = vehicleRes.data;
       const stationMap = new Map<number, ApiFireStation>(
         stationRes.data.map((s) => [s.id, s])
       );
-      const orders = ordersRes.data;
 
-      // 🔹 2) vehicleId → "가장 최근" DispatchOrder 매핑
-      //      (orderId가 클수록 최신이라고 가정)
-      const orderMap = new Map<number, DispatchOrder>();
-      orders.forEach((order) => {
-        order.vehicles.forEach((vh) => {
-          const prev = orderMap.get(vh.vehicleId);
-          if (!prev || order.orderId > prev.orderId) {
-            orderMap.set(vh.vehicleId, order);
-          }
-        });
-      });
-
-      // 🔹 3) 최종 orderIdMap 객체 생성 (vehicleId → orderId)
-      const nextOrderIdMap: Record<string, number> = {};
-
-      // 🔹 4) 차량 + 소방서 + 출동정보 병합
-      const finalList: Vehicle[] = vehicleList.map((v) => {
+      // 🔹 2) 기본 Vehicle 리스트 구성 (출동 정보는 비워둠)
+      const baseList: Vehicle[] = vehicleList.map((v) => {
         const station = stationMap.get(v.stationId);
-        const order = orderMap.get(v.id);
-
-        if (order) {
-          nextOrderIdMap[String(v.id)] = order.orderId;
-        }
 
         return {
           id: String(v.id),
@@ -152,30 +185,23 @@ const ActivityPage: React.FC = () => {
           status: STATUS_LABELS[v.status] ?? "대기",
           rally: v.rallyPoint === 1,
 
-          // 🔥 해당 차량의 가장 최신 출동 정보
-          dispatchPlace: order?.address ?? "",
-          content: order?.content ?? "",
+          // 🔥 출동 정보는 나중에 latest-by-vehicle로 채움
+          dispatchPlace: "",
+          content: "",
         };
       });
 
-      // 🔹 5) 출동이 있는 차량 기준으로 정렬 (최신 출동이 위로 오게)
-      finalList.sort((a, b) => {
-        const orderA = orderMap.get(Number(a.id));
-        const orderB = orderMap.get(Number(b.id));
-        const idA = orderA?.orderId ?? 0;
-        const idB = orderB?.orderId ?? 0;
-        return idB - idA;
-      });
-
-      // 🔹 6) 마지막 fetch가 아니면 버림 (레이스 컨디션 방지)
+      // 🔹 3) 가장 최신 fetch만 반영
       if (myFetchId === fetchIdRef.current) {
-        setOrderIdMap(nextOrderIdMap);
-        dispatch(setVehicles(finalList));
+        dispatch(setVehicles(baseList));
       }
+
+      // 🔹 4) 활동 차량에 한해서 최신 출동 정보 채우기
+      await fillLatestDispatchInfo(baseList, myFetchId);
     } finally {
       setFetching(false);
     }
-  }, [dispatch]);
+  }, [dispatch, fillLatestDispatchInfo]);
 
   /* ----------------------- 초기 로딩 ---------------------- */
   useEffect(() => {
@@ -187,11 +213,33 @@ const ActivityPage: React.FC = () => {
     if (!window.confirm("복귀 처리하시겠습니까?")) return;
     if (pendingReturn[vehicleId]) return; // 같은 차량 중복 클릭 방지
 
-    const orderId = orderIdMap[vehicleId];
+    let orderId = orderIdMap[vehicleId];
 
+    // 💡 아직 orderIdMap에 없으면, 한번 더 latest-by-vehicle로 조회해서 확보
     if (!orderId) {
-      alert("이 차량에 연결된 출동명령을 찾을 수 없습니다.");
-      return;
+      try {
+        const res = await api.get<LatestDispatchResponse>(
+          `/dispatch-orders/latest-by-vehicle/${vehicleId}`
+        );
+        const data = res.data;
+        if (
+          !data ||
+          typeof data !== "object" ||
+          (data.message &&
+            data.message.includes("출동 이력이 없습니다"))
+        ) {
+          alert("이 차량에 대한 출동 이력이 없어 복귀 처리할 수 없습니다.");
+          return;
+        }
+        orderId = data.orderId;
+        setOrderIdMap((prev) => ({
+          ...prev,
+          [vehicleId]: orderId!,
+        }));
+      } catch {
+        alert("출동 정보를 조회할 수 없어 복귀 처리에 실패했습니다.");
+        return;
+      }
     }
 
     setPendingReturn((m) => ({ ...m, [vehicleId]: true }));
