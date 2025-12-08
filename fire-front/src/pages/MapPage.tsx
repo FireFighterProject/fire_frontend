@@ -68,60 +68,29 @@ function buildMapVehicles(
   last: ApiLastLocation[],
   storeVehicles: MapVehicle[]
 ): MapVehicle[] {
-  // 🔍 1) 원본 데이터 로그
-  console.log(
-    "[MAP] GPS lastLocs:",
-    last.map((g) => ({
-      vehicleId: g.vehicleId,
-      lat: g.latitude,
-      lng: g.longitude,
-      updatedAt: g.updatedAt,
-    }))
-  );
-  console.log(
-    "[MAP] storeVehicles ids:",
-    storeVehicles.map((v) => v.id)
-  );
-
   const byId = new Map<number, MapVehicle>(
     storeVehicles.map((v) => [Number(v.id), v])
   );
 
-  const result = last
+  return last
     .map((l) => {
-      const id = Number(l.vehicleId);
-      const base = byId.get(id);
-
-      if (!base) {
-        console.warn(
-          "[MAP] GPS vehicleId에 해당하는 차량 없음 (storeVehicles 미존재)",
-          { vehicleId: l.vehicleId }
-        );
-        return null;
-      }
-
-      if (!isValidCoord(l.latitude, l.longitude)) {
-        console.warn("[MAP] 좌표 무효, 스킵:", {
-          vehicleId: l.vehicleId,
-          lat: l.latitude,
-          lng: l.longitude,
-        });
-        return null;
-      }
+      const base = byId.get(Number(l.vehicleId));
+      if (!base) return null;
+      if (!isValidCoord(l.latitude, l.longitude)) return null;
 
       const mapped: MapVehicle = {
         id: base.id,
         callname: String(
           base.callname ??
-          (base as any).callSign ??
-          (base as any).name ??
+          base.callSign ??
+          base.name ??
           `V-${l.vehicleId}`
         ),
         sido: String(base.sido ?? ""),
-        station: String((base as any).station ?? (base as any).stationName ?? ""),
-        type: String(base.type ?? (base as any).typeName ?? ""),
+        station: String(base.station ?? base.stationName ?? ""),
+        type: String(base.type ?? base.typeName ?? ""),
         personnel: Number(base.personnel) || 0,
-        dispatchPlace: (base as any).dispatchPlace ?? "",
+        dispatchPlace: base.dispatchPlace ?? "",
         lat: l.latitude,
         lng: l.longitude,
         status: normalizeStatus(base.status),
@@ -129,26 +98,10 @@ function buildMapVehicles(
         speedKph: l.speedKph ?? 0,
       };
 
-      console.log("[MAP] 파싱된 차량:", {
-        vehicleId: l.vehicleId,
-        joinedId: mapped.id,
-        callname: mapped.callname,
-        sido: mapped.sido,
-        station: mapped.station,
-        type: mapped.type,
-      });
-
       return mapped;
     })
     .filter((v): v is MapVehicle => v !== null);
-
-  console.log(
-    `[MAP] buildMapVehicles 결과: GPS ${last.length}대 → 매핑된 차량 ${result.length}대`
-  );
-
-  return result;
 }
-
 
 
 
@@ -199,6 +152,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
         if (!res.ok) throw new Error("GPS fetch error");
 
         const data: ApiGps[] = await res.json();
+        console.log("Fetched GPS data:", data);
         setLastLocs(Array.isArray(data) ? data : []);
       } catch (err) {
         if (!(err instanceof DOMException && err.name === "AbortError")) {
@@ -219,16 +173,10 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
 
 
   // ===================== GPS + 차량 merge =====================
-  const joinedVehicles = useMemo(() => {
-    const merged = buildMapVehicles(lastLocs, storeVehicles);
-    console.log(
-      "[MAP] joinedVehicles (GPS+차량 merge 결과) 개수:",
-      merged.length,
-      "ids:",
-      merged.map((v) => v.id)
-    );
-    return merged;
-  }, [lastLocs, storeVehicles]);
+  const joinedVehicles = useMemo(
+    () => buildMapVehicles(lastLocs, storeVehicles),
+    [lastLocs, storeVehicles]
+  );
 
 
   // ===================== 최종 차량 데이터 =====================
@@ -307,33 +255,18 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
     clearMarkers();
 
     const kakao = window.kakao;
-
-    const redDot = new kakao.maps.MarkerImage(
-      "data:image/svg+xml;charset=utf-8," +
-      encodeURIComponent(`
+    
+      const redDot = new kakao.maps.MarkerImage(
+        "data:image/svg+xml;charset=utf-8," +
+        encodeURIComponent(`
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14">
           <circle cx="7" cy="7" r="5" fill="#ff2a2a" />
         </svg>
       `),
-      new kakao.maps.Size(14, 14),
-      { offset: new kakao.maps.Point(7, 7) }
-    );
-
-    // 🔍 실제로 지도에 찍히는 차량들
-    console.log(
-      "[MAP] 지도에 마커 찍히는 filtered 차량:",
-      filtered.length,
-      filtered.map((v) => ({
-        id: v.id,
-        callname: v.callname,
-        sido: v.sido,
-        station: v.station,
-        type: v.type,
-        lat: v.lat,
-        lng: v.lng,
-      }))
-    );
-
+        new kakao.maps.Size(14, 14),
+        { offset: new kakao.maps.Point(7, 7) }
+      );
+      
     filtered.forEach((v) => {
       const pos = new kakao.maps.LatLng(v.lat, v.lng);
       const marker = new kakao.maps.Marker({
@@ -341,10 +274,34 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
         position: pos,
         image: redDot,
       });
-      // ...
+
+
+      const content = `
+        <div style="min-width:220px;padding:8px 10px;border-radius:8px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.12);">
+          <div style="font-weight:600;margin-bottom:4px">${v.callname}</div>
+          <div style="font-size:12px;line-height:1.5">
+            <div><b>시/도</b> ${v.sido} · <b>소방서</b> ${v.station}</div>
+            <div><b>종류</b> ${v.type} · <b>인원</b> ${v.personnel}명</div>
+            <div><b>출동 장소</b> ${v.dispatchPlace ?? "-"}</div>
+          </div>
+        </div>`.trim();
+
+      const info = new kakao.maps.InfoWindow({ content });
+
+      kakao.maps.event.addListener(marker, "click", () => {
+        if (openedInfo.current === info) {
+          info.close();
+          openedInfo.current = null;
+        } else {
+          openedInfo.current?.close();
+          info.open(map.current!, marker);
+          openedInfo.current = info;
+        }
+      });
+
+      markers.current.push({ marker, info, data: v });
     });
   };
-
 
 
   useEffect(() => {
