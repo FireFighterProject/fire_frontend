@@ -160,8 +160,6 @@ const MENU: { key: TabKey; label: string }[] = [
   { key: "byDate", label: "일시별" },
   { key: "byRegion", label: "시도별" },
   { key: "byType", label: "차종별" },
-  { key: "byPlace", label: "장소별" },
-  { key: "byCommand", label: "출동 명령별" },
   { key: "byDuration", label: "활동 시간별" },
 ];
 
@@ -572,7 +570,6 @@ export default function StatisticsPage() {
           {tab === "byDate" && <TabByDate />}
           {tab === "byRegion" && <TabByRegion vehicles={vehicles} />}
           {tab === "byType" && <TabByType vehicles={vehicles} />}
-          {tab === "byPlace" && <TabByPlace />}
           {tab === "byDuration" && <TabByDuration vehicles={vehicles} />}
         </main>
       </div>
