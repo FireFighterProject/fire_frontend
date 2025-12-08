@@ -73,7 +73,7 @@ const MapFilterPanel: React.FC<Props> = ({
 
     return (
         <div
-            className="fixed right-30 z-40 grid gap-2 rounded-lg bg-white/95 p-3 shadow-lg ring-1 ring-gray-200
+            className="fixed right-30 z-40 grid gap-2 min-w-[120px] rounded-lg bg-white/95 p-3 shadow-lg ring-1 ring-gray-200
                  grid-cols-1 sm:grid-cols-3 items-center"
             style={{ top }}
         >
