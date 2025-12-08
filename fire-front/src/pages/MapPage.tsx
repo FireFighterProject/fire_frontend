@@ -312,7 +312,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
     setStats((s) => ({
       ...s,
       visibleCount: filtered.length,
-      totalCount: data.length,
+      totalCount: filtered.length,
     }));
   }, [filtered, kakaoReady, data.length]);
 
