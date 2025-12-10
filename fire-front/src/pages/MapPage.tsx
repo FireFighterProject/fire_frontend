@@ -16,7 +16,18 @@ import type {
   MapVehicle,
 } from "../types/map";
 
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace kakao.maps {
+    interface Marker {
+      setPosition(position: kakao.maps.LatLng): void;
+    }
 
+    interface InfoWindow {
+      setContent(content: string | HTMLElement): void;
+    }
+  }
+}
 // ===================== GPS API 타입 =====================
 type ApiGps = {
   vehicleId: number;
@@ -134,7 +145,9 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
   // 지도 요소
   const mapRef = useRef<HTMLDivElement | null>(null);
   const map = useRef<kakao.maps.Map | null>(null);
-  const markers = useRef<MarkerBundle[]>([]);
+
+  // ✅ 마커 재사용용 Map (id -> MarkerBundle)
+  const markers = useRef<Map<number, MarkerBundle>>(new Map());
   const openedInfo = useRef<kakao.maps.InfoWindow | null>(null);
 
 
@@ -200,13 +213,14 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
   // ===================== 필터 처리 =====================
   const filtered = useMemo(() => {
     return data
+      // 👉 기존과 동일하게 "활동" 차량만 표시
       .filter((v) => v.status === "활동")
       .filter(
         (v) =>
           (!filters.sido || v.sido === filters.sido) &&
           (!filters.station || v.station === filters.station) &&
           (!filters.type || v.type === filters.type)
-    );
+      );
   }, [data, filters]);
 
 
@@ -236,44 +250,50 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
 
     m.addControl(new kakao.maps.ZoomControl(), kakao.maps.ControlPosition.RIGHT);
     m.addControl(new kakao.maps.MapTypeControl(), kakao.maps.ControlPosition.TOPRIGHT);
+
+    // 언마운트 시 마커 정리
+    return () => {
+      markers.current.forEach((bundle) => {
+        bundle.marker.setMap(null);
+        bundle.info?.close();
+      });
+      markers.current.clear();
+    };
   }, [kakaoReady]);
 
 
 
-  // ===================== 마커 렌더링 =====================
-  const clearMarkers = () => {
-    markers.current.forEach((m) => {
-      m.marker.setMap(null);
-      m.info?.close();
-    });
-    markers.current = [];
-  };
-
-  const drawMarkers = () => {
-    if (!map.current) return;
-    clearMarkers();
-
+  // ===================== MarkerImage 캐싱 =====================
+  const redDotImage = useMemo(() => {
+    if (!kakaoReady) return null;
     const kakao = window.kakao;
-    
-      const redDot = new kakao.maps.MarkerImage(
-        "data:image/svg+xml;charset=utf-8," +
-        encodeURIComponent(`
+
+    return new kakao.maps.MarkerImage(
+      "data:image/svg+xml;charset=utf-8," +
+      encodeURIComponent(`
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14">
           <circle cx="7" cy="7" r="5" fill="#ff2a2a" />
         </svg>
       `),
-        new kakao.maps.Size(14, 14),
-        { offset: new kakao.maps.Point(7, 7) }
-      );
-      
-    filtered.forEach((v) => {
-      const pos = new kakao.maps.LatLng(v.lat, v.lng);
-      const marker = new kakao.maps.Marker({
-        map: map.current!,
-        position: pos,
-        image: redDot,
-      });
+      new kakao.maps.Size(14, 14),
+      { offset: new kakao.maps.Point(7, 7) }
+    );
+  }, [kakaoReady]);
 
+
+
+  // ===================== 마커 업데이트 (재사용 방식) =====================
+  const updateMarkers = () => {
+    if (!map.current || !redDotImage) return;
+
+    const kakao = window.kakao;
+    const activeIds = new Set<number>();
+
+    filtered.forEach((v) => {
+      const idNum = Number(v.id);
+      activeIds.add(idNum);
+
+      const pos = new kakao.maps.LatLng(v.lat, v.lng);
 
       const content = `
         <div style="min-width:220px;padding:8px 10px;border-radius:8px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.12);">
@@ -285,35 +305,65 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
           </div>
         </div>`.trim();
 
-      const info = new kakao.maps.InfoWindow({ content });
+      let bundle = markers.current.get(idNum);
 
-      kakao.maps.event.addListener(marker, "click", () => {
-        if (openedInfo.current === info) {
-          info.close();
-          openedInfo.current = null;
-        } else {
-          openedInfo.current?.close();
-          info.open(map.current!, marker);
-          openedInfo.current = info;
-        }
-      });
+      // 1) 마커가 없으면 새로 생성
+      if (!bundle) {
+        const marker = new kakao.maps.Marker({
+          map: map.current!,
+          position: pos,
+          image: redDotImage,
+        });
 
-      markers.current.push({ marker, info, data: v });
+        const info = new kakao.maps.InfoWindow({ content });
+
+        kakao.maps.event.addListener(marker, "click", () => {
+          if (openedInfo.current === info) {
+            info.close();
+            openedInfo.current = null;
+          } else {
+            openedInfo.current?.close();
+            info.open(map.current!, marker);
+            openedInfo.current = info;
+          }
+        });
+
+        bundle = { marker, info, data: v };
+        markers.current.set(idNum, bundle);
+      } else {
+        // 2) 기존 마커면 위치/내용만 업데이트
+        bundle.data = v;
+        bundle.marker.setPosition(pos);
+        bundle.marker.setMap(map.current); // 필터로 다시 보이게
+        bundle.info?.setContent(content);
+      }
     });
-  };
 
+    // 3) 이번 filtered에 포함되지 않은 마커는 숨기기
+    markers.current.forEach((bundle, id) => {
+      if (!activeIds.has(id)) {
+        bundle.marker.setMap(null);
+        if (openedInfo.current === bundle.info) {
+          bundle.info?.close();
+          openedInfo.current = null;
+        }
+      }
+    });
 
-  useEffect(() => {
-    if (!map.current || !kakaoReady) return;
-
-    drawMarkers();
-
+    // 기존 로직 유지: visibleCount/totalCount 둘 다 filtered.length
     setStats((s) => ({
       ...s,
       visibleCount: filtered.length,
       totalCount: filtered.length,
     }));
-  }, [filtered, kakaoReady, data.length]);
+  };
+
+
+  useEffect(() => {
+    if (!map.current || !kakaoReady || !redDotImage) return;
+    updateMarkers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, kakaoReady, redDotImage, data.length]);
 
 
 
