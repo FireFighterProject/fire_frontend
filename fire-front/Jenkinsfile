@@ -3,33 +3,35 @@ pipeline {
 
   stages {
     stage('Checkout') {
-      steps { checkout scm }
-    }
-
-    stage('Debug') {
-    steps {
-        bat 'cd fire-front'
-        bat 'dir'
-    }
+      steps {
+        checkout scm
+      }
     }
 
     stage('Install') {
       steps {
-        // Linux/Mac: sh, Windows: bat 로 바꿔 쓰세요
-        bat 'node -v && npm -v'
-        bat 'npm install'
+        dir('fire-front') {
+          bat 'node -v && npm -v'
+          // package-lock.json이 fire-front 안에 있으면 ci 추천
+          bat 'npm install'
+          // 또는 lock이 있으면: bat 'npm ci'
+        }
       }
     }
 
     stage('Build') {
       steps {
-        bat 'npm run build'
+        dir('fire-front') {
+          bat 'npm run build'
+        }
       }
     }
 
     stage('Archive dist') {
       steps {
-        archiveArtifacts artifacts: 'dist/**', fingerprint: true
+        dir('fire-front') {
+          archiveArtifacts artifacts: 'dist/**', fingerprint: true
+        }
       }
     }
   }
