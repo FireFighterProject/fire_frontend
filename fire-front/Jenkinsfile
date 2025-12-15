@@ -1,20 +1,22 @@
 pipeline {
   agent any
 
+  environment {
+    EC2_HOST   = '3.39.229.253'
+    EC2_USER   = 'ec2-user'
+    DEPLOY_DIR = '/home/ec2-user/fire-frontend'
+  }
+
   stages {
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
+      steps { checkout scm }
     }
 
     stage('Install') {
       steps {
         dir('fire-front') {
           bat 'node -v && npm -v'
-          // package-lock.json이 fire-front 안에 있으면 ci 추천
           bat 'npm install'
-          // 또는 lock이 있으면: bat 'npm ci'
         }
       }
     }
@@ -27,10 +29,33 @@ pipeline {
       }
     }
 
-    stage('Archive dist') {
+    stage('Deploy to EC2') {
       steps {
-        dir('fire-front') {
-          archiveArtifacts artifacts: 'dist/**', fingerprint: true
+        withCredentials([sshUserPrivateKey(
+          credentialsId: 'jenkins-fire-deploy',
+          keyFileVariable: 'SSH_KEY',
+          usernameVariable: 'SSH_USER'
+        )]) {
+          bat """
+            setlocal
+            set HOST=%EC2_HOST%
+            set USER=%SSH_USER%
+            set KEY=%SSH_KEY%
+            set DEPLOY_DIR=%DEPLOY_DIR%
+
+            if exist site.tgz del /f /q site.tgz
+
+            rem 1) dist 폴더 "내용만" tar로 묶기
+            tar -czf site.tgz -C fire-front\\dist .
+
+            rem 2) EC2로 업로드
+            scp -i "%KEY%" -o StrictHostKeyChecking=no site.tgz %USER%@%HOST%:/tmp/site.tgz
+
+            rem 3) EC2에서 배포(기존 파일 삭제 후 압축 해제) + nginx reload
+            ssh -i "%KEY%" -o StrictHostKeyChecking=no %USER%@%HOST% "sudo rm -rf %DEPLOY_DIR%/* && sudo mkdir -p %DEPLOY_DIR% && sudo tar -xzf /tmp/site.tgz -C %DEPLOY_DIR% && sudo chown -R ec2-user:ec2-user %DEPLOY_DIR% && sudo nginx -t && sudo systemctl reload nginx"
+
+            endlocal
+          """
         }
       }
     }
