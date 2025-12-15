@@ -30,34 +30,40 @@ pipeline {
     }
 
     stage('Deploy to EC2') {
-      steps {
-        withCredentials([sshUserPrivateKey(
-          credentialsId: 'jenkins-fire-deploy',
-          keyFileVariable: 'SSH_KEY',
-          usernameVariable: 'SSH_USER'
-        )]) {
-          bat """
+        steps {
+            withCredentials([sshUserPrivateKey(
+            credentialsId: 'jenkins-fire-deploy',
+            keyFileVariable: 'SSH_KEY',
+            usernameVariable: 'SSH_USER'
+            )]) {
+            bat """
             setlocal
-            set HOST=%EC2_HOST%
-            set USER=%SSH_USER%
-            set KEY=%SSH_KEY%
-            set DEPLOY_DIR=%DEPLOY_DIR%
+            set HOST=3.39.229.253
+            set DEPLOY_DIR=/home/ec2-user/fire-frontend
 
+            rem 0) 키 파일을 안전한 위치로 복사
+            if not exist .jenkins_keys mkdir .jenkins_keys
+            copy /Y "%SSH_KEY%" ".jenkins_keys\\deploy_key" >nul
+
+            rem 1) deploy_key 권한 잠그기 (현재 사용자/관리자만)
+            icacls ".jenkins_keys\\deploy_key" /inheritance:r >nul
+            icacls ".jenkins_keys\\deploy_key" /grant:r "%USERNAME%:R" >nul
+            icacls ".jenkins_keys\\deploy_key" /grant:r "Administrators:R" >nul
+
+            rem 2) dist 폴더 압축
             if exist site.tgz del /f /q site.tgz
-
-            rem 1) dist 폴더 "내용만" tar로 묶기
             tar -czf site.tgz -C fire-front\\dist .
 
-            rem 2) EC2로 업로드
-            scp -i "%KEY%" -o StrictHostKeyChecking=no site.tgz %USER%@%HOST%:/tmp/site.tgz
+            rem 3) 업로드
+            scp -i ".jenkins_keys\\deploy_key" -o StrictHostKeyChecking=no site.tgz %SSH_USER%@%HOST%:/tmp/site.tgz
 
-            rem 3) EC2에서 배포(기존 파일 삭제 후 압축 해제) + nginx reload
-            ssh -i "%KEY%" -o StrictHostKeyChecking=no %USER%@%HOST% "sudo rm -rf %DEPLOY_DIR%/* && sudo mkdir -p %DEPLOY_DIR% && sudo tar -xzf /tmp/site.tgz -C %DEPLOY_DIR% && sudo chown -R ec2-user:ec2-user %DEPLOY_DIR% && sudo nginx -t && sudo systemctl reload nginx"
-
+            rem 4) 서버 반영 + nginx reload
+            ssh -i ".jenkins_keys\\deploy_key" -o StrictHostKeyChecking=no %SSH_USER%@%HOST% ^
+                "sudo mkdir -p %DEPLOY_DIR% && sudo rm -rf %DEPLOY_DIR%/* && sudo tar -xzf /tmp/site.tgz -C %DEPLOY_DIR% && sudo chown -R ec2-user:ec2-user %DEPLOY_DIR% && sudo nginx -t && sudo systemctl reload nginx"
             endlocal
-          """
+            """
+            }
         }
-      }
-    }
+        }
   }
 }
