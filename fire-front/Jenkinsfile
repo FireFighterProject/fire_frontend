@@ -6,6 +6,13 @@ pipeline {
       steps { checkout scm }
     }
 
+    stage('Debug') {
+    steps {
+        bat 'cd fire-front'
+        bat 'dir'
+    }
+    }
+
     stage('Install') {
       steps {
         // Linux/Mac: sh, Windows: bat 로 바꿔 쓰세요
