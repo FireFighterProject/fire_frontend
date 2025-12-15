@@ -1,0 +1,29 @@
+pipeline {
+  agent any
+
+  stages {
+    stage('Checkout') {
+      steps { checkout scm }
+    }
+
+    stage('Install') {
+      steps {
+        // Linux/Mac: sh, Windows: bat 로 바꿔 쓰세요
+        bat 'node -v && npm -v'
+        bat 'npm ci'
+      }
+    }
+
+    stage('Build') {
+      steps {
+        bat 'npm run build'
+      }
+    }
+
+    stage('Archive dist') {
+      steps {
+        archiveArtifacts artifacts: 'dist/**', fingerprint: true
+      }
+    }
+  }
+}
