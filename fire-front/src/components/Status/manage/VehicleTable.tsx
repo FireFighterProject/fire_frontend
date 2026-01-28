@@ -81,6 +81,19 @@ export default function VehicleTable({
     const change = (field: keyof Vehicle, value: any) =>
         setEditData((prev) => ({ ...prev, [field]: value }));
 
+    // 전화번호 포맷팅 함수
+    const formatPhone = (digits: string) => {
+        if (digits.length <= 3) return digits;
+        if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+        return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+    };
+
+    const handlePhoneChange = (field: keyof Vehicle, raw: string) => {
+        let digits = raw.replace(/\D/g, "");
+        if (digits.length > 11) digits = digits.slice(0, 11);
+        change(field, digits);
+    };
+
     return (
         <div className="space-y-2">
             {/* 삭제 버튼 영역 */}
@@ -239,19 +252,33 @@ export default function VehicleTable({
                                     <Td>
                                         {editing ? (
                                             <input
-                                                value={editData.avl ?? r.avl}
+                                                value={formatPhone(editData.avl ?? r.avl ?? "")}
                                                 onChange={(e) =>
-                                                    change("avl", e.target.value)
+                                                    handlePhoneChange("avl", e.target.value)
                                                 }
                                                 className="border px-2 py-1 w-full rounded"
+                                                placeholder="010-0000-0000"
                                             />
                                         ) : (
-                                            r.avl
+                                            formatPhone(r.avl ?? "")
                                         )}
                                     </Td>
 
                                     {/* PS-LTE */}
-                                    <Td>{r.pslte}</Td>
+                                    <Td>
+                                        {editing ? (
+                                            <input
+                                                value={formatPhone(editData.pslte ?? r.pslte ?? "")}
+                                                onChange={(e) =>
+                                                    handlePhoneChange("pslte", e.target.value)
+                                                }
+                                                className="border px-2 py-1 w-full rounded"
+                                                placeholder="010-0000-0000"
+                                            />
+                                        ) : (
+                                            formatPhone(r.pslte ?? "")
+                                        )}
+                                    </Td>
 
                                     {/* 상태 */}
                                     <Td>{r.status}</Td>
