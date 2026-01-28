@@ -501,30 +501,31 @@ const Manage: React.FC = () => {
           </tbody>
         </table>
 
-        {assigned.length > 0 && (
-          <div className="mt-6 space-y-3">
-            <input
-              placeholder="출동 제목"
-              className="w-full border px-3 py-2 rounded"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
+        {/* 출동 정보 입력 - 항상 표시 */}
+        <div className="mt-6 space-y-3">
+          <input
+            placeholder="출동 제목"
+            className="w-full border px-3 py-2 rounded"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
 
-            <textarea
-              placeholder="출동 내용"
-              className="w-full border px-3 py-2 rounded h-24"
-              value={desc}
-              onChange={(e) => setDesc(e.target.value)}
-            />
+          <textarea
+            placeholder="출동 내용"
+            className="w-full border px-3 py-2 rounded h-24"
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+          />
 
-            <input
-              placeholder="출동 주소"
-              className="w-full border px-3 py-2 rounded"
-              value={addr}
-              onChange={(e) => setAddr(e.target.value)}
-            />
+          <input
+            placeholder="출동 주소"
+            className="w-full border px-3 py-2 rounded"
+            value={addr}
+            onChange={(e) => setAddr(e.target.value)}
+          />
 
-            {/* 편성된 차량 목록 */}
+          {/* 편성된 차량 목록 - 차량이 있을 때만 표시 */}
+          {assigned.length > 0 && (
             <ul className="space-y-2">
               {assigned.map((a) => (
                 <li
@@ -542,20 +543,20 @@ const Manage: React.FC = () => {
                 </li>
               ))}
             </ul>
+          )}
 
-            {/* 제출 버튼 */}
-            <button
-              onClick={handleCreateSend}
-              disabled={sending}
-              className={
-                "w-full py-3 mt-3 rounded text-white " +
-                (sending ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700")
-              }
-            >
-              {sending ? "발송중..." : "출동 생성 및 발송"}
-            </button>
-          </div>
-        )}
+          {/* 제출 버튼 */}
+          <button
+            onClick={handleCreateSend}
+            disabled={sending || assigned.length === 0}
+            className={
+              "w-full py-3 mt-3 rounded text-white " +
+              (sending || assigned.length === 0 ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700")
+            }
+          >
+            {sending ? "발송중..." : assigned.length === 0 ? "차량을 편성해주세요" : "출동 생성 및 발송"}
+          </button>
+        </div>
       </section>
     </div>
   );
