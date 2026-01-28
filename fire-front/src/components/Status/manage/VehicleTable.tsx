@@ -18,6 +18,13 @@ type Props = {
 
     // ✅ GPS가 한 번이라도 등록된 차량 id 목록
     gpsActiveIds: number[];
+
+    // ✅ 삭제 기능 관련
+    selectedIds: Set<string>;
+    toggleSelect: (id: string) => void;
+    toggleSelectAll: (checked: boolean) => void;
+    onDeleteSelected: () => void;
+    deleting: boolean;
 };
 
 export default function VehicleTable({
@@ -30,6 +37,11 @@ export default function VehicleTable({
     setEditRowId,
     saveEdit,
     gpsActiveIds,
+    selectedIds,
+    toggleSelect,
+    toggleSelectAll,
+    onDeleteSelected,
+    deleting,
 }: Props) {
     const mappedRows = useMemo(() => {
         return rows.map((r) => {
@@ -47,6 +59,7 @@ export default function VehicleTable({
     );
 
     const headers = [
+        "선택",
         "연번",
         "시도",
         "소방서",
@@ -61,21 +74,55 @@ export default function VehicleTable({
         "수정",
     ];
 
+    // 전체 선택 여부
+    const allSelected = mappedRows.length > 0 && mappedRows.every((r) => selectedIds.has(String(r.id)));
+    const someSelected = mappedRows.some((r) => selectedIds.has(String(r.id)));
+
     const change = (field: keyof Vehicle, value: any) =>
         setEditData((prev) => ({ ...prev, [field]: value }));
 
     return (
-        <div className="overflow-auto border rounded bg-white">
-            <table className="min-w-[900px] w-full text-sm">
-                <thead className="bg-gray-50">
-                    <tr>
-                        {headers.map((h) => (
-                            <th key={h} className="px-3 py-2 font-semibold">
-                                {h}
-                            </th>
-                        ))}
-                    </tr>
-                </thead>
+        <div className="space-y-2">
+            {/* 삭제 버튼 영역 */}
+            <div className="flex items-center gap-3">
+                <button
+                    onClick={onDeleteSelected}
+                    disabled={selectedIds.size === 0 || deleting}
+                    className={`px-4 py-2 text-sm rounded text-white ${
+                        selectedIds.size === 0 || deleting
+                            ? "bg-gray-300 cursor-not-allowed"
+                            : "bg-red-500 hover:bg-red-600"
+                    }`}
+                >
+                    {deleting ? "삭제 중..." : `선택 삭제 (${selectedIds.size})`}
+                </button>
+                {someSelected && (
+                    <span className="text-sm text-gray-500">
+                        {selectedIds.size}개 선택됨
+                    </span>
+                )}
+            </div>
+
+            <div className="overflow-auto border rounded bg-white">
+                <table className="min-w-[900px] w-full text-sm">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            {headers.map((h, idx) => (
+                                <th key={h} className="px-3 py-2 font-semibold">
+                                    {idx === 0 ? (
+                                        <input
+                                            type="checkbox"
+                                            checked={allSelected}
+                                            onChange={(e) => toggleSelectAll(e.target.checked)}
+                                            className="w-4 h-4"
+                                        />
+                                    ) : (
+                                        h
+                                    )}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
 
                 <tbody>
                     {mappedRows.length === 0 ? (
@@ -98,6 +145,16 @@ export default function VehicleTable({
 
                             return (
                                 <tr key={r.id} className={rowClass}>
+                                    {/* 선택 체크박스 */}
+                                    <Td>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedIds.has(String(r.id))}
+                                            onChange={() => toggleSelect(String(r.id))}
+                                            className="w-4 h-4"
+                                        />
+                                    </Td>
+
                                     <Td>{idx + 1}</Td>
 
                                     {/* 시도 */}
@@ -248,7 +305,8 @@ export default function VehicleTable({
                         })
                     )}
                 </tbody>
-            </table>
+                </table>
+            </div>
         </div>
     );
 }

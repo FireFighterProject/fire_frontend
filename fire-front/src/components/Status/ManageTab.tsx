@@ -215,6 +215,69 @@ export default function ManageTab() {
         setEditData({});
     };
 
+    // ========================================================
+    // 7) 삭제 기능 (개별/일괄)
+    // ========================================================
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [deleting, setDeleting] = useState(false);
+
+    const toggleSelect = (id: string) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
+
+    const toggleSelectAll = (checked: boolean) => {
+        if (checked) {
+            setSelectedIds(new Set(filteredRows.map((r) => String(r.id))));
+        } else {
+            setSelectedIds(new Set());
+        }
+    };
+
+    const deleteVehicles = async (ids: string[]) => {
+        if (ids.length === 0) return;
+
+        const confirmMsg = ids.length === 1
+            ? "선택한 차량을 삭제하시겠습니까?"
+            : `선택한 ${ids.length}대의 차량을 삭제하시겠습니까?`;
+
+        if (!window.confirm(confirmMsg)) return;
+
+        setDeleting(true);
+        try {
+            if (ids.length === 1) {
+                // 단건 삭제: DELETE /api/vehicles/{id}
+                await apiClient.delete(`/vehicles/${ids[0]}`);
+                alert("1대 삭제 완료");
+            } else {
+                // 다건 삭제: DELETE /api/vehicles (body에 vehicleIds 배열)
+                const res = await apiClient.delete(`/vehicles`, {
+                    data: { vehicleIds: ids.map((id) => Number(id)) }
+                });
+                const { deleted } = res.data;
+                alert(`${deleted}대 삭제 완료`);
+            }
+            setSelectedIds(new Set());
+            dispatch(fetchVehicles({}));
+        } catch (err) {
+            console.error(err);
+            alert("삭제 실패");
+        } finally {
+            setDeleting(false);
+        }
+    };
+
+    const handleDeleteSelected = () => {
+        deleteVehicles(Array.from(selectedIds));
+    };
+
     return (
         <div className="p-6 space-y-4">
             <h3 className="text-lg font-semibold">등록 차량 리스트</h3>
@@ -236,6 +299,11 @@ export default function ManageTab() {
                 saveEdit={saveEdit}
                 allStations={allStations}
                 gpsActiveIds={gpsActiveIds}
+                selectedIds={selectedIds}
+                toggleSelect={toggleSelect}
+                toggleSelectAll={toggleSelectAll}
+                onDeleteSelected={handleDeleteSelected}
+                deleting={deleting}
             />
         </div>
     );
