@@ -15,11 +15,31 @@ const Home: React.FC = () => {
     totalVehicles: 0,
   });
 
-  // 📌 1) /api/stats 호출
+  // 📌 1) /api/stats 호출 + 활동 소방서 수 집계
   const fetchStats = async () => {
     try {
-      const res = await apiClient.get("/stats");
-      setTargetStats(res.data); // 애니메이션 목표 값 설정
+      const [statsRes, vehiclesRes] = await Promise.all([
+        apiClient.get("/stats"),
+        apiClient.get("/vehicles"),
+      ]);
+      const stats = statsRes.data;
+      const vehicles = vehiclesRes.data ?? [];
+
+      // 활동(출동중) 차량의 stationId unique 개수 = 실제 소방차 지원 소방서 수
+      const activeStationIds = new Set<number>();
+      vehicles.forEach((v: { status?: string | number; stationId?: number }) => {
+        const s = v.status;
+        const isActive = s === 1 || s === "1" || s === "활동" || s === "출동중";
+        if (isActive && v.stationId != null) {
+          activeStationIds.add(Number(v.stationId));
+        }
+      });
+
+      setTargetStats({
+        firefighterCount: stats.firefighterCount ?? 0,
+        activeStations: activeStationIds.size,
+        totalVehicles: stats.totalVehicles ?? 0,
+      });
     } catch (e) {
       console.error("통계 불러오기 실패", e);
     }

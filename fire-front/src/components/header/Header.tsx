@@ -1,8 +1,8 @@
 const menus = [
     { name: "메인", path: "/" },
-    { name: "현황", path: "/status" },
-    { name: "관리", path: "/manage" },
-    { name: "활동", path: "/activity" },
+    { name: "자원등록", path: "/status" },
+    { name: "자원배분", path: "/manage" },
+    { name: "자원관리", path: "/activity" },
     { name: "지도", path: "/map" },
     { name: "통계", path: "/statistics" },
     { name: "보고서", path: "/report" },
