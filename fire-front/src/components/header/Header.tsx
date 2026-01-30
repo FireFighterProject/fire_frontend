@@ -24,7 +24,7 @@ const Header = () => {
                 </div>
 
                 {/* 가운데: 메뉴 (정중앙 정렬) */}
-                <nav className="flex-1 flex items-center justify-center gap-5 md:gap-7">
+                <nav className="flex-1 flex items-center justify-center gap-3 md:gap-6 lg:gap-8">
                     {menus.map((m) => {
                         const active = isActivePath(m.path);
                         return (
@@ -32,7 +32,7 @@ const Header = () => {
                                 key={m.path}
                                 href={m.path}
                                 className={[
-                                    "relative pb-1 text-sm md:text-base transition hover:opacity-80",
+                                    "relative pb-1 text-sm md:text-base transition hover:opacity-80 whitespace-nowrap",
                                     active
                                         ? "after:absolute after:left-0 after:right-0 after:-bottom-[2px] after:h-[2px] after:bg-white after:content-['']"
                                         : "",
