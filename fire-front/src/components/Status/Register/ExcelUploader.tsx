@@ -38,6 +38,21 @@ function ExcelUploader({
     rallyPoint,
     setRallyPoint,
 }: ExcelUploaderProps) {
+    // 전화번호에서 숫자만 추출 (하이픈, 공백 등 제거)
+    const normalizePhone = (value: string | number | undefined): string => {
+        if (value == null) return "";
+        const digits = String(value).replace(/\D/g, "");
+        return digits.slice(0, 11); // 최대 11자리
+    };
+
+    // 전화번호 포맷팅 (표시용)
+    const formatPhone = (digits: string): string => {
+        if (!digits) return "";
+        if (digits.length <= 3) return digits;
+        if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+        return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+    };
+
     const parseExcel = async (file: File) => {
         const imported = await import("xlsx");
         const XLSX = imported.default || imported;
@@ -63,8 +78,8 @@ function ExcelUploader({
             callSign: r["호출명"] ?? "",
             capacity: toNum(r["용량"]),
             personnel: toNum(r["인원"]),
-            avlNumber: r["AVL"] ?? "",
-            psLteNumber: r["PS-LTE"] ?? "",
+            avlNumber: normalizePhone(r["AVL"]),
+            psLteNumber: normalizePhone(r["PS-LTE"]),
         }));
 
         setExcelRows(mapped);
@@ -159,10 +174,10 @@ function ExcelUploader({
                                             {r.personnel}
                                         </td>
                                         <td className="px-3 py-2 border-t">
-                                            {r.avlNumber}
+                                            {formatPhone(r.avlNumber)}
                                         </td>
                                         <td className="px-3 py-2 border-t">
-                                            {r.psLteNumber}
+                                            {formatPhone(r.psLteNumber)}
                                         </td>
                                     </tr>
                                 ))
