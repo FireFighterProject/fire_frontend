@@ -520,6 +520,33 @@ const AssemblyNavigationPage = () => {
     };
 
     /* ===========================
+     *  자원집결완료: 차량 상태 대기 + 집결 완료
+     * =========================== */
+    const [completing, setCompleting] = useState(false);
+    const [assemblyComplete, setAssemblyComplete] = useState(false);
+
+    const handleAssemblyComplete = async () => {
+        if (!vehicleId) return;
+        setCompleting(true);
+        try {
+            // 1) 차량 상태를 대기(0)로 변경
+            await apiClient.patch(`/vehicles/${vehicleId}/status`, { status: 0 });
+            // 2) 집결 체크박스 완료 (rallyPoint=1)
+            await apiClient.patch(`/vehicles/${vehicleId}/assembly`, {
+                rallyPoint: 1,
+            });
+            setAssemblyComplete(true);
+            setAccepted(false); // GPS 전송 중지
+            alert("자원집결이 완료되었습니다.\n차량 상태가 대기로 변경되었습니다.");
+        } catch (err) {
+            console.error("자원집결완료 처리 실패:", err);
+            alert("처리 중 오류가 발생했습니다.");
+        } finally {
+            setCompleting(false);
+        }
+    };
+
+    /* ===========================
      *  언마운트 시 Polyline 제거
      * =========================== */
     useEffect(() => {
@@ -627,8 +654,20 @@ const AssemblyNavigationPage = () => {
                 {accepted ? "응소 완료 · 위치 전송 중" : "응소 OK (자원집결 시작)"}
             </button>
 
+            {/* 🟢 자원집결완료 버튼 */}
+            {accepted && !assemblyComplete && (
+                <button
+                    type="button"
+                    onClick={handleAssemblyComplete}
+                    disabled={completing}
+                    className="fixed bottom-24 left-4 z-[10000] bg-green-600 text-white px-4 py-2 rounded-full shadow-md text-sm font-semibold active:scale-95 disabled:opacity-60"
+                >
+                    {completing ? "처리 중..." : "자원집결완료"}
+                </button>
+            )}
+
             {/* ⚪ 위치 공유 종료 버튼 */}
-            {accepted && (
+            {accepted && !assemblyComplete && (
                 <button
                     type="button"
                     onClick={handleStop}
