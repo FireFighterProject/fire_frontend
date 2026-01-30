@@ -1,5 +1,5 @@
 // src/pages/gps/AssemblyRequestPage.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 
@@ -22,8 +22,8 @@ const AssemblyRequest = () => {
     const [gpsError, setGpsError] = useState("");
     const [loading, setLoading] = useState(false);
 
-    // 🔥 GPS 권한 요청 (버튼 클릭 시)
-    const handleRequestLocation = () => {
+    // 🔥 위치 요청 공통 로직
+    const requestLocation = () => {
         setGpsError("");
         if (!navigator.geolocation) {
             setGpsError("브라우저에서 GPS를 지원하지 않습니다.");
@@ -41,6 +41,26 @@ const AssemblyRequest = () => {
             { enableHighAccuracy: true }
         );
     };
+
+    // 🔥 페이지 로드 시 자동 요청 (이미 허용된 경우 바로 좌표 표시)
+    useEffect(() => {
+        if (!vehicleId) return;
+        setGpsError("");
+        if (!navigator.geolocation) {
+            setGpsError("브라우저에서 GPS를 지원하지 않습니다.");
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                setLat(pos.coords.latitude);
+                setLon(pos.coords.longitude);
+            },
+            () => {
+                setGpsError("위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해주세요.");
+            },
+            { enableHighAccuracy: true }
+        );
+    }, [vehicleId]);
 
     // 🔥 응소 OK 처리: 집결 플래그 + GPS 전송
     const handleAccept = async () => {
@@ -143,7 +163,7 @@ const AssemblyRequest = () => {
                         <div className="space-y-3">
                             <p className="text-red-600 text-sm sm:text-base">{gpsError}</p>
                             <button
-                                onClick={handleRequestLocation}
+                                onClick={requestLocation}
                                 className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium"
                             >
                                 GPS 권한 허용
@@ -160,7 +180,7 @@ const AssemblyRequest = () => {
                                 위치 정보를 사용하려면 아래 버튼을 눌러 주세요.
                             </p>
                             <button
-                                onClick={handleRequestLocation}
+                                onClick={requestLocation}
                                 className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium"
                             >
                                 GPS 권한 허용
