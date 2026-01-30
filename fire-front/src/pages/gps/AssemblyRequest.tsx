@@ -1,5 +1,5 @@
 // src/pages/gps/AssemblyRequestPage.tsx
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 
@@ -22,8 +22,9 @@ const AssemblyRequest = () => {
     const [gpsError, setGpsError] = useState("");
     const [loading, setLoading] = useState(false);
 
-    // 🔥 페이지 진입 시 GPS 권한 요청
-    useEffect(() => {
+    // 🔥 GPS 권한 요청 (버튼 클릭 시)
+    const handleRequestLocation = () => {
+        setGpsError("");
         if (!navigator.geolocation) {
             setGpsError("브라우저에서 GPS를 지원하지 않습니다.");
             return;
@@ -35,11 +36,11 @@ const AssemblyRequest = () => {
                 setLon(pos.coords.longitude);
             },
             () => {
-                setGpsError("GPS 권한이 필요합니다. 브라우저 설정을 확인해주세요.");
+                setGpsError("위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해주세요.");
             },
             { enableHighAccuracy: true }
         );
-    }, []);
+    };
 
     // 🔥 응소 OK 처리: 집결 플래그 + GPS 전송
     const handleAccept = async () => {
@@ -139,16 +140,32 @@ const AssemblyRequest = () => {
                     </h3>
 
                     {gpsError ? (
-                        <p className="text-red-600 text-sm sm:text-base">{gpsError}</p>
+                        <div className="space-y-3">
+                            <p className="text-red-600 text-sm sm:text-base">{gpsError}</p>
+                            <button
+                                onClick={handleRequestLocation}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium"
+                            >
+                                GPS 권한 허용
+                            </button>
+                        </div>
                     ) : lat !== null && lon !== null ? (
                         <p className="text-gray-700 font-mono text-sm sm:text-base">
                             위도 {lat.toFixed(6)} <br />
                             경도 {lon.toFixed(6)}
                         </p>
                     ) : (
-                        <p className="text-gray-500 text-sm sm:text-base">
-                            GPS 정보를 불러오는 중...
-                        </p>
+                        <div className="space-y-3">
+                            <p className="text-gray-500 text-sm sm:text-base">
+                                위치 정보를 사용하려면 아래 버튼을 눌러 주세요.
+                            </p>
+                            <button
+                                onClick={handleRequestLocation}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium"
+                            >
+                                GPS 권한 허용
+                            </button>
+                        </div>
                     )}
                 </div>
 
