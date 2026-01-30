@@ -185,8 +185,10 @@ export default function ManageTab() {
             payload.capacity = Number(patch.capacity);
         if (patch.personnel !== undefined)
             payload.personnel = Number(patch.personnel);
-        if (patch.avl !== undefined) payload.avlNumber = patch.avl;
-        if (patch.pslte !== undefined) payload.psLteNumber = patch.pslte;
+        if (patch.avl !== undefined)
+            payload.avlNumber = String(patch.avl).replace(/\D/g, "").slice(0, 11);
+        if (patch.pslte !== undefined)
+            payload.psLteNumber = String(patch.pslte).replace(/\D/g, "").slice(0, 11);
         if (patch.rally !== undefined) payload.rallyPoint = patch.rally ? 1 : 0;
 
         return apiClient.patch(`/vehicles/${id}`, payload);
