@@ -81,8 +81,16 @@ export default function VehicleTable({
     const change = (field: keyof Vehicle, value: any) =>
         setEditData((prev) => ({ ...prev, [field]: value }));
 
-    // 전화번호 포맷팅 함수
-    const formatPhone = (digits: string) => {
+    // 전화번호 정규화: 숫자만 추출 (DB에 하이픈이 섞여 저장된 경우 대비)
+    const normalizePhone = (value: string | undefined | null): string => {
+        if (!value) return "";
+        return String(value).replace(/\D/g, "").slice(0, 11);
+    };
+
+    // 전화번호 포맷팅 함수 (표시용)
+    const formatPhone = (value: string | undefined | null): string => {
+        const digits = normalizePhone(value);
+        if (!digits) return "";
         if (digits.length <= 3) return digits;
         if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
         return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
