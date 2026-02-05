@@ -339,6 +339,7 @@ export const selectStatusCounts = createSelector([selectVehicles], (items) => {
         대기: 0,
         활동: 0,
         철수: 0,
+        집결중: 0,
     };
     for (const v of items) counts[v.status as VehicleStatus]++;
     return counts;

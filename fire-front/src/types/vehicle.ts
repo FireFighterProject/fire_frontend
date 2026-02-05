@@ -90,16 +90,17 @@ export const STATUS_CODE: Record<VehicleStatus, number> = {
     대기: 0,
     활동: 1,
     대기중: 2,
-    출동중: 3,
+    출동중: 1, // API 1=활동/출동중
     복귀: 4,
-    철수: 5,
+    철수: 2,   // API 2=철수
+    집결중: 3,
 };
 
 export const CODE_STATUS: Record<number, VehicleStatus> = {
     0: "대기",
     1: "활동",
     2: "대기중",
-    3: "출동중",
+    3: "집결중",
     4: "복귀",
     5: "철수",
 };
