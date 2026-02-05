@@ -136,7 +136,16 @@ function RegisterTab() {
                     "백엔드 응답 형식을 확인해주세요."
                 );
             } else {
-                // 2️⃣ 문자 발송
+                // 2️⃣ 등록 직후 상태를 집결중(3)으로 설정
+                try {
+                    await apiClient.patch(`/vehicles/${vehicleId}/status`, {
+                        status: 3, // 3=집결중
+                    });
+                } catch (patchErr: any) {
+                    console.warn("차량 상태(집결중) 설정 실패:", patchErr);
+                }
+
+                // 3️⃣ 문자 발송
                 try {
                     const link = getAssemblyLink(vehicleId);
                     const text = `[자원집결지 동원소방력] 차량:${form.callSign} 집결지:${rallyPoint} 응소OK:${link}`;
@@ -233,6 +242,18 @@ function RegisterTab() {
             }
 
             const count = Math.min(inserted, vehicleIds.length);
+
+            // 등록된 각 차량의 상태를 집결중(3)으로 설정
+            for (let i = 0; i < count; i++) {
+                const vehicleId = vehicleIds[i];
+                try {
+                    await apiClient.patch(`/vehicles/${vehicleId}/status`, {
+                        status: 3, // 3=집결중
+                    });
+                } catch (patchErr: any) {
+                    console.warn(`차량 ${vehicleId} 상태(집결중) 설정 실패:`, patchErr);
+                }
+            }
 
             for (let i = 0; i < count; i++) {
                 const vehicleId = vehicleIds[i];
