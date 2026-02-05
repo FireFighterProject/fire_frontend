@@ -45,7 +45,7 @@ export type ExcelPreviewRow = {
 };
 
 function RegisterTab() {
-    const DEFAULT_STATUS = 0;
+    const DEFAULT_STATUS = 3; // 3=집결중 (등록 시 기본값)
 
     // 🔥 자원집결지 주소 저장
     const [rallyPoint, setRallyPoint] = useState<string>(
@@ -119,7 +119,7 @@ function RegisterTab() {
             personnel: form.personnel === "" ? null : form.personnel,
             avlNumber: form.avlNumber,
             psLteNumber: form.psLteNumber,
-            status: form.status ?? 0,
+            status: form.status ?? 3, // 3=집결중 (등록 시 기본값)
         };
 
         setLoading(true);
@@ -167,7 +167,7 @@ function RegisterTab() {
                 personnel: "",
                 avlNumber: "",
                 psLteNumber: "",
-                status: 0,
+                status: 3, // 3=집결중
             });
         } catch (err: any) {
             console.error("🚨 /vehicles 단건 등록 실패", err?.response?.data ?? err);
@@ -196,6 +196,7 @@ function RegisterTab() {
                 avlNumber: r.avlNumber,
                 psLteNumber: r.psLteNumber,
                 rallyPoint: rallyPointInput,
+                status: 3, // 3=집결중 (등록 시 기본값)
             }));
 
             const res = await apiClient.post("/vehicles/batch", body);

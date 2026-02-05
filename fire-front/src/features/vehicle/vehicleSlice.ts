@@ -39,11 +39,12 @@ type ApiVehicle = {
 /* ======================================================
     상태 코드 → UI 라벨
 ====================================================== */
-export type VehicleStatus = "대기" | "활동" | "철수";
+export type VehicleStatus = "대기" | "활동" | "철수" | "집결중";
 
 const statusCodeToLabel = (code: number): VehicleStatus => {
     if (code === 1) return "활동";
     if (code === 2) return "철수";
+    if (code === 3) return "집결중";
     return "대기";
 };
 

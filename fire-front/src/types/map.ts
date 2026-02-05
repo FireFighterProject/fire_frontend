@@ -27,7 +27,7 @@ export interface MapVehicle {
     speedKph?: number;
 
     // 상태
-    status: "대기" | "활동" | "철수" | "기타";
+    status: "대기" | "활동" | "철수" | "집결중" | "기타";
 }
 
 // 기존 Vehicle 타입이 필요하면 아래처럼 alias

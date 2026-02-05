@@ -45,6 +45,7 @@ const STATUS_LABELS: Record<number, Vehicle["status"]> = {
   0: "대기",
   1: "출동중",
   2: "철수",
+  3: "집결중",
 };
 
 const api = axios.create({

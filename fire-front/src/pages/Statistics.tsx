@@ -61,6 +61,8 @@ type ApiLogEvent = {
 const STATUS_LABELS: Record<number, Vehicle["status"] | string> = {
   0: "대기",
   1: "출동중",
+  2: "철수",
+  3: "집결중",
 };
 
 /* ========= axios 인스턴스 ========= */

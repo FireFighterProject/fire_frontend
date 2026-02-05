@@ -21,7 +21,8 @@ export type VehicleStatus =
     | "대기중"
     | "출동중"
     | "복귀"
-    | "철수";
+    | "철수"
+    | "집결중";
 
 export interface Vehicle {
     id: string | number;
