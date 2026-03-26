@@ -1,3 +1,11 @@
-https://inflective-chia-inarguably.ngrok-free.dev/gps/status?missionId=20251202-002&vehicle=61&title=의성읍%20교통사고&address=경상북도%20의성군%20봉양면%2030-12&desc=2중%20추돌사고
-https://inflective-chia-inarguably.ngrok-free.dev/gps/status?missionId=20251202-003&vehicle=62&title=산불의심&address=경상북도%20의성군%20가음면%2045-9&desc=산불%20연기%20관측
-https://inflective-chia-inarguably.ngrok-free.dev/gps/status?missionId=20251202-004&vehicle=63&title=구급%20출동&address=경상북도%20의성군%20정재면%20120-5&desc=응급%20후%20환자%20수신
+# fire_frontend
+
+소방동원차량 관리 시스템의 **프론트엔드** 저장소입니다.
+
+## 구성
+
+| 경로 | 설명 |
+|------|------|
+| [`fire-front/`](./fire-front/) | React + Vite SPA (관제·차량용 GPS 화면) |
+
+설치·실행·환경 변수·배포는 **[fire-front/README.md](./fire-front/README.md)** 를 참고하세요.
