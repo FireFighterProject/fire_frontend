@@ -1,7 +1,9 @@
 // src/pages/ManageTab.tsx
 import { useEffect, useState, useMemo } from "react";
 import apiClient from "../../api/axios";
-import { useDispatch, useSelector } from "react-redux";
+import { fetchAllGps } from "../../api/gps";
+import { fetchFireStations } from "../../api/stations";
+import { useAppDispatch, useAppSelector } from "../../hooks";
 import type { FilterQuery } from "../Status/manage/FilterBar";
 
 import { fetchVehicles, selectVehicles } from "../../features/vehicle/vehicleSlice";
@@ -14,8 +16,8 @@ import type { Vehicle } from "../../types/vehicle";
 
 export default function ManageTab() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dispatch = useDispatch<any>();
-    const vehicles = useSelector(selectVehicles) as Vehicle[];
+    const dispatch = useAppDispatch();
+    const vehicles = useAppSelector(selectVehicles) as Vehicle[];
 
     const [loading, setLoading] = useState(false);
 
@@ -38,10 +40,9 @@ export default function ManageTab() {
     // 1) 소방서 전체 로드
     // ========================================================
     useEffect(() => {
-        apiClient
-            .get(`/fire-stations`)
-            .then((res) => setAllStations(res.data))
-            .catch((e) => console.error("❌ fire-stations 요청 실패:", e));
+        fetchFireStations()
+            .then(setAllStations)
+            .catch((e) => console.error("fire-stations 요청 실패:", e));
     }, []);
 
     // ========================================================
@@ -60,22 +61,11 @@ export default function ManageTab() {
 
         const fetchGpsActiveIds = async () => {
             try {
-                const res = await apiClient.get("/gps/all");
+                const data = await fetchAllGps();
                 if (cancelled) return;
-
-                const data = res.data as { vehicleId: number }[];
-
-                // 🔍 3-1) /gps/all 원본 응답 로그
-                console.log("[MANAGE] /gps/all 응답:", data);
-
-                const ids = data.map((g) => Number(g.vehicleId));
-
-                // 🔍 3-2) 추출된 vehicleId 목록 로그
-                console.log("[MANAGE] GPS 수신 vehicleId 목록:", ids);
-
-                setGpsActiveIds(ids);
+                setGpsActiveIds(data.map((g) => Number(g.vehicleId)));
             } catch (e) {
-                console.error("❌ gps/all 요청 실패:", e);
+                console.error("gps/all 요청 실패:", e);
             }
         };
 
@@ -91,34 +81,6 @@ export default function ManageTab() {
             window.clearInterval(intervalId);
         };
     }, []);
-
-    // ========================================================
-    // 3-A) GPS 수신 차량 상세 로그 (Redux vehicles와 매칭)
-    // ========================================================
-    useEffect(() => {
-        if (!gpsActiveIds.length) {
-            console.log("[MANAGE] 현재 GPS 수신 차량 없음");
-            return;
-        }
-
-        const activeVehicles = vehicles.filter((v) =>
-            gpsActiveIds.includes(Number(v.id))
-        );
-
-        console.log("[MANAGE] GPS 수신 차량 매칭 결과:", {
-            gpsIds: gpsActiveIds,
-            gpsCount: gpsActiveIds.length,
-            matchedCount: activeVehicles.length,
-            vehicles: activeVehicles.map((v) => ({
-                id: v.id,
-                stationId: v.stationId,
-                sido: v.sido,
-                callname: v.callname,
-                type: v.type,
-                status: v.status,
-            })),
-        });
-    }, [gpsActiveIds, vehicles]);
 
     // ========================================================
     // 4) 필터링

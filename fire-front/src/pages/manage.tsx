@@ -1,9 +1,7 @@
 // src/pages/Manage.tsx
 
 import React, { useMemo, useState } from "react";
-import { useSelector, useDispatch } from "react-redux";
-import type { AppDispatch } from "../store";
-import type { RootState } from "../store";
+import { useAppDispatch, useAppSelector } from "../hooks";
 import type { Vehicle } from "../types/global";
 import apiClient from "../api/axios";
 import { fetchVehicles } from "../features/vehicle/vehicleSlice";
@@ -301,9 +299,9 @@ function buildRowPredicate(label: string) {
  * 메인 컴포넌트
  * ========================= */
 const Manage: React.FC = () => {
-  const dispatch = useDispatch<AppDispatch>();
-  const isDisaster = useSelector((s: RootState) => s.emergency.isDisaster);
-  const vehicles = useSelector((s: RootState) => s.vehicle.vehicles) as Vehicle[];
+  const dispatch = useAppDispatch();
+  const isDisaster = useAppSelector((s) => s.emergency.isDisaster);
+  const vehicles = useAppSelector((s) => s.vehicle.vehicles) as Vehicle[];
 
   const [assignedIds, setAssignedIds] = useState<Set<number>>(new Set());
   const [assigned, setAssigned] = useState<

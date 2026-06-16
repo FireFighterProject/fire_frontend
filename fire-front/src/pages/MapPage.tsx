@@ -1,6 +1,6 @@
 // src/pages/MapPage.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSelector } from "react-redux";
+import { useAppSelector } from "../hooks";
 import { useKakaoLoader } from "../hooks/useKakaoLoader";
 
 import DragSelectLayer from "../components/map/DragSelectLayer";
@@ -8,7 +8,6 @@ import MapStatsPanel from "../components/map/MapStatsPanel";
 import MapFilterPanel from "../components/map/MapFilterPanel";
 import PolygonLayer from "../components/map/PolygonLayer";
 
-import type { RootState } from "../store";
 import type {
   Filters,
   MapStats,
@@ -123,7 +122,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
   const kakaoReady = useKakaoLoader();
 
   //  Redux 차량
-  const storeVehicles = useSelector((s: RootState) => s.vehicle.vehicles) as MapVehicle[];
+  const storeVehicles = useAppSelector((s) => s.vehicle.vehicles) as MapVehicle[];
 
   //  GPS 데이터
   const [lastLocs, setLastLocs] = useState<ApiLastLocation[]>([]);

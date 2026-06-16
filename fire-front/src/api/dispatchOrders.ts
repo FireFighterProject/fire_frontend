@@ -29,3 +29,6 @@ export const updateVehicleStatus = (
 
 export const endDispatchOrder = (id: number) =>
     api.patch(`/dispatch-orders/${id}/end`);
+
+export const getLatestDispatchByVehicle = (vehicleId: number) =>
+    api.get(`/dispatch-orders/latest-by-vehicle/${vehicleId}`);

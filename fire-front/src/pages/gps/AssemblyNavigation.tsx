@@ -114,6 +114,7 @@ const AssemblyNavigationPage = () => {
         null
     );
     const latestPosRef = useRef<{ lat: number; lon: number } | null>(null);
+    const speedKphRef = useRef<number | null>(null);
 
     /* ===========================
      *  카카오맵 SDK 로딩
@@ -396,6 +397,7 @@ const AssemblyNavigationPage = () => {
                         const speed = (distM / dtSec) * 3.6; // m/s → km/h
                         if (!Number.isNaN(speed) && speed < 200) {
                             setCurrentSpeedKph(speed);
+                            speedKphRef.current = speed;
                         }
                     }
                 }
@@ -413,8 +415,8 @@ const AssemblyNavigationPage = () => {
 
                     // 현재 속도가 있으면 그걸로 ETA 추정, 없으면 대략 40km/h 가정
                     const speedKph =
-                        currentSpeedKph && currentSpeedKph > 5
-                            ? currentSpeedKph
+                        speedKphRef.current && speedKphRef.current > 5
+                            ? speedKphRef.current
                             : 40;
                     const speedMps = (speedKph * 1000) / 3600;
                     if (speedMps > 0) {
@@ -434,7 +436,7 @@ const AssemblyNavigationPage = () => {
         return () => {
             navigator.geolocation.clearWatch(watchId);
         };
-    }, [map, destLat, destLon, currentSpeedKph]);
+    }, [map, destLat, destLon]);
 
     /* ===========================
      *  응소 OK 이후 주기적인 GPS 전송

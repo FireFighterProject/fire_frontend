@@ -1,30 +1,18 @@
 // src/pages/Report.tsx
-import React, { useMemo, useState, useEffect } from "react";
-import { useSelector } from "react-redux";
-import type { RootState } from "../store";
+import { useMemo, useState, useEffect } from "react";
+import { useAppSelector } from "../hooks";
 import type { VehicleStatus } from "../types/global";
-
-/* UTILS */
-function groupBy<T, K extends string | number>(
-  arr: T[],
-  keyFn: (x: T) => K
-): Record<K, T[]> {
-  return arr.reduce((m, x) => {
-    const k = keyFn(x);
-    (m[k] ??= []).push(x);
-    return m;
-  }, {} as Record<K, T[]>);
-}
-
-const unique = <T,>(arr: T[]) => Array.from(new Set(arr));
-
-/* FireStation 타입 */
-type ApiFireStation = {
-  id: number;
-  sido: string;
-  name: string;
-  address: string;
-};
+import type { ApiFireStation } from "../api/types";
+import { fetchFireStations } from "../api/stations";
+import {
+  groupBy,
+  unique,
+  PreviewSection,
+  InfoRow,
+  KPICard,
+  SimpleTable,
+  Labeled,
+} from "../components/Report/ReportParts";
 
 /* Topic Types */
 type Topic =
@@ -37,7 +25,7 @@ type Topic =
 type TabStep = 1 | 2 | 3 | 4;
 
 export default function ReportPage() {
-  const vehicles = useSelector((s: RootState) => s.vehicle.vehicles);
+  const vehicles = useAppSelector((s) => s.vehicle.vehicles);
 
   const [step, setStep] = useState<TabStep>(1);
   const [topic, setTopic] = useState<Topic>("전체 통계");
@@ -51,16 +39,9 @@ export default function ReportPage() {
    * 🔥 소방서 목록 불러오기
    * ------------------------- */
   useEffect(() => {
-    async function loadStations() {
-      try {
-        const res = await fetch("/api/fire-stations");
-        const data = await res.json();
-        setStations(data);
-      } catch (err) {
-        console.error("Failed to load stations", err);
-      }
-    }
-    loadStations();
+    fetchFireStations()
+      .then(setStations)
+      .catch((err) => console.error("Failed to load stations", err));
   }, []);
 
   /* 🔥 vehicle + station 매핑 */
@@ -507,119 +488,3 @@ export default function ReportPage() {
   );
 }
 
-/* --------------------------------
- * COMPONENTS
- * -------------------------------- */
-function PreviewSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <h3 className="mb-2 text-sm font-semibold text-gray-700">
-        {title}
-      </h3>
-      {children}
-    </section>
-  );
-}
-
-function InfoRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) {
-  return (
-    <div className="flex text-sm mb-1">
-      <div className="w-32 text-gray-500">{label}</div>
-      <div className="font-medium">{value}</div>
-    </div>
-  );
-}
-
-function KPICard({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3 text-center shadow-sm">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="mt-1 text-lg font-bold">{value}</p>
-    </div>
-  );
-}
-
-function SimpleTable({
-  headers,
-  rows,
-}: {
-  headers: string[];
-  rows: (string | number)[][];
-}) {
-  return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <table className="min-w-full border-collapse bg-white text-sm">
-        <thead>
-          <tr className="bg-gray-100">
-            {headers.map((h) => (
-              <th
-                key={h}
-                className="whitespace-nowrap border-b px-3 py-2 text-left font-semibold text-gray-700"
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr>
-              <td
-                className="px-3 py-6 text-center text-gray-500"
-                colSpan={headers.length}
-              >
-                데이터가 없습니다.
-              </td>
-            </tr>
-          ) : (
-            rows.map((row, i) => (
-              <tr key={i} className="even:bg-gray-50">
-                {row.map((cell, j) => (
-                  <td
-                    key={j}
-                    className="whitespace-nowrap border-t px-3 py-2 text-gray-800"
-                  >
-                    {cell}
-                  </td>
-                ))}
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function Labeled({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="mb-3">
-      <p className="mb-1 text-xs text-gray-600">{label}</p>
-      {children}
-    </div>
-  );
-}

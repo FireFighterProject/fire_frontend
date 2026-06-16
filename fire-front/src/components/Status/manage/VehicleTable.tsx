@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import Td from "./Td";
 import type { Vehicle } from "../../../types/vehicle";
 
@@ -27,7 +27,7 @@ type Props = {
     deleting: boolean;
 };
 
-export default function VehicleTable({
+function VehicleTable({
     rows,
     allStations,
     loading,
@@ -345,3 +345,5 @@ export default function VehicleTable({
         </div>
     );
 }
+
+export default memo(VehicleTable);

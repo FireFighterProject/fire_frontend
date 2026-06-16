@@ -8,16 +8,18 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { useDispatch, useSelector } from "react-redux";
-
+import { useAppDispatch, useAppSelector } from "../hooks";
+import { setVehicles, updateVehicle } from "../features/vehicle/vehicleSlice";
+import type { Vehicle } from "../types/global";
+import { fetchVehicleList } from "../api/vehicles";
+import { fetchFireStations } from "../api/stations";
+import { getLatestDispatchByVehicle } from "../api/dispatchOrders";
+import { patchVehicleStatus } from "../api/vehicles";
+import { mapApiListToVehicles } from "../services/mappers/vehicleMapper";
+import apiClient from "../api/axios";
 import ActivitySummary from "../components/Activity/ActivitySummary";
 import ActivityFilter from "../components/Activity/ActivityFilter";
 import ActivityTable from "../components/Activity/ActivityTable";
-
-import type { RootState, AppDispatch } from "../store";
-import { setVehicles, updateVehicle } from "../features/vehicle/vehicleSlice";
-import type { Vehicle } from "../types/global";
-import axios from "axios";
 
 /* -------------------------------------------------------
  * 전역 kakao 타입
@@ -31,52 +33,11 @@ declare global {
 /* -------------------------------------------------------
  * 서버 타입
  * ------------------------------------------------------- */
-type ApiVehicleListItem = {
-  id: number;
-  stationId: number;
-  sido: string;
-  typeName: string;
-  callSign: string;
-  status: number;
-  rallyPoint: number;
-  capacity?: number;
-  personnel?: number;
-  avlNumber?: string;
-  psLteNumber?: string;
-};
-
-type ApiFireStation = {
-  id: number;
-  sido: string;
-  name: string;
-  address: string;
-};
-
-//  /dispatch-orders/latest-by-vehicle/{vehicleId} 응답 타입
-type LatestDispatchResponse = {
-  orderId: number;
-  address: string;
-  content: string;
-  message: string; // "현재 출동 중입니다." 또는 "출동 이력이 없습니다" 등
-};
-
 type FilterState = {
   sido: string;
   type: string;
   query: string;
 };
-
-/* 상태 코드 변환 */
-const STATUS_LABELS: Record<number, Vehicle["status"]> = {
-  0: "대기",
-  1: "활동",
-  2: "철수",
-  3: "집결중",
-};
-
-const api = axios.create({
-  baseURL: "/api",
-});
 
 /* -------------------------------------------------------
  * 카카오맵 SDK 로더
@@ -134,7 +95,7 @@ const MapPopup: React.FC<MapPopupProps> = ({ vehicle, onClose }) => {
 
         const fetchGps = async () => {
           try {
-            const res = await api.get(`/gps/location/${vehicle.id}`);
+            const res = await apiClient.get(`/gps/location/${vehicle.id}`);
             if (cancelled) return;
 
             const { latitude, longitude } = res.data;
@@ -242,8 +203,8 @@ const MapPopup: React.FC<MapPopupProps> = ({ vehicle, onClose }) => {
  * ActivityPage
  * ------------------------------------------------------- */
 const ActivityPage: React.FC = () => {
-  const dispatch = useDispatch<AppDispatch>();
-  const vehicles = useSelector((s: RootState) => s.vehicle.vehicles);
+  const dispatch = useAppDispatch();
+  const vehicles = useAppSelector((s) => s.vehicle.vehicles);
 
   const [fetching, setFetching] = useState(false);
   const [pendingReturn, setPendingReturn] = useState<Record<string, boolean>>(
@@ -273,9 +234,7 @@ const ActivityPage: React.FC = () => {
       await Promise.all(
         activeVehicles.map(async (v) => {
           try {
-            const res = await api.get<LatestDispatchResponse>(
-              `/dispatch-orders/latest-by-vehicle/${v.id}`
-            );
+            const res = await getLatestDispatchByVehicle(Number(v.id));
 
             // 더 최신 fetch가 있으면 이 응답은 버림
             if (fetchId !== fetchIdRef.current) return;
@@ -318,39 +277,17 @@ const ActivityPage: React.FC = () => {
 
     try {
       // 1) 차량 + 소방서를 동시에 호출 (병렬)
-      const [vehicleRes, stationRes] = await Promise.all([
-        api.get<ApiVehicleListItem[]>("/vehicles"),
-        api.get<ApiFireStation[]>("/fire-stations"),
+      const [vehicleList, stationList] = await Promise.all([
+        fetchVehicleList(),
+        fetchFireStations(),
       ]);
 
-      const vehicleList = vehicleRes.data;
-      const stationMap = new Map<number, ApiFireStation>(
-        stationRes.data.map((s) => [s.id, s])
-      );
-
-      // 2) 기본 Vehicle 리스트 구성 (출동 정보는 비워둠)
-      const baseList: Vehicle[] = vehicleList.map((v) => {
-        const station = stationMap.get(v.stationId);
-
-        return {
-          id: String(v.id),
-          stationId: v.stationId,
-          sido: v.sido ?? station?.sido ?? "",
-          station: station?.name ?? "",
-          type: v.typeName,
-          callname: v.callSign,
-          capacity: String(v.capacity ?? "0"),
-          personnel: String(v.personnel ?? "0"),
-          avl: v.avlNumber ?? "",
-          pslte: v.psLteNumber ?? "",
-          status: STATUS_LABELS[v.status] ?? "대기",
-          rally: v.rallyPoint === 1,
-
-          // 출동 정보는 나중에 latest-by-vehicle로 채움
-          dispatchPlace: "",
-          content: "",
-        };
-      });
+      const stationMap = new Map(stationList.map((s) => [s.id, s]));
+      const baseList = mapApiListToVehicles(vehicleList, stationMap).map((v) => ({
+        ...v,
+        dispatchPlace: "",
+        content: "",
+      }));
 
       // 3) 가장 최신 fetch만 반영
       if (myFetchId === fetchIdRef.current) {
@@ -391,9 +328,7 @@ const ActivityPage: React.FC = () => {
       );
 
       // 2) 서버에 차량 상태를 0(대기)로 변경 요청
-      await api.patch(`/vehicles/${vehicleId}/status`, {
-        status: 0,
-      });
+      await patchVehicleStatus(vehicleId, 0);
     } catch {
       alert("복귀 처리 실패");
       // 필요하면 여기서 상태 롤백도 가능

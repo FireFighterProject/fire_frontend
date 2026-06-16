@@ -112,20 +112,23 @@ npm run lint
 | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) | 트러블슈팅 가이드 |
 | [TROUBLESHOOTING_GPS.md](./TROUBLESHOOTING_GPS.md) | GPS `watchPosition` 무한 재등록 루프 문제 |
 | [TROUBLESHOOTING_PORTFOLIO.md](./TROUBLESHOOTING_PORTFOLIO.md) | 트러블슈팅 사례 (포트폴리오) |
+| [OPTIMIZATION.md](./OPTIMIZATION.md) | 성능 최적화 및 아키텍처 개선 가이드 |
 
 ## 프로젝트 구조 (요약)
 
 ```
 src/
-  api/           # Axios 인스턴스
+  api/           # Axios 인스턴스 + 도메인 API (vehicles, stations, gps 등)
   components/    # UI·헤더·통계·Status 등
   features/      # Redux 슬라이스 (vehicle 등)
   pages/         # 라우트별 페이지
   pages/gps/     # 차량용 GPS·집결·네비
-  services/      # 등록 유틸 등
+  services/      # 매퍼·파서·유틸 (mappers/vehicleMapper.ts 등)
   types/         # TypeScript 타입
-  Route.tsx      # React Router 정의
+  Route.tsx      # React Router (lazy loading)
 ```
+
+성능·구조 개선 상세는 [OPTIMIZATION.md](./OPTIMIZATION.md)를 참고하세요.
 
 ## 라이선스
 

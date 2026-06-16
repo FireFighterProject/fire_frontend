@@ -5,6 +5,8 @@ pipeline {
     EC2_HOST   = '3.39.229.253'
     EC2_USER   = 'ec2-user'
     DEPLOY_DIR = '/home/ec2-user/fire-frontend'
+    // 백엔드 미배포 시 목 API 사용 (배포 후 false 로 변경)
+    VITE_USE_MOCK_API = 'true'
   }
 
   stages {
@@ -24,7 +26,12 @@ pipeline {
     stage('Build') {
       steps {
         dir('fire-front') {
-          bat 'npm run build'
+          // Jenkins Credentials 에 fire-front-env (Secret file) 등록 시 .env.production 으로 사용
+          bat '''
+            if exist ..\\fire-front-env copy /Y ..\\fire-front-env .env.production
+            if not exist .env.production if exist .env copy /Y .env .env.production
+            npm run build
+          '''
         }
       }
     }

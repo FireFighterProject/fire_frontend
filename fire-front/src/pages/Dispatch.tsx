@@ -1,176 +1,73 @@
 // src/pages/Dispatch.tsx
-import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { useDispatch, useSelector } from "react-redux";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import KakaoMapModal from "../components/Dispatch/KakaoMapModal";
-import type { RootState, AppDispatch } from "../store";
 import { setVehicles } from "../features/vehicle/vehicleSlice";
 import type { Vehicle } from "../types/global";
-
+import { useAppDispatch, useAppSelector } from "../hooks";
 import {
   createDispatchOrder,
   assignVehicle,
   sendDispatchOrder,
 } from "../api/dispatchOrders";
+import { fetchVehicleList } from "../api/vehicles";
+import { fetchStationsByIds } from "../api/stations";
+import { mapApiListToVehicles } from "../services/mappers/vehicleMapper";
+import api from "../api/axios";
 
-import axios from "axios";
-
-/* ===========================
-    API 타입
-=========================== */
-type ApiVehicleListItem = {
-  id: number;
-  stationId: number;
-  sido: string;
-  typeName: string;
-  callSign: string;
-  status: number; // 0=대기, 1=활동, 2=철수
-  rallyPoint: number;
-  capacity?: number;
-  personnel?: number;
-  avlNumber?: string;
-  psLteNumber?: string;
-};
-
-type ApiFireStation = {
-  id: number;
-  sido: string;
-  name: string;
-  address: string;
-};
-
-/* ===========================
-    상태코드 라벨
-=========================== */
-const STATUS_LABELS: Record<number, Vehicle["status"]> = {
-  0: "대기",
-  1: "출동중",
-  2: "철수",
-  3: "집결중",
-};
-
-const api = axios.create({
-  baseURL: "/api",
-  headers: { "Content-Type": "application/json" },
-});
-
-/* ===========================
-    매핑 함수
-=========================== */
-const mapApiToVehicle = (
-  v: ApiVehicleListItem,
-  station?: ApiFireStation
-): Vehicle => ({
-  id: String(v.id),
-  stationId: v.stationId,
-  sido: v.sido ?? station?.sido ?? "",
-  station: station?.name ?? "",
-  type: v.typeName,
-  callname: v.callSign,
-  capacity: String(v.capacity ?? "0"),
-  personnel: String(v.personnel ?? "0"),
-  avl: v.avlNumber ?? "",
-  pslte: v.psLteNumber ?? "",
-  status: STATUS_LABELS[v.status],
-  rally: v.rallyPoint === 1,
-  dispatchPlace: "",
-  content: "",
-});
-
-/* ================================================================
-    Dispatch Page
-================================================================ */
 const DispatchPage: React.FC = () => {
-  const dispatch = useDispatch<AppDispatch>();
-  const vehicles = useSelector((s: RootState) => s.vehicle.vehicles);
+  const dispatch = useAppDispatch();
+  const vehicles = useAppSelector((s) => s.vehicle.vehicles);
 
   const [fetching, setFetching] = useState(false);
 
-  /* 출동 생성 */
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [address, setAddress] = useState("");
   const [pos, setPos] = useState<{ lat: number; lng: number } | null>(null);
   const [mapOpen, setMapOpen] = useState(false);
 
-  /* 편성 */
   const [selected, setSelected] = useState<string[]>([]);
   const [assigned, setAssigned] = useState<string[]>([]);
 
-  /* 소방서 캐시 */
-  const [stationCache, setStationCache] =
-    useState<Record<number, ApiFireStation>>({});
+  const stationCacheRef = useRef<
+    Record<number, { id: number; sido: string; name: string; address: string }>
+  >({});
 
-  /* ===========================
-        소방서 정보 조회
-  ============================ */
-  const getStations = async (ids: number[]) => {
-    const unique = Array.from(new Set(ids));
-    const need = unique.filter((id) => !stationCache[id]);
-
-    let fetched: Array<[number, ApiFireStation]> = [];
-
-    if (need.length) {
-      fetched = await Promise.all(
-        need.map((id) =>
-          api.get<ApiFireStation>(`/fire-stations/${id}`).then((r): [number, ApiFireStation] => [id, r.data])
-        )
-      );
-    }
-
-    const next = { ...stationCache };
-    fetched.forEach(([id, fs]) => (next[id] = fs));
-
-    if (fetched.length) setStationCache(next);
-
-    return next;
-  };
-
-  /* ===========================
-        차량 불러오기 (+로딩 UI)
-  ============================ */
-  const fetchVehicles = useCallback(async () => {
+  const loadVehicles = useCallback(async () => {
     try {
       setFetching(true);
-
-      const res = await api.get<ApiVehicleListItem[]>("/vehicles");
-      const list = res.data ?? [];
-
-      const stations = await getStations(list.map((v) => v.stationId));
-
-      const mapped = list.map((v) => mapApiToVehicle(v, stations[v.stationId]));
+      const list = await fetchVehicleList();
+      const stations = await fetchStationsByIds(
+        list.map((v) => v.stationId),
+        stationCacheRef.current
+      );
+      stationCacheRef.current = stations;
+      const mapped = mapApiListToVehicles(list, stations);
       dispatch(setVehicles(mapped));
     } catch {
       alert("차량 목록 조회 실패");
     } finally {
       setFetching(false);
     }
-  }, [dispatch, stationCache]);
+  }, [dispatch]);
 
   useEffect(() => {
-    fetchVehicles();
-  }, [fetchVehicles]);
+    loadVehicles();
+  }, [loadVehicles]);
 
-  /* ===========================
-        차량 선택
-  ============================ */
   const toggleSelect = (id: string) => {
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]
     );
   };
 
-  /* ===========================
-        차량 정렬
-  ============================ */
   const sortedVehicles = useMemo(() => {
+    const isActive = (v: Vehicle) => v.status === "활동" || v.status === "출동중";
     return [...vehicles].sort((a, b) =>
-      a.status === "출동중" && b.status !== "출동중" ? -1 : 1
+      isActive(a) && !isActive(b) ? -1 : 1
     );
   }, [vehicles]);
 
-  /* ===========================
-        로컬 편성
-  ============================ */
   const handleAssignLocal = () => {
     if (selected.length === 0) return alert("차량을 선택하세요.");
     setAssigned((prev) => [...prev, ...selected.filter((id) => !prev.includes(id))]);
@@ -181,9 +78,6 @@ const DispatchPage: React.FC = () => {
     setAssigned((prev) => prev.filter((v) => v !== id));
   };
 
-  /* ===========================
-        출동 발송
-  ============================ */
   const handleSendAll = async () => {
     if (!title.trim()) return alert("출동 제목을 입력하세요.");
     if (!address.trim()) return alert("출동 주소를 입력하세요.");
@@ -217,22 +111,17 @@ const DispatchPage: React.FC = () => {
       setAssigned([]);
       setSelected([]);
 
-      fetchVehicles();
+      loadVehicles();
     } catch {
       alert("출동 처리 중 오류 발생");
     }
   };
 
-  /* ===========================
-        UI
-  ============================ */
   return (
     <div className="p-6 space-y-6">
-
-      {/* 차량 새로고침 버튼 */}
       <div className="flex justify-end mb-3">
         <button
-          onClick={fetchVehicles}
+          onClick={loadVehicles}
           disabled={fetching}
           className={`px-4 py-2 rounded text-white 
             ${fetching ? "bg-gray-400" : "bg-green-600 hover:bg-green-700"}`}
@@ -241,7 +130,6 @@ const DispatchPage: React.FC = () => {
         </button>
       </div>
 
-      {/* 출동 생성 영역 */}
       <section className="border rounded p-4 bg-gray-50 space-y-3">
         <h2 className="font-bold text-lg">출동 생성</h2>
 
@@ -294,7 +182,6 @@ const DispatchPage: React.FC = () => {
         </button>
       </section>
 
-      {/* 편성된 차량 */}
       <section className="border rounded p-4 bg-gray-100 space-y-2">
         <h2 className="font-bold text-lg">편성된 차량</h2>
 
@@ -326,7 +213,6 @@ const DispatchPage: React.FC = () => {
         )}
       </section>
 
-      {/* 차량 테이블 */}
       <section>
         <div className="flex justify-between items-center mb-2">
           <h2 className="font-bold text-lg">차량 목록</h2>
@@ -339,7 +225,6 @@ const DispatchPage: React.FC = () => {
           </button>
         </div>
 
-        {/* 🔥 로딩 UI */}
         {fetching ? (
           <div className="text-center py-10 text-gray-500 text-sm">
             차량 정보를 불러오는 중입니다...
@@ -375,18 +260,16 @@ const DispatchPage: React.FC = () => {
                           onChange={() => toggleSelect(String(v.id))}
                         />
                       </td>
-                      <td className="border px-2 py-1 text-center">{v.sido}</td>
+                      <td className="border px-2 py-1">{v.sido}</td>
                       <td className="border px-2 py-1">{v.station}</td>
-                      <td className="border px-2 py-1 text-center">{v.type}</td>
+                      <td className="border px-2 py-1">{v.type}</td>
                       <td className="border px-2 py-1">{v.callname}</td>
-                      <td className="border px-2 py-1 text-right">{v.capacity}</td>
-                      <td className="border px-2 py-1 text-center">{v.personnel}</td>
+                      <td className="border px-2 py-1">{v.capacity}</td>
+                      <td className="border px-2 py-1">{v.personnel}</td>
                       <td className="border px-2 py-1">{v.avl}</td>
                       <td className="border px-2 py-1">{v.pslte}</td>
-                      <td className="border px-2 py-1 text-center">{v.status}</td>
-                      <td className="border px-2 py-1 text-center">
-                        {v.rally ? "O" : "X"}
-                      </td>
+                      <td className="border px-2 py-1">{v.status}</td>
+                      <td className="border px-2 py-1">{v.rally ? "Y" : "N"}</td>
                     </tr>
                   ))}
               </tbody>
@@ -395,15 +278,14 @@ const DispatchPage: React.FC = () => {
         )}
       </section>
 
-      {/* MAP 모달 */}
       {mapOpen && (
         <KakaoMapModal
-          onSelect={({ address, lat, lng }) => {
-            setAddress(address);
+          onClose={() => setMapOpen(false)}
+          onSelect={({ lat, lng, address }) => {
             setPos({ lat, lng });
+            setAddress(address);
             setMapOpen(false);
           }}
-          onClose={() => setMapOpen(false)}
         />
       )}
     </div>

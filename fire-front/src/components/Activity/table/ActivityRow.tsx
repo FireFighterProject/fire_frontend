@@ -1,10 +1,10 @@
-import React from "react";
+import React, { memo } from "react";
 import type { Vehicle } from "../../../types/global";
 
 interface Props {
     vehicle: Vehicle;
     onReturn: (id: string) => void;
-    onOpenMap: (vehicle: Vehicle) => void; // ✅ 추가
+    onOpenMap: (vehicle: Vehicle) => void;
 }
 
 const ActivityRow: React.FC<Props> = ({ vehicle, onReturn, onOpenMap }) => {
@@ -25,7 +25,7 @@ const ActivityRow: React.FC<Props> = ({ vehicle, onReturn, onOpenMap }) => {
                 <div className="flex gap-1 justify-center">
                     <button
                         className="bg-green-500 text-white text-xs px-2 py-1 rounded hover:bg-green-600"
-                        onClick={() => onOpenMap(vehicle)}  // ✅ 팝업 열기
+                        onClick={() => onOpenMap(vehicle)}
                     >
                         지도
                     </button>
@@ -41,4 +41,4 @@ const ActivityRow: React.FC<Props> = ({ vehicle, onReturn, onOpenMap }) => {
     );
 };
 
-export default ActivityRow;
+export default memo(ActivityRow);
