@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../hooks";
 import type { Vehicle } from "../types/global";
 import apiClient from "../api/axios";
+import { buildAppPath } from "../utils/appUrl";
 import { fetchVehicles } from "../features/vehicle/vehicleSlice";
 
 /* =========================
@@ -360,7 +361,7 @@ const Manage: React.FC = () => {
     v: { id: number | string },
     missionId: number
   ) {
-    const link = `fire.rjsgud.com/gps/ready?missionId=${missionId}&vehicle=${v.id}`;
+    const link = buildAppPath(`/gps/ready?missionId=${missionId}&vehicle=${v.id}`);
 
     return `출동요청 출동링크: ${link}`;
   }

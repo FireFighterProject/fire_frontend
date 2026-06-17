@@ -46,14 +46,15 @@ server {
         try_files \$uri \$uri/ /index.html;
     }
 
-    # 백엔드 API 프록시 (ec2-setup.sh 인자로 전달한 주소)
+    # /api/ 접두사 유지 (proxy_pass 끝에 /api/ 필수 — /api 제거 시 403·500 발생)
     location /api/ {
-        proxy_pass ${BACKEND_URL}/;
+        proxy_pass ${BACKEND_URL}/api/;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Origin "";
     }
 
     # GPS(Geolocation) 사용 허용

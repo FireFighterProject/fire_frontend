@@ -203,8 +203,13 @@ const Forecast: React.FC = () => {
                 level: 9,
                 scrollwheel: false,
                 draggable: true,
+                zoomable: true,
             });
+            map.setDraggable(true);
+            map.setZoomable(true);
             mapRef.current = map;
+
+            requestAnimationFrame(() => map.relayout());
 
             map.addControl(
                 new window.kakao.maps.ZoomControl(),
@@ -357,20 +362,24 @@ const Forecast: React.FC = () => {
                             지도 로딩 중...
                         </div>
                     )}
-                    <div ref={mapContainerRef} className="absolute inset-0" />
+                    <div
+                        ref={mapContainerRef}
+                        className="absolute inset-0 z-[1] touch-none"
+                        style={{ cursor: "grab" }}
+                    />
 
                     {/* 중심 핀 */}
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full z-10 pointer-events-none">
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full z-[2] pointer-events-none">
                         <MapPin className="w-9 h-9 text-red-500 drop-shadow-md fill-red-500" />
                         <div className="w-2 h-2 bg-red-500/40 rounded-full mx-auto -mt-1" />
                     </div>
 
-                    <div className="absolute top-3 left-3 z-10 bg-white/95 backdrop-blur px-3 py-2 rounded-lg shadow text-sm max-w-[70%]">
+                    <div className="absolute top-3 left-3 z-[2] pointer-events-none bg-white/95 backdrop-blur px-3 py-2 rounded-lg shadow text-sm max-w-[70%]">
                         <p className="text-xs text-gray-500 mb-0.5">지도 중심 위치</p>
                         <p className="font-semibold text-gray-800 truncate">{locationName}</p>
                     </div>
 
-                    <div className="absolute bottom-3 left-3 z-10 bg-black/60 text-white text-xs px-2.5 py-1.5 rounded-lg">
+                    <div className="absolute bottom-3 left-3 z-[2] pointer-events-none bg-black/60 text-white text-xs px-2.5 py-1.5 rounded-lg">
                         드래그로 지도 이동 · 휠로 확대/축소 (중심 핀 기준 날씨)
                     </div>
                 </div>

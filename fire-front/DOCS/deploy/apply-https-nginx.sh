@@ -1,8 +1,10 @@
-# /etc/nginx/conf.d/fire-front.conf
-# certbot 적용 후: sudo certbot --nginx -d fire-management.rjsgud.com
+#!/usr/bin/env bash
+# EC2에서 실행: sudo bash apply-https-nginx.sh
+set -euo pipefail
 
-# HTTP → HTTPS 전체 리다이렉트
-# (http 페이지에서 /api 호출 시 https로 리다이렉트되면 CORS 오류 발생)
+CONF="/etc/nginx/conf.d/fire-front.conf"
+
+tee "$CONF" > /dev/null <<'EOF'
 server {
     listen 80 default_server;
     server_name fire-management.rjsgud.com 54.180.139.135;
@@ -29,7 +31,6 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        # 백엔드 CORS가 배포 도메인을 허용하지 않을 때 Origin 제거 (동일 도메인 프록시)
         proxy_set_header Origin "";
     }
 
@@ -43,3 +44,10 @@ server {
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
 }
+EOF
+
+nginx -t
+systemctl reload nginx
+
+echo "OK: nginx HTTPS 설정 적용 완료"
+curl -s -o /dev/null -w "HTTP redirect test => %{http_code} %{redirect_url}\n" http://127.0.0.1/api/vehicles || true

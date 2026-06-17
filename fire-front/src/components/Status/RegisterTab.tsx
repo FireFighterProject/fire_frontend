@@ -12,6 +12,7 @@ import {
     toBatchSido,
     SIDO_OPTIONS
 } from "../../services/Register/utils";
+import { buildAppPath } from "../../utils/appUrl";
 
 /* 타입 정의 */
 export type ApiVehicle = {
@@ -95,14 +96,10 @@ function RegisterTab() {
         return res.data ?? [];
     };
 
-    const getAssemblyLink = (vehicleId: number) => {
-        const origin =
-            typeof window !== "undefined" ? window.location.origin : "";
-        const url = new URL("/gps/assembly", origin);
-        url.searchParams.set("vehicleId", String(vehicleId));
-        url.searchParams.set("address", rallyPoint);
-        return url.toString();
-    };
+    const getAssemblyLink = (vehicleId: number) =>
+        buildAppPath(
+            `/gps/assembly?vehicleId=${vehicleId}&address=${encodeURIComponent(rallyPoint)}`
+        );
 
     const buildVehiclePayload = (row: {
         stationName: string;
@@ -284,8 +281,8 @@ function RegisterTab() {
                 alert(
                     `일괄 등록 거부(403)\n\n` +
                     `${msg}\n\n` +
-                    `• 브라우저 localStorage의 token 값을 삭제 후 재시도\n` +
-                    `• 백엔드 보안(Spring Security) 설정 확인`
+                    `배포 서버 nginx에 Origin 헤더 제거 설정이 필요할 수 있습니다.\n` +
+                    `(DOCS/deploy/apply-https-nginx.sh 참고)`
                 );
             } else {
                 alert(status ? `[${status}] ${msg}` : msg);
