@@ -98,10 +98,8 @@ export default function ManageTab() {
                 station: station?.name ?? "-",
                 type: v.type,
                 callname: v.callname,
-                capacity: v.capacity,
                 personnel: v.personnel,
-                avl: v.avl,
-                pslte: v.pslte,
+                contact: v.contact,
                 status: v.status,
                 rally: v.rally,
             };
@@ -143,14 +141,10 @@ export default function ManageTab() {
 
         if (patch.callname !== undefined) payload.callSign = patch.callname;
         if (patch.type !== undefined) payload.typeName = patch.type;
-        if (patch.capacity !== undefined)
-            payload.capacity = Number(patch.capacity);
         if (patch.personnel !== undefined)
             payload.personnel = Number(patch.personnel);
-        if (patch.avl !== undefined)
-            payload.avlNumber = String(patch.avl).replace(/\D/g, "").slice(0, 11);
-        if (patch.pslte !== undefined)
-            payload.psLteNumber = String(patch.pslte).replace(/\D/g, "").slice(0, 11);
+        if (patch.contact !== undefined)
+            payload.psLteNumber = String(patch.contact).replace(/\D/g, "").slice(0, 11);
         if (patch.rally !== undefined) payload.rallyPoint = patch.rally ? 1 : 0;
 
         return apiClient.patch(`/vehicles/${id}`, payload);

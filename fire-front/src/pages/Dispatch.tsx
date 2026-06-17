@@ -13,6 +13,7 @@ import { fetchVehicleList } from "../api/vehicles";
 import { fetchStationsByIds } from "../api/stations";
 import { mapApiListToVehicles } from "../services/mappers/vehicleMapper";
 import api from "../api/axios";
+import { formatPhone } from "../services/Register/utils";
 
 const DispatchPage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -235,14 +236,12 @@ const DispatchPage: React.FC = () => {
               <thead className="bg-gray-100">
                 <tr>
                   <th className="border px-2 py-1">선택</th>
-                  <th className="border px-2 py-1">시도</th>
+                  <th className="border px-2 py-1">연번</th>
                   <th className="border px-2 py-1">소방서</th>
-                  <th className="border px-2 py-1">차종</th>
                   <th className="border px-2 py-1">호출명</th>
-                  <th className="border px-2 py-1">용량</th>
+                  <th className="border px-2 py-1">차종</th>
                   <th className="border px-2 py-1">인원</th>
-                  <th className="border px-2 py-1">AVL</th>
-                  <th className="border px-2 py-1">PS-LTE</th>
+                  <th className="border px-2 py-1">연락처</th>
                   <th className="border px-2 py-1">상태</th>
                   <th className="border px-2 py-1">집결지</th>
                 </tr>
@@ -251,7 +250,7 @@ const DispatchPage: React.FC = () => {
               <tbody>
                 {sortedVehicles
                   .filter((v) => v.status === "대기")
-                  .map((v) => (
+                  .map((v, idx) => (
                     <tr key={v.id} className="even:bg-gray-50">
                       <td className="border px-2 py-1 text-center">
                         <input
@@ -260,14 +259,12 @@ const DispatchPage: React.FC = () => {
                           onChange={() => toggleSelect(String(v.id))}
                         />
                       </td>
-                      <td className="border px-2 py-1">{v.sido}</td>
+                      <td className="border px-2 py-1">{idx + 1}</td>
                       <td className="border px-2 py-1">{v.station}</td>
-                      <td className="border px-2 py-1">{v.type}</td>
                       <td className="border px-2 py-1">{v.callname}</td>
-                      <td className="border px-2 py-1">{v.capacity}</td>
+                      <td className="border px-2 py-1">{v.type}</td>
                       <td className="border px-2 py-1">{v.personnel}</td>
-                      <td className="border px-2 py-1">{v.avl}</td>
-                      <td className="border px-2 py-1">{v.pslte}</td>
+                      <td className="border px-2 py-1">{formatPhone(v.contact)}</td>
                       <td className="border px-2 py-1">{v.status}</td>
                       <td className="border px-2 py-1">{v.rally ? "Y" : "N"}</td>
                     </tr>

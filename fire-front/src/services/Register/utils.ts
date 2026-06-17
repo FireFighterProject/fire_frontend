@@ -50,3 +50,30 @@ export const normalizeStationName = (name: string | undefined) => {
     if (!name) return "";
     return name.endsWith("소방서") ? name : `${name}소방서`;
 };
+
+/* 전화번호 정규화 */
+export const normalizePhone = (value: string | number | undefined | null): string => {
+    if (value == null) return "";
+    return String(value).replace(/\D/g, "").slice(0, 11);
+};
+
+/* 전화번호 표시 포맷 */
+export const formatPhone = (value: string | number | undefined | null): string => {
+    const digits = normalizePhone(value);
+    if (!digits) return "";
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+};
+
+/* 소방서명으로 시도 조회 */
+export const resolveSidoFromStation = (
+    stationName: string,
+    allStations: { name: string; sido: string }[]
+): string => {
+    const normalized = normalizeStationName(stationName);
+    const found = allStations.find(
+        (s) => s.name === normalized || s.name === stationName
+    );
+    return found?.sido ?? "";
+};

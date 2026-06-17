@@ -462,22 +462,24 @@ export default function ReportPage() {
             <PreviewSection title="출동(활동·출동중) 차량">
               <SimpleTable
                 headers={[
-                  "호출명",
-                  "시도",
+                  "연번",
                   "소방서",
+                  "호출명",
                   "차종",
-                  "상태",
-                  "츌동장소",
+                  "인원",
                   "연락처",
+                  "상태",
+                  "출동장소",
                 ]}
-                rows={aggregates.dispatched.map((v) => [
+                rows={aggregates.dispatched.map((v, i) => [
+                  i + 1,
+                  v.stationInfo?.name || v.station || "-",
                   v.callname,
-                  v.sido,
-                  v.stationInfo?.name || "-",
                   v.type,
+                  v.personnel,
+                  v.contact || "-",
                   v.status,
                   v.stationInfo?.address || "-",
-                  v.avl || "-",
                 ])}
               />
             </PreviewSection>

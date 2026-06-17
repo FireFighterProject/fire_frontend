@@ -78,16 +78,14 @@ const GeneralTab: React.FC<Props> = ({ vehicles, logs }) => {
                 <StatsTable
                     columns={[
                         { key: "no", header: "연번", width: "64px" },
-                        { key: "sido", header: "시도" },
                         { key: "station", header: "소방서" },
-                        { key: "type", header: "차종" },
                         { key: "callname", header: "호출명" },
-                        { key: "pslte", header: "PS-LTE" },
-                        { key: "avl", header: "AVL" },
+                        { key: "type", header: "차종" },
+                        { key: "personnel", header: "인원", width: "80px" },
+                        { key: "contact", header: "연락처" },
                     ]}
                     rows={filtered.map((v, i) => ({
                         no: i + 1,
-                        sido: v.sido,
                         station: v.station,
                         type: v.type,
                         callname: (
@@ -99,8 +97,8 @@ const GeneralTab: React.FC<Props> = ({ vehicles, logs }) => {
                                 {v.callname}
                             </button>
                         ),
-                        pslte: v.pslte ? "O" : "-",
-                        avl: v.avl ? "O" : "-",
+                        personnel: v.personnel,
+                        contact: v.contact || "-",
                     }))}
                 />
             </div>

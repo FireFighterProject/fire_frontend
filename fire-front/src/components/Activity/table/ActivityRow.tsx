@@ -1,23 +1,23 @@
 import React, { memo } from "react";
 import type { Vehicle } from "../../../types/global";
+import { formatPhone } from "../../../services/Register/utils";
 
 interface Props {
+    index: number;
     vehicle: Vehicle;
     onReturn: (id: string) => void;
     onOpenMap: (vehicle: Vehicle) => void;
 }
 
-const ActivityRow: React.FC<Props> = ({ vehicle, onReturn, onOpenMap }) => {
+const ActivityRow: React.FC<Props> = ({ index, vehicle, onReturn, onOpenMap }) => {
     return (
         <tr className="even:bg-gray-50">
-            <td className="border border-black px-3 py-2">{vehicle.sido}</td>
+            <td className="border border-black px-3 py-2">{index}</td>
             <td className="border border-black px-3 py-2">{vehicle.station}</td>
-            <td className="border border-black px-3 py-2">{vehicle.type}</td>
             <td className="border border-black px-3 py-2">{vehicle.callname}</td>
-            <td className="border border-black px-3 py-2">{vehicle.capacity}</td>
+            <td className="border border-black px-3 py-2">{vehicle.type}</td>
             <td className="border border-black px-3 py-2">{vehicle.personnel}</td>
-            <td className="border border-black px-3 py-2">{vehicle.avl}</td>
-            <td className="border border-black px-3 py-2">{vehicle.pslte}</td>
+            <td className="border border-black px-3 py-2">{formatPhone(vehicle.contact)}</td>
             <td className="border border-black px-3 py-2">{vehicle.dispatchPlace}</td>
             <td className="border border-black px-3 py-2">{vehicle.content}</td>
             <td className="border border-black px-3 py-2">{vehicle.status}</td>

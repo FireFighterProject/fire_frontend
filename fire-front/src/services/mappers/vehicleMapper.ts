@@ -27,6 +27,8 @@ export function mapApiToVehicle(
     const station = options?.station;
     const stationName = options?.stationName ?? station?.name ?? "";
 
+    const contact = (v.psLteNumber || v.avlNumber || "").replace(/\D/g, "").slice(0, 11);
+
     return {
         id: String(v.id),
         stationId: v.stationId,
@@ -34,10 +36,8 @@ export function mapApiToVehicle(
         station: stationName,
         type: v.typeName ?? "",
         callname: v.callSign ?? "",
-        capacity: v.capacity ?? "0",
         personnel: v.personnel ?? "0",
-        avl: v.avlNumber ?? "",
-        pslte: v.psLteNumber ?? "",
+        contact,
         status: statusCodeToLabel(v.status),
         rally: v.rallyPoint === 1,
         dispatchPlace: "",

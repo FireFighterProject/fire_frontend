@@ -2,6 +2,7 @@
 import { memo, useMemo } from "react";
 import Td from "./Td";
 import type { Vehicle } from "../../../types/vehicle";
+import { formatPhone, normalizePhone } from "../../../services/Register/utils";
 
 type StationInfo = { id: number; name: string; sido: string };
 
@@ -16,10 +17,8 @@ type Props = {
 
     saveEdit: () => void;
 
-    // ✅ GPS가 한 번이라도 등록된 차량 id 목록
     gpsActiveIds: number[];
 
-    // ✅ 삭제 기능 관련
     selectedIds: Set<string>;
     toggleSelect: (id: string) => void;
     toggleSelectAll: (checked: boolean) => void;
@@ -52,7 +51,6 @@ function VehicleTable({
         });
     }, [rows, allStations]);
 
-    // ✅ 빠른 포함 체크용 Set
     const gpsActiveSet = useMemo(
         () => new Set(gpsActiveIds.map((id) => Number(id))),
         [gpsActiveIds]
@@ -61,50 +59,28 @@ function VehicleTable({
     const headers = [
         "선택",
         "연번",
-        "시도",
         "소방서",
-        "차종",
         "호출명",
-        "용량",
+        "차종",
         "인원",
-        "AVL",
-        "PS-LTE",
+        "연락처",
         "상태",
         "집결",
         "수정",
     ];
 
-    // 전체 선택 여부
     const allSelected = mappedRows.length > 0 && mappedRows.every((r) => selectedIds.has(String(r.id)));
     const someSelected = mappedRows.some((r) => selectedIds.has(String(r.id)));
 
     const change = (field: keyof Vehicle, value: any) =>
         setEditData((prev) => ({ ...prev, [field]: value }));
 
-    // 전화번호 정규화: 숫자만 추출 (DB에 하이픈이 섞여 저장된 경우 대비)
-    const normalizePhone = (value: string | undefined | null): string => {
-        if (!value) return "";
-        return String(value).replace(/\D/g, "").slice(0, 11);
-    };
-
-    // 전화번호 포맷팅 함수 (표시용)
-    const formatPhone = (value: string | undefined | null): string => {
-        const digits = normalizePhone(value);
-        if (!digits) return "";
-        if (digits.length <= 3) return digits;
-        if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-        return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
-    };
-
-    const handlePhoneChange = (field: keyof Vehicle, raw: string) => {
-        let digits = raw.replace(/\D/g, "");
-        if (digits.length > 11) digits = digits.slice(0, 11);
-        change(field, digits);
+    const handlePhoneChange = (raw: string) => {
+        change("contact", normalizePhone(raw));
     };
 
     return (
         <div className="space-y-2">
-            {/* 삭제 버튼 영역 */}
             <div className="flex items-center gap-3">
                 <button
                     onClick={onDeleteSelected}
@@ -157,7 +133,6 @@ function VehicleTable({
                             const editing = r.id === editRowId;
                             const hasGps = gpsActiveSet.has(Number(r.id));
 
-                            //  GPS 있으면 연두색, 없으면 짝수줄만 회색
                             const rowClass = hasGps
                                 ? "bg-red-100/40"
                                 : idx % 2 === 1
@@ -166,7 +141,6 @@ function VehicleTable({
 
                             return (
                                 <tr key={r.id} className={rowClass}>
-                                    {/* 선택 체크박스 */}
                                     <Td>
                                         <input
                                             type="checkbox"
@@ -178,40 +152,8 @@ function VehicleTable({
 
                                     <Td>{idx + 1}</Td>
 
-                                    {/* 시도 */}
-                                    <Td>
-                                        {editing ? (
-                                            <input
-                                                value={editData.sido ?? r.sido}
-                                                onChange={(e) =>
-                                                    change("sido", e.target.value)
-                                                }
-                                                className="border px-2 py-1 w-full rounded"
-                                            />
-                                        ) : (
-                                            r.sido
-                                        )}
-                                    </Td>
-
-                                    {/* 소방서 */}
                                     <Td>{r.station}</Td>
 
-                                    {/* 차종 */}
-                                    <Td>
-                                        {editing ? (
-                                            <input
-                                                value={editData.type ?? r.type}
-                                                onChange={(e) =>
-                                                    change("type", e.target.value)
-                                                }
-                                                className="border px-2 py-1 w-full rounded"
-                                            />
-                                        ) : (
-                                            r.type
-                                        )}
-                                    </Td>
-
-                                    {/* 호출명 */}
                                     <Td>
                                         {editing ? (
                                             <input
@@ -226,22 +168,20 @@ function VehicleTable({
                                         )}
                                     </Td>
 
-                                    {/* 용량 */}
                                     <Td>
                                         {editing ? (
                                             <input
-                                                value={editData.capacity ?? r.capacity}
+                                                value={editData.type ?? r.type}
                                                 onChange={(e) =>
-                                                    change("capacity", e.target.value)
+                                                    change("type", e.target.value)
                                                 }
                                                 className="border px-2 py-1 w-full rounded"
                                             />
                                         ) : (
-                                            r.capacity
+                                            r.type
                                         )}
                                     </Td>
 
-                                    {/* 인원 */}
                                     <Td>
                                         {editing ? (
                                             <input
@@ -256,42 +196,23 @@ function VehicleTable({
                                         )}
                                     </Td>
 
-                                    {/* AVL */}
                                     <Td>
                                         {editing ? (
                                             <input
-                                                value={formatPhone(editData.avl ?? r.avl ?? "")}
+                                                value={formatPhone(editData.contact ?? r.contact ?? "")}
                                                 onChange={(e) =>
-                                                    handlePhoneChange("avl", e.target.value)
+                                                    handlePhoneChange(e.target.value)
                                                 }
                                                 className="border px-2 py-1 w-full rounded"
                                                 placeholder="010-0000-0000"
                                             />
                                         ) : (
-                                            formatPhone(r.avl ?? "")
+                                            formatPhone(r.contact ?? "")
                                         )}
                                     </Td>
 
-                                    {/* PS-LTE */}
-                                    <Td>
-                                        {editing ? (
-                                            <input
-                                                value={formatPhone(editData.pslte ?? r.pslte ?? "")}
-                                                onChange={(e) =>
-                                                    handlePhoneChange("pslte", e.target.value)
-                                                }
-                                                className="border px-2 py-1 w-full rounded"
-                                                placeholder="010-0000-0000"
-                                            />
-                                        ) : (
-                                            formatPhone(r.pslte ?? "")
-                                        )}
-                                    </Td>
-
-                                    {/* 상태 */}
                                     <Td>{r.status}</Td>
 
-                                    {/* 집결 */}
                                     <Td>
                                         {editing ? (
                                             <input
@@ -306,7 +227,6 @@ function VehicleTable({
                                         )}
                                     </Td>
 
-                                    {/* 수정/저장 */}
                                     <Td>
                                         {editing ? (
                                             <div className="flex gap-2">

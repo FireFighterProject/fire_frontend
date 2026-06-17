@@ -2,11 +2,6 @@
 
 import type { ApiVehicle, FireStation } from "../RegisterTab";
 
-/* ────────────────────────────────
-   내부에서 사용하는 공통 Input 컴포넌트 3종
-──────────────────────────────── */
-
-// 기본 Input
 function Input({
     label,
     value,
@@ -31,7 +26,6 @@ function Input({
     );
 }
 
-// Select
 function Select({
     label,
     value,
@@ -65,7 +59,6 @@ function Select({
     );
 }
 
-// 전화번호 마스킹
 function InputMasked({
     label,
     value,
@@ -94,14 +87,11 @@ function InputMasked({
                 value={format(value)}
                 onChange={(e) => handleInput(e.target.value)}
                 className="h-9 border rounded px-3"
+                placeholder="010-0000-0000"
             />
         </label>
     );
 }
-
-/* ────────────────────────────────
-         RegisterForm 본체
-──────────────────────────────── */
 
 function RegisterForm({
     form,
@@ -129,9 +119,7 @@ function RegisterForm({
             <header className="px-5 py-3 border-b font-semibold">신규 등록</header>
 
             <div className="p-5 space-y-4">
-
                 <div className="grid md:grid-cols-3 gap-4">
-
                     <Select
                         label="시도"
                         value={form.sido}
@@ -148,21 +136,15 @@ function RegisterForm({
                     />
 
                     <Input
-                        label="차종"
-                        value={form.typeName}
-                        onChange={(v) => onChange("typeName", v)}
-                    />
-
-                    <Input
                         label="호출명"
                         value={form.callSign}
                         onChange={(v) => onChange("callSign", v)}
                     />
 
                     <Input
-                        label="용량"
-                        value={String(form.capacity)}
-                        onChange={(v) => onChange("capacity", toNum(v))}
+                        label="차종"
+                        value={form.typeName}
+                        onChange={(v) => onChange("typeName", v)}
                     />
 
                     <Input
@@ -172,18 +154,11 @@ function RegisterForm({
                     />
 
                     <InputMasked
-                        label="AVL 단말기"
-                        value={form.avlNumber}
-                        onChange={(v) => onChange("avlNumber", v)}
+                        label="연락처"
+                        value={form.contact}
+                        onChange={(v) => onChange("contact", v)}
                     />
 
-                    <InputMasked
-                        label="PS-LTE 번호"
-                        value={form.psLteNumber}
-                        onChange={(v) => onChange("psLteNumber", v)}
-                    />
-
-                    {/* 자원집결지 주소 */}
                     <Input
                         label="자원집결지 주소"
                         value={rallyPoint}
@@ -193,7 +168,8 @@ function RegisterForm({
 
                 <button
                     onClick={handleRegister}
-                    className="px-4 h-9 bg-[#e1412b] text-white rounded"
+                    disabled={loading}
+                    className="px-4 h-9 bg-[#e1412b] text-white rounded disabled:opacity-50"
                 >
                     {loading ? "등록 중..." : "차량 등록"}
                 </button>

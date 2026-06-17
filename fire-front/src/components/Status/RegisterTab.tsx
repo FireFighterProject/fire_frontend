@@ -7,8 +7,8 @@ import ExcelUploader from "./Register/ExcelUploader";
 
 import {
     toNum,
-    toFullSido,
     normalizeStationName,
+    resolveSidoFromStation,
     SIDO_OPTIONS
 } from "../../services/Register/utils";
 
@@ -18,10 +18,8 @@ export type ApiVehicle = {
     sido: string;
     callSign: string;
     typeName: string;
-    capacity: number | "";
     personnel: number | "";
-    avlNumber: string;
-    psLteNumber: string;
+    contact: string;
     status: number;
 };
 
@@ -34,20 +32,18 @@ export type FireStation = {
 
 export type ExcelPreviewRow = {
     id: string;
-    sido: string;
+    serialNo: number | "";
     stationName: string;
-    typeName: string;
     callSign: string;
-    capacity: number | "";
+    typeName: string;
     personnel: number | "";
-    avlNumber: string;
-    psLteNumber: string;
+    contact: string;
+    sido: string;
 };
 
 function RegisterTab() {
-    const DEFAULT_STATUS = 3; // 3=집결중 (등록 시 기본값)
+    const DEFAULT_STATUS = 3;
 
-    // 🔥 자원집결지 주소 저장
     const [rallyPoint, setRallyPoint] = useState<string>(
         localStorage.getItem("rallyPoint") ?? ""
     );
@@ -61,10 +57,8 @@ function RegisterTab() {
         sido: "",
         callSign: "",
         typeName: "",
-        capacity: "",
         personnel: "",
-        avlNumber: "",
-        psLteNumber: "",
+        contact: "",
         status: DEFAULT_STATUS,
     });
 
@@ -77,12 +71,10 @@ function RegisterTab() {
     const onChange = (key: keyof ApiVehicle, value: any) =>
         setForm((prev) => ({ ...prev, [key]: value }));
 
-    /* 🔥 소방서 전체 로드 */
     useEffect(() => {
         apiClient.get("/fire-stations").then((res) => setAllStations(res.data));
     }, []);
 
-    /* 🔥 시도 변경 → 소방서 필터링 */
     useEffect(() => {
         setStations(
             form.sido ? allStations.filter((s) => s.sido === form.sido) : []
@@ -90,42 +82,43 @@ function RegisterTab() {
         setForm((p) => ({ ...p, stationName: "" }));
     }, [form.sido, allStations]);
 
-
-
-    //////////////////////////////////////////////////////
-    // 🔥 공통: 프론트 도메인 기반 응소 페이지 링크 생성 함수
-    //////////////////////////////////////////////////////
     const getAssemblyLink = (vehicleId: number) => {
         const origin =
             typeof window !== "undefined" ? window.location.origin : "";
         const url = new URL("/gps/assembly", origin);
         url.searchParams.set("vehicleId", String(vehicleId));
-        url.searchParams.set("address", rallyPoint); // 자원집결지 주소
+        url.searchParams.set("address", rallyPoint);
         return url.toString();
     };
 
+    const buildVehiclePayload = (row: {
+        stationName: string;
+        sido: string;
+        callSign: string;
+        typeName: string;
+        personnel: number | "";
+        contact: string;
+    }) => ({
+        stationName: row.stationName,
+        sido: row.sido,
+        callSign: row.callSign,
+        typeName: row.typeName,
+        personnel: row.personnel === "" ? null : row.personnel,
+        psLteNumber: row.contact,
+        avlNumber: "",
+        capacity: null,
+        status: DEFAULT_STATUS,
+    });
 
-    /* 🔥 단건 등록 + (문자 발송) */
     const handleRegister = async () => {
         if (!form.sido) return alert("시도 선택");
         if (!form.stationName) return alert("소방서 선택");
 
-        const payload = {
-            stationName: form.stationName,
-            sido: form.sido,
-            callSign: form.callSign,
-            typeName: form.typeName,
-            capacity: form.capacity === "" ? null : form.capacity,
-            personnel: form.personnel === "" ? null : form.personnel,
-            avlNumber: form.avlNumber,
-            psLteNumber: form.psLteNumber,
-            status: form.status ?? 3, // 3=집결중 (등록 시 기본값)
-        };
+        const payload = buildVehiclePayload(form);
 
         setLoading(true);
 
         try {
-            // 1️⃣ 차량 등록
             const res = await apiClient.post("/vehicles", payload);
             const vehicleId: number | undefined =
                 res.data.id ?? res.data.vehicleId;
@@ -136,27 +129,19 @@ function RegisterTab() {
                     "백엔드 응답 형식을 확인해주세요."
                 );
             } else {
-                // 2️⃣ 등록 직후 상태를 집결중(3)으로 설정
                 try {
                     await apiClient.patch(`/vehicles/${vehicleId}/status`, {
-                        status: 3, // 3=집결중
+                        status: 3,
                     });
                 } catch (patchErr: any) {
                     console.warn("차량 상태(집결중) 설정 실패:", patchErr);
                 }
 
-                // 3️⃣ 문자 발송
                 try {
                     const link = getAssemblyLink(vehicleId);
                     const text = `[자원집결지 동원소방력] 차량:${form.callSign} 집결지:${rallyPoint} 응소OK:${link}`;
 
-                    const smsPayload = { vehicleId, text };
-
-                    // 🔍 우리가 보내는 문자 API 요청 바디 로그
-                    console.log("📨 /sms/to-vehicle 요청 payload (단건)", smsPayload);
-
-                    await apiClient.post("/sms/to-vehicle", smsPayload);
-
+                    await apiClient.post("/sms/to-vehicle", { vehicleId, text });
                     alert("등록 + 문자 발송 완료");
                 } catch (smsErr: any) {
                     console.error(
@@ -172,11 +157,9 @@ function RegisterTab() {
                 sido: "",
                 callSign: "",
                 typeName: "",
-                capacity: "",
                 personnel: "",
-                avlNumber: "",
-                psLteNumber: "",
-                status: 3, // 3=집결중
+                contact: "",
+                status: DEFAULT_STATUS,
             });
         } catch (err: any) {
             console.error("🚨 /vehicles 단건 등록 실패", err?.response?.data ?? err);
@@ -186,26 +169,24 @@ function RegisterTab() {
         }
     };
 
-
-
-    /* 🔥 일괄 등록 + 문자 발송 */
     const handleBulkRegister = async (rallyPointInput: string) => {
         if (excelRows.length === 0) return alert("엑셀 데이터 없음");
+
+        const invalidRows = excelRows.filter((r) => !r.sido);
+        if (invalidRows.length > 0) {
+            alert(
+                "다음 소방서를 찾을 수 없습니다:\n" +
+                invalidRows.map((r) => r.stationName).join("\n")
+            );
+            return;
+        }
 
         try {
             setLoading(true);
 
             const body = excelRows.map((r) => ({
-                stationName: r.stationName,
-                sido: r.sido,
-                typeName: r.typeName,
-                callSign: r.callSign,
-                capacity: r.capacity === "" ? null : r.capacity,
-                personnel: r.personnel === "" ? null : r.personnel,
-                avlNumber: r.avlNumber,
-                psLteNumber: r.psLteNumber,
+                ...buildVehiclePayload(r),
                 rallyPoint: rallyPointInput,
-                status: 3, // 3=집결중 (등록 시 기본값)
             }));
 
             const res = await apiClient.post("/vehicles/batch", body);
@@ -243,12 +224,11 @@ function RegisterTab() {
 
             const count = Math.min(inserted, vehicleIds.length);
 
-            // 등록된 각 차량의 상태를 집결중(3)으로 설정
             for (let i = 0; i < count; i++) {
                 const vehicleId = vehicleIds[i];
                 try {
                     await apiClient.patch(`/vehicles/${vehicleId}/status`, {
-                        status: 3, // 3=집결중
+                        status: 3,
                     });
                 } catch (patchErr: any) {
                     console.warn(`차량 ${vehicleId} 상태(집결중) 설정 실패:`, patchErr);
@@ -262,15 +242,7 @@ function RegisterTab() {
                 const link = getAssemblyLink(vehicleId);
                 const text = `[자원집결지 동원소방력] 차량:${row.callSign} 집결지:${rallyPointInput} 응소OK:${link}`;
 
-                const smsPayload = { vehicleId, text };
-
-                // 🔍 배치 문자 API 요청 바디 로그
-                console.log(
-                    `📨 /sms/to-vehicle 요청 payload (배치 ${i + 1}/${count})`,
-                    smsPayload
-                );
-
-                await apiClient.post("/sms/to-vehicle", smsPayload);
+                await apiClient.post("/sms/to-vehicle", { vehicleId, text });
             }
 
             alert(`등록 ${inserted}건 + 문자 발송 완료`);
@@ -283,12 +255,8 @@ function RegisterTab() {
         }
     };
 
-
-
-
     return (
         <div className="p-6 space-y-6">
-            {/* 단건 등록 폼 */}
             <RegisterForm
                 form={form}
                 stations={stations}
@@ -301,15 +269,16 @@ function RegisterTab() {
                 setRallyPoint={setRallyPoint}
             />
 
-            {/* 엑셀 업로드 */}
             <ExcelUploader
                 fileRef={fileRef}
                 excelRows={excelRows}
                 setExcelRows={setExcelRows}
                 loading={loading}
                 handleBulkRegister={handleBulkRegister}
-                toFullSido={toFullSido}
                 normalizeStationName={normalizeStationName}
+                resolveSidoFromStation={(name) =>
+                    resolveSidoFromStation(name, allStations)
+                }
                 toNum={toNum}
                 rallyPoint={rallyPoint}
                 setRallyPoint={setRallyPoint}

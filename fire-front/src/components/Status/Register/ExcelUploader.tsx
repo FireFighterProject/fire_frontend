@@ -1,16 +1,15 @@
 // src/components/Status/Register/ExcelUploader.tsx
 import type { ExcelPreviewRow } from "../RegisterTab";
 import type { RefObject } from "react";
+import { formatPhone, normalizePhone } from "../../../services/Register/utils";
 
 interface ExcelRawRow {
-    시도?: string;
+    연번?: string | number;
     소방서?: string;
-    차종?: string;
     호출명?: string;
-    용량?: string | number;
+    차종?: string;
     인원?: string | number;
-    AVL?: string;
-    "PS-LTE"?: string;
+    연락처?: string;
 }
 
 interface ExcelUploaderProps {
@@ -19,8 +18,8 @@ interface ExcelUploaderProps {
     setExcelRows: (rows: ExcelPreviewRow[]) => void;
     loading: boolean;
     handleBulkRegister: (rallyPoint: string) => void;
-    toFullSido: (v: string | undefined) => string;
     normalizeStationName: (v: string | undefined) => string;
+    resolveSidoFromStation: (stationName: string) => string;
     toNum: (v: string | number | undefined) => number | "";
     rallyPoint: string;
     setRallyPoint: (v: string) => void;
@@ -32,27 +31,12 @@ function ExcelUploader({
     setExcelRows,
     loading,
     handleBulkRegister,
-    toFullSido,
     normalizeStationName,
+    resolveSidoFromStation,
     toNum,
     rallyPoint,
     setRallyPoint,
 }: ExcelUploaderProps) {
-    // 전화번호에서 숫자만 추출 (하이픈, 공백 등 제거)
-    const normalizePhone = (value: string | number | undefined): string => {
-        if (value == null) return "";
-        const digits = String(value).replace(/\D/g, "");
-        return digits.slice(0, 11); // 최대 11자리
-    };
-
-    // 전화번호 포맷팅 (표시용)
-    const formatPhone = (digits: string): string => {
-        if (!digits) return "";
-        if (digits.length <= 3) return digits;
-        if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-        return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
-    };
-
     const parseExcel = async (file: File) => {
         const imported = await import("xlsx");
         const XLSX = imported.default || imported;
@@ -70,17 +54,19 @@ function ExcelUploader({
                 ) as ExcelRawRow
         );
 
-        const mapped: ExcelPreviewRow[] = normalized.map((r, i) => ({
-            id: `${file.name}-${i}`,
-            sido: toFullSido(r["시도"]),
-            stationName: normalizeStationName(r["소방서"]),
-            typeName: r["차종"] ?? "",
-            callSign: r["호출명"] ?? "",
-            capacity: toNum(r["용량"]),
-            personnel: toNum(r["인원"]),
-            avlNumber: normalizePhone(r["AVL"]),
-            psLteNumber: normalizePhone(r["PS-LTE"]),
-        }));
+        const mapped: ExcelPreviewRow[] = normalized.map((r, i) => {
+            const stationName = normalizeStationName(r["소방서"]);
+            return {
+                id: `${file.name}-${i}`,
+                serialNo: toNum(r["연번"]),
+                stationName,
+                callSign: r["호출명"] ?? "",
+                typeName: r["차종"] ?? "",
+                personnel: toNum(r["인원"]),
+                contact: normalizePhone(r["연락처"]),
+                sido: resolveSidoFromStation(stationName),
+            };
+        });
 
         setExcelRows(mapped);
         if (fileRef.current) fileRef.current.value = "";
@@ -93,7 +79,6 @@ function ExcelUploader({
             </header>
 
             <div className="p-5 space-y-3">
-                {/* 🔸 버튼 + 자원집결지 주소 한 줄 배치 */}
                 <div className="flex flex-wrap gap-3 items-center">
                     <button
                         onClick={() => fileRef.current?.click()}
@@ -110,7 +95,6 @@ function ExcelUploader({
                         {loading ? "등록 중..." : "일괄 등록"}
                     </button>
 
-                    {/* 👉 버튼 옆에 붙는 자원집결지 입력 */}
                     <label className="flex flex-col text-sm text-gray-700 w-80">
                         자원집결지 주소
                         <input
@@ -126,19 +110,16 @@ function ExcelUploader({
                     </label>
                 </div>
 
-                {/* 🔸 엑셀 표 */}
                 <div className="overflow-auto border rounded">
                     <table className="min-w-[900px] w-full text-sm">
                         <thead className="bg-gray-100">
                             <tr>
-                                <th>시도</th>
+                                <th>연번</th>
                                 <th>소방서</th>
-                                <th>차종</th>
                                 <th>호출명</th>
-                                <th>용량</th>
+                                <th>차종</th>
                                 <th>인원</th>
-                                <th>AVL</th>
-                                <th>PS-LTE</th>
+                                <th>연락처</th>
                             </tr>
                         </thead>
 
@@ -146,7 +127,7 @@ function ExcelUploader({
                             {excelRows.length === 0 ? (
                                 <tr>
                                     <td
-                                        colSpan={8}
+                                        colSpan={6}
                                         className="text-center py-6 text-gray-400"
                                     >
                                         선택된 파일 없음
@@ -156,28 +137,22 @@ function ExcelUploader({
                                 excelRows.map((r) => (
                                     <tr key={r.id} className="even:bg-gray-50">
                                         <td className="px-3 py-2 border-t">
-                                            {r.sido}
+                                            {r.serialNo}
                                         </td>
                                         <td className="px-3 py-2 border-t">
                                             {r.stationName}
                                         </td>
                                         <td className="px-3 py-2 border-t">
-                                            {r.typeName}
-                                        </td>
-                                        <td className="px-3 py-2 border-t">
                                             {r.callSign}
                                         </td>
                                         <td className="px-3 py-2 border-t">
-                                            {r.capacity}
+                                            {r.typeName}
                                         </td>
                                         <td className="px-3 py-2 border-t">
                                             {r.personnel}
                                         </td>
                                         <td className="px-3 py-2 border-t">
-                                            {formatPhone(r.avlNumber)}
-                                        </td>
-                                        <td className="px-3 py-2 border-t">
-                                            {formatPhone(r.psLteNumber)}
+                                            {formatPhone(r.contact)}
                                         </td>
                                     </tr>
                                 ))
@@ -186,7 +161,6 @@ function ExcelUploader({
                     </table>
                 </div>
 
-                {/* 숨겨진 파일 input */}
                 <input
                     type="file"
                     className="hidden"

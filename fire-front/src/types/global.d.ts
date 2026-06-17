@@ -1,21 +1,17 @@
 // ==============================
-// 1) 엑셀 1행 타입 (동일 유지)
+// 1) 엑셀 1행 타입 (클라이언트 양식)
 // ==============================
 export type ExcelRow = {
-    시도: string;
-    소방서: string;       // ⚠️ 백엔드는 stationId(숫자) 필요 → 이름→ID 매핑 필요
-    차종: string;         // → typeName
-    호출명: string;       // → callSign
-    용량: string;         // Excel은 항상 문자열
-    인원: string;
-    "AVL 단말기번호"?: string;
-    "PS-LTE 번호"?: string;
+    연번?: string | number;
+    소방서: string;
+    호출명: string;
+    차종: string;
+    인원: string | number;
+    연락처: string;
 };
 
 // ==============================
-// 2) 프런트 내부 상태/표현용 타입 (유지)
-//    - 기존 VehicleStatus/Vehicle를 유지하고,
-//      백엔드와의 변환 유틸만 교체합니다.
+// 2) 프런트 내부 상태/표현용 타입
 // ==============================
 export type VehicleStatus =
     | "대기"
@@ -27,54 +23,34 @@ export type VehicleStatus =
     | "집결중";
 
 export interface Vehicle {
-    id: string | number;   // 숫자 또는 문자열 모두 대응
+    id: string | number;
 
-    // 지역 및 소방서
     sido: string;
-    station: string;       // 표시용 소방서명
+    station: string;
     stationId: number;
-
-    // 소방서명: 백엔드 응답 호환용(optional)
     stationName?: string;
 
-    // 차량 종류 / 호출명
     type: string;
     callname: string;
-
-    // 백엔드 응답 호환용(optional)
     callSign?: string;
     name?: string;
 
-    // 용량 / 인원
-    capacity: string | number;
     personnel: string | number;
+    contact: string;
 
-    // 단말기 번호
-    avl: string;
-    pslte: string;
+    status: string;
 
-    // 차량 상태
-    status: string; // "대기" | "활동" 등 문자열
-
-    // 위치정보
     lat?: number | null;
     lng?: number | null;
 
-    // 출동 부가 속성
     dispatchPlace?: string | null;
-    contact?: string | null;
     content?: string | null;
 
-    // 집결 여부 (프런트)
     rally: boolean;
-
-    // 백엔드 호환용 (0/1)
     rallyPoint?: number;
 
-    // 기타 확장 필드 허용
     [key: string]: unknown;
 }
-
 
 // ==============================
 // 3) 백엔드 API 페이로드 타입
@@ -83,18 +59,16 @@ export type ApiVehicle = {
     stationId: number;
     callSign: string;
     typeName: string;
-    capacity: number;
     personnel: number;
-    avlNumber: string;
     psLteNumber: string;
-    status: number;     // 코드값
-    rallyPoint: number; // 0/1 (또는 지정 번호)
+    status: number;
+    rallyPoint: number;
+    capacity?: number | null;
+    avlNumber?: string;
 };
 
 // ==============================
-// 4) 상태코드 매핑 (가정)
-//    - 백엔드 status: number <-> 프런트 VehicleStatus 매핑
-//    - 필요시 숫자값은 백엔드 정의에 맞춰 조정하세요.
+// 4) 상태코드 매핑
 // ==============================
 export const STATUS_CODE: Record<VehicleStatus, number> = {
     "대기": 0,
@@ -114,129 +88,99 @@ export const CODE_STATUS: Record<number, VehicleStatus> = {
     5: "철수",
 };
 
-// ==============================
-// 5) 소방서 이름 → ID 매핑 (가설 표)
-//    - 실제 운영 데이터로 교체하세요.
-// ==============================
 const STATION_NAME_TO_ID: Record<string, number> = {
     "포항소방서": 1,
     "구미소방서": 2,
-    // ...
 };
 
-// 역매핑(표시용): 필요 시 사용
 const STATION_ID_TO_NAME: Record<number, string> = Object.fromEntries(
     Object.entries(STATION_NAME_TO_ID).map(([name, id]) => [id, name])
 );
 
-// ==============================
-// 6) 공통 유틸
-// ==============================
 const toNum = (v: string | number | undefined | null, fallback = 0) => {
     const n = typeof v === "string" ? Number(v.replaceAll(",", "")) : Number(v);
     return Number.isFinite(n) ? n : fallback;
 };
 
-// ==============================
-// 7) 엑셀(Row) → 프런트 Vehicle
-//    (프런트 상태에 올릴 때 사용)
-// ==============================
+const normalizePhone = (v: string | number | undefined | null): string => {
+    if (v == null) return "";
+    return String(v).replace(/\D/g, "").slice(0, 11);
+};
+
 export function toFrontVehicleFromExcel(row: ExcelRow, id: string): Vehicle {
     return {
         id,
-        sido: row.시도,
-        station: row.소방서,              // 화면 표시용 이름
+        sido: "",
+        station: row.소방서,
+        stationId: STATION_NAME_TO_ID[row.소방서] ?? 0,
         type: row.차종,
         callname: row.호출명,
-        capacity: toNum(row.용량, 0),
         personnel: toNum(row.인원, 0),
-        avl: row["AVL 단말기번호"] ?? "",
-        pslte: row["PS-LTE 번호"] ?? "",
-        status: "대기",                   // 업로드 기본값
+        contact: normalizePhone(row.연락처),
+        status: "대기",
         lat: null,
         lng: null,
         dispatchPlace: null,
-        contact: null,
         content: null,
         rally: false,
     };
 }
 
-// ==============================
-// 8) 엑셀(Row) → 백엔드 ApiVehicle
-//    (서버로 바로 보낼 때 사용)
-// ==============================
 export function toApiVehicleFromExcel(row: ExcelRow): ApiVehicle {
-    const stationId =
-        STATION_NAME_TO_ID[row.소방서] ??
-        0; // ⚠️ 미매핑 시 0 → 서버 검증/에러 핸들링 권장
+    const stationId = STATION_NAME_TO_ID[row.소방서] ?? 0;
 
     return {
         stationId,
         callSign: row.호출명 ?? "",
         typeName: row.차종 ?? "",
-        capacity: toNum(row.용량, 0),
         personnel: toNum(row.인원, 0),
-        avlNumber: row["AVL 단말기번호"] ?? "",
-        psLteNumber: row["PS-LTE 번호"] ?? "",
-        status: STATUS_CODE["대기"], // 기본: 대기
-        rallyPoint: 0,              // 기본 0 (필요시 규칙 지정)
+        psLteNumber: normalizePhone(row.연락처),
+        status: STATUS_CODE["대기"],
+        rallyPoint: 0,
     };
 }
 
-// ==============================
-// 9) 프런트 Vehicle → 백엔드 ApiVehicle
-//    (수정 저장 등 서버 전송 시 사용)
-// ==============================
 export function toApiVehicleFromFront(v: Vehicle): ApiVehicle {
-    const stationId =
-        STATION_NAME_TO_ID[v.station] ??
-        0; // 이름만 들고 있으면 매핑 필요 (혹은 Vehicle에 stationId도 보관)
+    const stationId = STATION_NAME_TO_ID[v.station] ?? v.stationId ?? 0;
 
     return {
         stationId,
         callSign: v.callname,
         typeName: v.type,
-        capacity: toNum(v.capacity, 0),
         personnel: toNum(v.personnel, 0),
-        avlNumber: v.avl ?? "",
-        psLteNumber: v.pslte ?? "",
-        status: STATUS_CODE[v.status],
-        rallyPoint: v.rally ? 1 : 0, // boolean → number
+        psLteNumber: normalizePhone(v.contact),
+        status: STATUS_CODE[v.status as VehicleStatus] ?? 0,
+        rallyPoint: v.rally ? 1 : 0,
     };
 }
 
-// ==============================
-// 10) 백엔드 ApiVehicle → 프런트 Vehicle
-//     (서버 조회 결과를 화면 상태로)
-// ==============================
-export function toFrontVehicleFromApi(api: ApiVehicle, id: string, sido = "", lat: number | null = null, lng: number | null = null): Vehicle {
+export function toFrontVehicleFromApi(
+    api: ApiVehicle,
+    id: string,
+    sido = "",
+    lat: number | null = null,
+    lng: number | null = null
+): Vehicle {
     const stationName = STATION_ID_TO_NAME[api.stationId] ?? String(api.stationId);
 
     return {
         id,
-        sido, // 필요 시 별도 필드에서 받아 주입
+        sido,
         station: stationName,
+        stationId: api.stationId,
         type: api.typeName,
         callname: api.callSign,
-        capacity: api.capacity,
         personnel: api.personnel,
-        avl: api.avlNumber,
-        pslte: api.psLteNumber,
+        contact: normalizePhone(api.psLteNumber || api.avlNumber),
         status: CODE_STATUS[api.status] ?? "대기",
         lat,
         lng,
         dispatchPlace: null,
-        contact: null,
         content: null,
         rally: !!api.rallyPoint,
     };
 }
 
-// ==============================
-// 11) (선택) 집계 타입/컬럼: 기존 유지 가능
-//     - 백엔드 스키마와 직접 충돌 없음
-// ==============================
 export type VehicleTypeKey =
     | "경펌" | "소펌" | "중펌" | "대펌"
     | "중형탱크" | "대형탱크" | "급수탱크"
