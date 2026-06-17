@@ -64,19 +64,12 @@ function RegisterTab() {
     });
 
     const [stations, setStations] = useState<FireStation[]>([]);
-    const [allStations, setAllStations] = useState<FireStation[]>([]);
     const [excelRows, setExcelRows] = useState<ExcelPreviewRow[]>([]);
     const [loading, setLoading] = useState(false);
     const fileRef = useRef<HTMLInputElement | null>(null);
 
     const onChange = (key: keyof ApiVehicle, value: any) =>
         setForm((prev) => ({ ...prev, [key]: value }));
-
-    const mergeStations = (prev: FireStation[], incoming: FireStation[]) => {
-        const byId = new Map(prev.map((s) => [s.id, s]));
-        incoming.forEach((s) => byId.set(s.id, s));
-        return Array.from(byId.values());
-    };
 
     useEffect(() => {
         if (!form.sido) {
@@ -86,11 +79,7 @@ function RegisterTab() {
 
         apiClient
             .get<FireStation[]>("/fire-stations", { params: { sido: form.sido } })
-            .then((res) => {
-                const data = res.data ?? [];
-                setStations(data);
-                setAllStations((prev) => mergeStations(prev, data));
-            })
+            .then((res) => setStations(res.data ?? []))
             .catch((e) => {
                 console.error("fire-stations 조회 실패:", e);
                 setStations([]);
@@ -103,9 +92,7 @@ function RegisterTab() {
         const res = await apiClient.get<FireStation[]>("/fire-stations", {
             params: { sido },
         });
-        const data = res.data ?? [];
-        setAllStations((prev) => mergeStations(prev, data));
-        return data;
+        return res.data ?? [];
     };
 
     const getAssemblyLink = (vehicleId: number) => {
