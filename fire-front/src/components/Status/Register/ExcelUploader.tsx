@@ -105,7 +105,7 @@ function ExcelUploader({
                             placeholder="예: 경상북도 구미시 상모로 71"
                         />
                         <span className="mt-1 text-xs text-gray-500">
-                            문자 발송 시 안내에 사용됩니다. (DB rallyPoint 플래그와는 별개)
+                            문자 발송 시 안내에 사용됩니다. 
                         </span>
                     </label>
                 </div>

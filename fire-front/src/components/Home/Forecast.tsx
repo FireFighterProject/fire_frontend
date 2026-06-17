@@ -59,8 +59,9 @@ const Forecast: React.FC = () => {
 
     const [mode, setMode] = useState<"current" | "hourly">("current");
     const [searchQuery, setSearchQuery] = useState("");
-    const [selectedPreset, setSelectedPreset] = useState(DEFAULT_REGION.name);
-    const [locationName, setLocationName] = useState(DEFAULT_REGION.name);
+    const [selectedPreset, setSelectedPreset] = useState("");
+    const [locationName, setLocationName] = useState("위치 확인 중...");
+    const [locating, setLocating] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [updatedAt, setUpdatedAt] = useState("");
@@ -139,6 +140,35 @@ const Forecast: React.FC = () => {
             skipCenterEventRef.current = false;
         }, 500);
     }, [handleCenterUpdate]);
+
+    /** 메인 진입 시(마운트) 현재 위치로 이동 — 다른 페이지 갔다 오면 컴포넌트가 다시 마운트됨 */
+    const moveToCurrentLocation = useCallback(() => {
+        setLocating(true);
+        setError("");
+
+        if (!navigator.geolocation) {
+            setLocating(false);
+            panTo(DEFAULT_REGION.lat, DEFAULT_REGION.lng, DEFAULT_REGION.name);
+            setSelectedPreset(DEFAULT_REGION.name);
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                setLocating(false);
+                setSelectedPreset("");
+                panTo(pos.coords.latitude, pos.coords.longitude);
+            },
+            (err) => {
+                console.warn("현재 위치 조회 실패:", err);
+                setLocating(false);
+                setError("현재 위치를 가져오지 못해 기본 지역으로 표시합니다.");
+                panTo(DEFAULT_REGION.lat, DEFAULT_REGION.lng, DEFAULT_REGION.name);
+                setSelectedPreset(DEFAULT_REGION.name);
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+        );
+    }, [panTo]);
 
     useEffect(() => {
         if (!mapReady || !mapContainerRef.current || mapRef.current) return;
@@ -235,7 +265,7 @@ const Forecast: React.FC = () => {
             };
 
             window.kakao.maps.event.addListener(map, "center_changed", onCenterChanged);
-            handleCenterUpdate(DEFAULT_REGION.lat, DEFAULT_REGION.lng, DEFAULT_REGION.name);
+            moveToCurrentLocation();
         });
 
         wrapper?.addEventListener("wheel", onWheel, { passive: false });
@@ -256,7 +286,7 @@ const Forecast: React.FC = () => {
             window.removeEventListener("mouseup", endPan);
             mapRef.current = null;
         };
-    }, [mapReady, handleCenterUpdate]);
+    }, [mapReady, handleCenterUpdate, moveToCurrentLocation]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -351,8 +381,18 @@ const Forecast: React.FC = () => {
                     ))}
                 </div>
 
+                <button
+                    type="button"
+                    onClick={moveToCurrentLocation}
+                    disabled={locating}
+                    className="h-9 px-3 text-sm font-medium rounded-lg border bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 shrink-0"
+                    title="현재 위치로 이동"
+                >
+                    {locating ? "위치 확인..." : "현재 위치"}
+                </button>
+
                 <span className="text-xs text-gray-400 shrink-0">
-                    {loading ? "갱신 중..." : updatedAt ? `${updatedAt} 기준` : ""}
+                    {locating ? "GPS 확인 중..." : updatedAt ? `${updatedAt} 기준` : ""}
                 </span>
             </div>
 
@@ -382,7 +422,7 @@ const Forecast: React.FC = () => {
                     </div>
 
                     <div className="absolute bottom-3 left-3 z-10 bg-black/60 text-white text-xs px-2.5 py-1.5 rounded-lg">
-                        드래그·휠버튼 드래그로 이동 · 휠 스크롤로 핀 중심 확대/축소
+                        메인 재진입 시 현재 위치 · 지도 이동은 자유롭게 탐색 가능
                     </div>
                 </div>
 

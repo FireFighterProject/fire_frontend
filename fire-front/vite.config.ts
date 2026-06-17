@@ -7,6 +7,7 @@ import fs from "fs"
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const useMockApi = env.VITE_USE_MOCK_API === 'true'
+  const apiBaseUrl = env.VITE_API_BASE_URL || 'http://54.180.139.135:8080'
 
   return {
   plugins: [react(), tailwindcss()],
@@ -43,7 +44,7 @@ export default defineConfig(({ mode }) => {
     // 목 API 모드일 때는 프록시 생략 (백엔드 미연결 502 방지)
     proxy: useMockApi ? undefined : {
       "/api": {
-        target: "http://172.28.5.94:8081/",
+        target: apiBaseUrl,
         changeOrigin: true,
         secure: false,
       },
