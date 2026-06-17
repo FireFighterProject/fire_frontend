@@ -2,7 +2,7 @@
 import { useEffect, useState, useMemo } from "react";
 import apiClient from "../../api/axios";
 import { fetchAllGps } from "../../api/gps";
-import { fetchFireStations } from "../../api/stations";
+import { fetchAllFireStations } from "../../api/stations";
 import { useAppDispatch, useAppSelector } from "../../hooks";
 import type { FilterQuery } from "../Status/manage/FilterBar";
 
@@ -40,7 +40,7 @@ export default function ManageTab() {
     // 1) 소방서 전체 로드
     // ========================================================
     useEffect(() => {
-        fetchFireStations()
+        fetchAllFireStations()
             .then(setAllStations)
             .catch((e) => console.error("fire-stations 요청 실패:", e));
     }, []);

@@ -1,9 +1,22 @@
 import api from "./axios";
 import type { ApiFireStation } from "./types";
+import { SIDO_OPTIONS } from "../services/Register/utils";
 
-export async function fetchFireStations(): Promise<ApiFireStation[]> {
-    const res = await api.get<ApiFireStation[]>("/fire-stations");
+export async function fetchFireStations(sido?: string): Promise<ApiFireStation[]> {
+    const res = await api.get<ApiFireStation[]>("/fire-stations", {
+        params: sido ? { sido } : undefined,
+    });
     return res.data ?? [];
+}
+
+/** 시도별 조회 후 병합 (GET /fire-stations 는 sido 파라미터 필수) */
+export async function fetchAllFireStations(): Promise<ApiFireStation[]> {
+    const batches = await Promise.all(
+        SIDO_OPTIONS.map((sido) => fetchFireStations(sido))
+    );
+    const byId = new Map<number, ApiFireStation>();
+    batches.flat().forEach((s) => byId.set(s.id, s));
+    return Array.from(byId.values());
 }
 
 export async function fetchFireStation(id: number): Promise<ApiFireStation> {

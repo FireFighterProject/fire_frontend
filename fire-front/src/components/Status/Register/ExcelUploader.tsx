@@ -19,7 +19,11 @@ interface ExcelUploaderProps {
     loading: boolean;
     handleBulkRegister: (rallyPoint: string) => void;
     normalizeStationName: (v: string | undefined) => string;
-    resolveSidoFromStation: (stationName: string) => string;
+    resolveSidoFromStation: (
+        stationName: string,
+        stations: { name: string; sido: string }[]
+    ) => string;
+    onBeforeParse?: () => Promise<{ name: string; sido: string }[]>;
     toNum: (v: string | number | undefined) => number | "";
     rallyPoint: string;
     setRallyPoint: (v: string) => void;
@@ -38,11 +42,14 @@ function ExcelUploader({
     handleBulkRegister,
     normalizeStationName,
     resolveSidoFromStation,
+    onBeforeParse,
     toNum,
     rallyPoint,
     setRallyPoint,
 }: ExcelUploaderProps) {
     const parseExcel = async (file: File) => {
+        const stationList = onBeforeParse ? await onBeforeParse() : [];
+
         const imported = await import("xlsx");
         const XLSX = imported.default || imported;
 
@@ -69,7 +76,7 @@ function ExcelUploader({
                 typeName: r["차종"] ?? "",
                 personnel: toNum(r["인원"]),
                 contact: normalizePhone(r["연락처"]),
-                sido: resolveSidoFromStation(stationName),
+                sido: resolveSidoFromStation(stationName, stationList),
             };
         });
 

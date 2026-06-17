@@ -9,6 +9,7 @@ import {
     toNum,
     normalizeStationName,
     resolveSidoFromStation,
+    toBatchSido,
     SIDO_OPTIONS
 } from "../../services/Register/utils";
 
@@ -71,16 +72,41 @@ function RegisterTab() {
     const onChange = (key: keyof ApiVehicle, value: any) =>
         setForm((prev) => ({ ...prev, [key]: value }));
 
-    useEffect(() => {
-        apiClient.get("/fire-stations").then((res) => setAllStations(res.data));
-    }, []);
+    const mergeStations = (prev: FireStation[], incoming: FireStation[]) => {
+        const byId = new Map(prev.map((s) => [s.id, s]));
+        incoming.forEach((s) => byId.set(s.id, s));
+        return Array.from(byId.values());
+    };
 
     useEffect(() => {
-        setStations(
-            form.sido ? allStations.filter((s) => s.sido === form.sido) : []
-        );
+        if (!form.sido) {
+            setStations([]);
+            return;
+        }
+
+        apiClient
+            .get<FireStation[]>("/fire-stations", { params: { sido: form.sido } })
+            .then((res) => {
+                const data = res.data ?? [];
+                setStations(data);
+                setAllStations((prev) => mergeStations(prev, data));
+            })
+            .catch((e) => {
+                console.error("fire-stations 조회 실패:", e);
+                setStations([]);
+            });
+
         setForm((p) => ({ ...p, stationName: "" }));
-    }, [form.sido, allStations]);
+    }, [form.sido]);
+
+    const ensureStationsLoaded = async (sido: string) => {
+        const res = await apiClient.get<FireStation[]>("/fire-stations", {
+            params: { sido },
+        });
+        const data = res.data ?? [];
+        setAllStations((prev) => mergeStations(prev, data));
+        return data;
+    };
 
     const getAssemblyLink = (vehicleId: number) => {
         const origin =
@@ -104,10 +130,26 @@ function RegisterTab() {
         callSign: row.callSign,
         typeName: row.typeName,
         personnel: row.personnel === "" ? null : row.personnel,
+        phoneNumber: row.contact,
         psLteNumber: row.contact,
-        avlNumber: "",
-        capacity: null,
         status: DEFAULT_STATUS,
+    });
+
+    const buildBatchVehiclePayload = (row: {
+        stationName: string;
+        sido: string;
+        callSign: string;
+        typeName: string;
+        personnel: number | "";
+        contact: string;
+    }) => ({
+        stationName: row.stationName,
+        sido: toBatchSido(row.sido || "경상북도"),
+        callSign: row.callSign,
+        typeName: row.typeName,
+        personnel: row.personnel === "" ? undefined : Number(row.personnel),
+        phoneNumber: row.contact,
+        psLteNumber: row.contact,
     });
 
     const handleRegister = async () => {
@@ -172,22 +214,18 @@ function RegisterTab() {
     const handleBulkRegister = async (rallyPointInput: string) => {
         if (excelRows.length === 0) return alert("엑셀 데이터 없음");
 
-        const invalidRows = excelRows.filter((r) => !r.sido);
+        const invalidRows = excelRows.filter(
+            (r) => !r.stationName || !r.callSign
+        );
         if (invalidRows.length > 0) {
-            alert(
-                "다음 소방서를 찾을 수 없습니다:\n" +
-                invalidRows.map((r) => r.stationName).join("\n")
-            );
+            alert("소방서명 또는 호출명이 비어 있는 행이 있습니다.");
             return;
         }
 
         try {
             setLoading(true);
 
-            const body = excelRows.map((r) => ({
-                ...buildVehiclePayload(r),
-                rallyPoint: rallyPointInput,
-            }));
+            const body = excelRows.map((r) => buildBatchVehiclePayload(r));
 
             const res = await apiClient.post("/vehicles/batch", body);
 
@@ -249,7 +287,22 @@ function RegisterTab() {
             setExcelRows([]);
         } catch (err: any) {
             console.error(err);
-            alert(err?.response?.data?.message ?? "일괄 등록 실패");
+            const status = err?.response?.status;
+            const msg =
+                err?.response?.data?.message ??
+                err?.response?.data?.error ??
+                err?.message ??
+                "일괄 등록 실패";
+            if (status === 403) {
+                alert(
+                    `일괄 등록 거부(403)\n\n` +
+                    `${msg}\n\n` +
+                    `• 브라우저 localStorage의 token 값을 삭제 후 재시도\n` +
+                    `• 백엔드 보안(Spring Security) 설정 확인`
+                );
+            } else {
+                alert(status ? `[${status}] ${msg}` : msg);
+            }
         } finally {
             setLoading(false);
         }
@@ -276,8 +329,9 @@ function RegisterTab() {
                 loading={loading}
                 handleBulkRegister={handleBulkRegister}
                 normalizeStationName={normalizeStationName}
-                resolveSidoFromStation={(name) =>
-                    resolveSidoFromStation(name, allStations)
+                resolveSidoFromStation={resolveSidoFromStation}
+                onBeforeParse={() =>
+                    ensureStationsLoaded(form.sido || "경상북도")
                 }
                 toNum={toNum}
                 rallyPoint={rallyPoint}
