@@ -100,12 +100,15 @@ function VehicleTable({
                 )}
             </div>
 
-            <div className="overflow-auto border rounded bg-white">
-                <table className="min-w-[900px] w-full text-sm">
+            <div className="overflow-auto border border-gray-300 rounded bg-white">
+                <table className="min-w-[900px] w-full text-sm border-collapse">
                     <thead className="bg-gray-50">
                         <tr>
                             {headers.map((h, idx) => (
-                                <th key={h} className="px-3 py-2 font-semibold">
+                                <th
+                                    key={h}
+                                    className="border border-gray-300 px-3 py-2 font-semibold text-center whitespace-nowrap"
+                                >
                                     {idx === 0 ? (
                                         <input
                                             type="checkbox"
@@ -124,7 +127,10 @@ function VehicleTable({
                 <tbody>
                     {mappedRows.length === 0 ? (
                         <tr>
-                            <td colSpan={headers.length} className="text-center py-10">
+                            <td
+                                colSpan={headers.length}
+                                className="border border-gray-300 text-center py-10"
+                            >
                                 {loading ? "불러오는 중..." : "등록된 차량이 없습니다."}
                             </td>
                         </tr>

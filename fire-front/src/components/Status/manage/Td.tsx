@@ -5,5 +5,9 @@ type Props = {
 };
 
 export default function Td({ children }: Props) {
-    return <td className="px-3 py-2">{children}</td>;
+    return (
+        <td className="border border-gray-300 px-3 py-2 text-center align-middle">
+            {children}
+        </td>
+    );
 }

@@ -25,6 +25,11 @@ interface ExcelUploaderProps {
     setRallyPoint: (v: string) => void;
 }
 
+const TH =
+    "border border-gray-300 px-3 py-2 text-center font-semibold text-gray-700 whitespace-nowrap";
+const TD =
+    "border border-gray-300 px-3 py-2 text-center text-gray-900 whitespace-nowrap";
+
 function ExcelUploader({
     fileRef,
     excelRows,
@@ -110,16 +115,24 @@ function ExcelUploader({
                     </label>
                 </div>
 
-                <div className="overflow-auto border rounded">
-                    <table className="min-w-[900px] w-full text-sm">
+                <div className="overflow-auto border border-gray-300 rounded">
+                    <table className="w-full min-w-[720px] text-sm border-collapse table-fixed">
+                        <colgroup>
+                            <col className="w-[64px]" />
+                            <col className="w-[120px]" />
+                            <col className="w-[120px]" />
+                            <col className="w-[80px]" />
+                            <col className="w-[64px]" />
+                            <col className="w-[140px]" />
+                        </colgroup>
                         <thead className="bg-gray-100">
                             <tr>
-                                <th>연번</th>
-                                <th>소방서</th>
-                                <th>호출명</th>
-                                <th>차종</th>
-                                <th>인원</th>
-                                <th>연락처</th>
+                                <th className={TH}>연번</th>
+                                <th className={TH}>소방서</th>
+                                <th className={TH}>호출명</th>
+                                <th className={TH}>차종</th>
+                                <th className={TH}>인원</th>
+                                <th className={TH}>연락처</th>
                             </tr>
                         </thead>
 
@@ -128,32 +141,20 @@ function ExcelUploader({
                                 <tr>
                                     <td
                                         colSpan={6}
-                                        className="text-center py-6 text-gray-400"
+                                        className="border border-gray-300 text-center py-6 text-gray-400"
                                     >
                                         선택된 파일 없음
                                     </td>
                                 </tr>
                             ) : (
                                 excelRows.map((r) => (
-                                    <tr key={r.id} className="even:bg-gray-50">
-                                        <td className="px-3 py-2 border-t">
-                                            {r.serialNo}
-                                        </td>
-                                        <td className="px-3 py-2 border-t">
-                                            {r.stationName}
-                                        </td>
-                                        <td className="px-3 py-2 border-t">
-                                            {r.callSign}
-                                        </td>
-                                        <td className="px-3 py-2 border-t">
-                                            {r.typeName}
-                                        </td>
-                                        <td className="px-3 py-2 border-t">
-                                            {r.personnel}
-                                        </td>
-                                        <td className="px-3 py-2 border-t">
-                                            {formatPhone(r.contact)}
-                                        </td>
+                                    <tr key={r.id} className="even:bg-gray-50/60">
+                                        <td className={TD}>{r.serialNo}</td>
+                                        <td className={TD}>{r.stationName}</td>
+                                        <td className={TD}>{r.callSign}</td>
+                                        <td className={TD}>{r.typeName}</td>
+                                        <td className={TD}>{r.personnel}</td>
+                                        <td className={TD}>{formatPhone(r.contact)}</td>
                                     </tr>
                                 ))
                             )}
