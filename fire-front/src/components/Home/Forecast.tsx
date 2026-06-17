@@ -175,16 +175,7 @@ const Forecast: React.FC = () => {
 
         let map: any = null;
         let onCenterChanged: (() => void) | null = null;
-        let isMiddlePan = false;
-        let isLeftPan = false;
-        let lastPanX = 0;
-        let lastPanY = 0;
         const wrapper = mapWrapperRef.current;
-
-        const panByDelta = (dx: number, dy: number) => {
-            if (!map) return;
-            map.panBy(dx, dy);
-        };
 
         const onWheel = (e: WheelEvent) => {
             e.preventDefault();
@@ -199,40 +190,6 @@ const Forecast: React.FC = () => {
             map.setLevel(next, { anchor });
         };
 
-        const onMouseDown = (e: MouseEvent) => {
-            if (e.button === 0) {
-                isLeftPan = true;
-                lastPanX = e.clientX;
-                lastPanY = e.clientY;
-                return;
-            }
-            if (e.button !== 1) return;
-            e.preventDefault();
-            isMiddlePan = true;
-            lastPanX = e.clientX;
-            lastPanY = e.clientY;
-        };
-
-        const onMouseMove = (e: MouseEvent) => {
-            if (!isMiddlePan && !isLeftPan) return;
-            e.preventDefault();
-            const dx = lastPanX - e.clientX;
-            const dy = lastPanY - e.clientY;
-            lastPanX = e.clientX;
-            lastPanY = e.clientY;
-            panByDelta(dx, dy);
-        };
-
-        const endPan = (e: MouseEvent) => {
-            if (e.button === 0) isLeftPan = false;
-            if (e.button === 1) isMiddlePan = false;
-        };
-
-        const onMouseLeave = () => {
-            isLeftPan = false;
-            isMiddlePan = false;
-        };
-
         window.kakao.maps.load(() => {
             const container = mapContainerRef.current;
             if (!container || mapRef.current) return;
@@ -245,7 +202,7 @@ const Forecast: React.FC = () => {
                 center,
                 level: 9,
                 scrollwheel: false,
-                draggable: false,
+                draggable: true,
             });
             mapRef.current = map;
 
@@ -269,10 +226,6 @@ const Forecast: React.FC = () => {
         });
 
         wrapper?.addEventListener("wheel", onWheel, { passive: false });
-        wrapper?.addEventListener("mousedown", onMouseDown);
-        wrapper?.addEventListener("mouseleave", onMouseLeave);
-        window.addEventListener("mousemove", onMouseMove);
-        window.addEventListener("mouseup", endPan);
 
         return () => {
             if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -280,10 +233,6 @@ const Forecast: React.FC = () => {
                 window.kakao?.maps?.event?.removeListener(map, "center_changed", onCenterChanged);
             }
             wrapper?.removeEventListener("wheel", onWheel);
-            wrapper?.removeEventListener("mousedown", onMouseDown);
-            wrapper?.removeEventListener("mouseleave", onMouseLeave);
-            window.removeEventListener("mousemove", onMouseMove);
-            window.removeEventListener("mouseup", endPan);
             mapRef.current = null;
         };
     }, [mapReady, handleCenterUpdate, moveToCurrentLocation]);
@@ -422,7 +371,7 @@ const Forecast: React.FC = () => {
                     </div>
 
                     <div className="absolute bottom-3 left-3 z-10 bg-black/60 text-white text-xs px-2.5 py-1.5 rounded-lg">
-                        메인 재진입 시 현재 위치 · 지도 이동은 자유롭게 탐색 가능
+                        드래그로 지도 이동 · 휠로 확대/축소 (중심 핀 기준 날씨)
                     </div>
                 </div>
 
