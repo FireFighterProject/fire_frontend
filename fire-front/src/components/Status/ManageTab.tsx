@@ -8,6 +8,7 @@ import type { FilterQuery } from "../Status/manage/FilterBar";
 
 import { fetchVehicles, selectVehicles } from "../../features/vehicle/vehicleSlice";
 import { useVehiclePolling } from "../../hooks/useVehiclePolling";
+import { matchesStatusFilter } from "../../services/vehicle/status";
 
 import FilterBar from "../Status/manage/FilterBar";
 import VehicleTable from "../Status/manage/VehicleTable";
@@ -113,7 +114,7 @@ export default function ManageTab() {
         }
 
         if (query.status !== "") {
-            list = list.filter((r) => String(r.status) === String(query.status));
+            list = list.filter((r) => matchesStatusFilter(String(r.status), query.status));
         }
 
         if (query.typeName.trim() !== "") {

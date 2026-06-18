@@ -35,3 +35,20 @@ export function isActiveStatus(status?: string): boolean {
     const s = status ?? "";
     return s.includes("활동") || s.includes("출동") || s.includes("임무");
 }
+
+/** 지도·GPS 추적 대상 (출동 중 + 복귀 이동 중) */
+export function isMapTrackableStatus(status?: string): boolean {
+    if (!status) return false;
+    if (isActiveStatus(status)) return true;
+    return status === "복귀중" || status === "철수" || status === "복귀";
+}
+
+export function matchesStatusFilter(
+    vehicleStatus: string | undefined,
+    filterCode: string | number
+): boolean {
+    if (filterCode === "" || filterCode === null || filterCode === undefined) {
+        return true;
+    }
+    return statusLabelToCode(String(vehicleStatus ?? "")) === Number(filterCode);
+}

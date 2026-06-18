@@ -14,6 +14,7 @@ import type {
   MarkerBundle,
   MapVehicle,
 } from "../types/map";
+import { isMapTrackableStatus } from "../services/vehicle/status";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -215,8 +216,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
   // ===================== 필터 처리 =====================
   const filtered = useMemo(() => {
     return data
-      // 👉 기존과 동일하게 "활동" 차량만 표시
-      .filter((v) => v.status === "활동")
+      .filter((v) => isMapTrackableStatus(v.status))
       .filter(
         (v) =>
           (!filters.sido || v.sido === filters.sido) &&
@@ -266,41 +266,52 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
 
 
   // ===================== MarkerImage 캐싱 =====================
-  const redDotImage = useMemo(() => {
+  const markerImages = useMemo(() => {
     if (!kakaoReady) return null;
     const kakao = window.kakao;
 
-    return new kakao.maps.MarkerImage(
-      "data:image/svg+xml;charset=utf-8," +
-      encodeURIComponent(`
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14">
-          <circle cx="7" cy="7" r="5" fill="#ff2a2a" />
-        </svg>
-      `),
-      new kakao.maps.Size(14, 14),
-      { offset: new kakao.maps.Point(7, 7) }
-    );
+    const makeDot = (color: string) =>
+      new kakao.maps.MarkerImage(
+        "data:image/svg+xml;charset=utf-8," +
+        encodeURIComponent(`
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14">
+            <circle cx="7" cy="7" r="5" fill="${color}" />
+          </svg>
+        `),
+        new kakao.maps.Size(14, 14),
+        { offset: new kakao.maps.Point(7, 7) }
+      );
+
+    return {
+      활동: makeDot("#ff2a2a"),
+      복귀중: makeDot("#f59e0b"),
+    };
   }, [kakaoReady]);
 
 
 
   // ===================== 마커 업데이트 (재사용 방식) =====================
   const updateMarkers = () => {
-    if (!map.current || !redDotImage) return;
+    if (!map.current || !markerImages) return;
 
     const kakao = window.kakao;
     const activeIds = new Set<number>();
+
+    const pickMarkerImage = (status: MapVehicle["status"]) =>
+      status === "복귀중" ? markerImages.복귀중 : markerImages.활동;
 
     filtered.forEach((v) => {
       const idNum = Number(v.id);
       activeIds.add(idNum);
 
       const pos = new kakao.maps.LatLng(v.lat, v.lng);
+      const markerImage = pickMarkerImage(v.status);
 
       const content = `
         <div style="min-width:220px;padding:8px 10px;border-radius:8px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.12);">
           <div style="font-weight:600;margin-bottom:4px">${v.callname}</div>
           <div style="font-size:12px;line-height:1.5">
+            <div><b>상태</b> ${v.status}</div>
             <div><b>시/도</b> ${v.sido} · <b>소방서</b> ${v.station}</div>
             <div><b>종류</b> ${v.type} · <b>인원</b> ${v.personnel}명</div>
             <div><b>출동 장소</b> ${v.dispatchPlace ?? "-"}</div>
@@ -314,7 +325,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
         const marker = new kakao.maps.Marker({
           map: map.current!,
           position: pos,
-          image: redDotImage,
+          image: markerImage,
         });
 
         const info = new kakao.maps.InfoWindow({ content });
@@ -333,10 +344,11 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
         bundle = { marker, info, data: v };
         markers.current.set(idNum, bundle);
       } else {
-        // 2) 기존 마커면 위치/내용만 업데이트
+        // 2) 기존 마커면 위치/내용/색상 업데이트
         bundle.data = v;
         bundle.marker.setPosition(pos);
-        bundle.marker.setMap(map.current); // 필터로 다시 보이게
+        bundle.marker.setImage(markerImage);
+        bundle.marker.setMap(map.current);
         bundle.info?.setContent(content);
       }
     });
@@ -362,10 +374,10 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
 
 
   useEffect(() => {
-    if (!map.current || !kakaoReady || !redDotImage) return;
+    if (!map.current || !kakaoReady || !markerImages) return;
     updateMarkers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered, kakaoReady, redDotImage, data.length]);
+  }, [filtered, kakaoReady, markerImages, data.length]);
 
 
 

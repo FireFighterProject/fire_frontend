@@ -3,6 +3,8 @@ import { memo, useMemo } from "react";
 import Td from "./Td";
 import type { Vehicle } from "../../../types/vehicle";
 import { formatPhone, normalizePhone } from "../../../services/Register/utils";
+import { statusCodeToLabel } from "../../../services/mappers/vehicleMapper";
+import { statusLabelToCode } from "../../../services/vehicle/status";
 
 type StationInfo = { id: number; name: string; sido: string };
 
@@ -72,6 +74,11 @@ function VehicleTable({
     const allSelected = mappedRows.length > 0 && mappedRows.every((r) => selectedIds.has(String(r.id)));
     const someSelected = mappedRows.some((r) => selectedIds.has(String(r.id)));
 
+    const statusLabel = (raw: string) => statusCodeToLabel(statusLabelToCode(raw));
+
+    const isReturningStatus = (raw: string) =>
+        raw === "복귀중" || raw === "철수" || raw === "복귀";
+
     const change = (field: keyof Vehicle, value: any) =>
         setEditData((prev) => ({ ...prev, [field]: value }));
 
@@ -140,10 +147,14 @@ function VehicleTable({
                             const hasGps = gpsActiveSet.has(Number(r.id));
 
                             const rowClass = hasGps
-                                ? "bg-red-100/40"
-                                : idx % 2 === 1
-                                    ? "bg-gray-50/40"
-                                    : "";
+                                ? isReturningStatus(String(r.status))
+                                    ? "bg-amber-100/50"
+                                    : "bg-red-100/40"
+                                : isReturningStatus(String(r.status))
+                                    ? "bg-amber-50"
+                                    : idx % 2 === 1
+                                        ? "bg-gray-50/40"
+                                        : "";
 
                             return (
                                 <tr key={r.id} className={rowClass}>
@@ -217,7 +228,22 @@ function VehicleTable({
                                         )}
                                     </Td>
 
-                                    <Td>{r.status}</Td>
+                                    <Td>
+                                        <span
+                                            className={
+                                                "inline-block px-2 py-0.5 rounded text-xs font-semibold " +
+                                                (isReturningStatus(String(r.status))
+                                                    ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                                    : r.status === "활동" || r.status === "출동중"
+                                                      ? "bg-red-100 text-red-800 border border-red-300"
+                                                      : r.status === "집결중"
+                                                        ? "bg-blue-100 text-blue-800 border border-blue-300"
+                                                        : "bg-green-100 text-green-800 border border-green-300")
+                                            }
+                                        >
+                                            {statusLabel(String(r.status))}
+                                        </span>
+                                    </Td>
 
                                     <Td>
                                         {editing ? (
