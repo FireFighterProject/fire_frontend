@@ -134,7 +134,7 @@ export default function FilterBar({ rows, query, setQuery, allStations }: Props)
                     <option value="">전체</option>
                     <option value={0}>대기</option>
                     <option value={1}>활동</option>
-                    <option value={2}>철수</option>
+                    <option value={2}>복귀중</option>
                     <option value={3}>집결중</option>
                 </select>
             </div>

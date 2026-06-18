@@ -39,10 +39,10 @@ export type ApiLogEvent = {
 };
 
 export type LatestDispatchResponse = {
-    orderId: number;
-    address: string;
-    content: string;
-    message: string;
+    orderId: number | null;
+    address: string | null;
+    content: string | null;
+    message?: string;
 };
 
 export type FetchVehiclesParams = {

@@ -60,14 +60,15 @@ function normalizeStatus(raw: unknown): MapVehicle["status"] {
   if (typeof raw === "number") {
     return raw === 0 ? "대기" :
       raw === 1 ? "활동" :
-        raw === 2 ? "철수" :
+        raw === 2 ? "복귀중" :
           raw === 3 ? "집결중" : "기타";
   }
 
   const s = String(raw).trim();
   if (s.includes("활동") || s.includes("출동")) return "활동";
   if (s.includes("대기")) return "대기";
-  if (s.includes("철수") || s.includes("복귀")) return "철수";
+  if (s.includes("복귀")) return "복귀중";
+  if (s.includes("철수")) return "복귀중";
   if (s.includes("집결")) return "집결중";
 
   return "기타";

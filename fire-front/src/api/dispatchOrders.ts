@@ -1,4 +1,5 @@
 import api from "./axios";
+import type { LatestDispatchResponse } from "./types";
 
 export const createDispatchOrder = (payload: {
     stationId: number;
@@ -30,5 +31,35 @@ export const updateVehicleStatus = (
 export const endDispatchOrder = (id: number) =>
     api.patch(`/dispatch-orders/${id}/end`);
 
-export const getLatestDispatchByVehicle = (vehicleId: number) =>
-    api.get(`/dispatch-orders/latest-by-vehicle/${vehicleId}`);
+/** 차량별 현재 출동 정보 (OpenAPI: GET /api/dispatch-orders/vehicle/{vehicleId}) */
+export const returnDispatchVehicles = (
+    orderId: number,
+    vehicleIds: number[]
+) =>
+    api.post(`/dispatch-orders/${orderId}/return`, { vehicleIds });
+
+export const getCurrentDispatchByVehicle = (vehicleId: number) =>
+    api.get<LatestDispatchResponse>(`/dispatch-orders/vehicle/${vehicleId}`);
+
+/** @deprecated getCurrentDispatchByVehicle 사용 */
+export const getLatestDispatchByVehicle = getCurrentDispatchByVehicle;
+
+export function mapDispatchToVehicleFields(
+    data: LatestDispatchResponse | null | undefined
+): { dispatchPlace: string; content: string } | null {
+    if (!data?.orderId) return null;
+
+    const message = data.message ?? "";
+    if (
+        message.includes("출동 이력이 없습니다") ||
+        message.includes("출동 상태가 아닙니다")
+    ) {
+        return null;
+    }
+
+    const dispatchPlace = data.address?.trim() ?? "";
+    const content = data.content?.trim() ?? "";
+    if (!dispatchPlace && !content) return null;
+
+    return { dispatchPlace, content };
+}

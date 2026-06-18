@@ -8,6 +8,7 @@ import { devLog } from "../utils/devLog";
 import { buildAppPath } from "../utils/appUrl";
 import { fetchVehicles } from "../features/vehicle/vehicleSlice";
 import { useVehiclePolling } from "../hooks/useVehiclePolling";
+import { isActiveStatus } from "../services/vehicle/status";
 
 /* =========================
  * 타입 키
@@ -29,15 +30,19 @@ const COL_ORDER: VehicleTypeKey[] = [
   "굴절", "고가", "배연", "회복", "지원", "기타",
 ];
 
-/// =========================
-  //행 색상 결정
-
+/* =========================
+ * 행 색상 / 편성 가능 행
+ * ========================= */
 function getRowColor(label: string) {
-  if (label.includes("전체")) return "bg-white";       // 전체 → 흰색
-  if (label.includes("대기")) return "bg-green-50";   // 대기 → 녹색
-  if (label.includes("활동")) return "bg-red-50";     // 활동 → 빨간색
+  if (label.includes("전체")) return "bg-white";
+  if (label.includes("대기")) return "bg-green-50";
+  if (label.includes("복귀")) return "bg-amber-50";
+  if (label.includes("활동")) return "bg-red-50";
+  return "bg-gray-50";
+}
 
-  return "bg-gray-50"; // 그 외
+function isAssignableRowLabel(label: string) {
+  return label.includes("대기") || label.includes("복귀");
 }
 
 
@@ -79,14 +84,8 @@ function normalizeType(type?: string): VehicleTypeKey {
   return "기타";
 }
 
-function isActiveStatus(status?: string): boolean {
-  const s = status ?? "";
-  return s.includes("활동") || s.includes("출동") || s.includes("임무");
-}
-
-/** 출동 편성 가능: status=대기(0)만. 집결중·철수 등 제외 */
-function isWaitForDispatch(status?: string): boolean {
-  return status === "대기";
+function isActiveStatusLocal(status?: string): boolean {
+  return isActiveStatus(status);
 }
 
 function normalizeSido(raw?: string) {
@@ -210,33 +209,32 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
   if (!isDisaster) {
     rows.push(calcRow(`${gbLabel} 전체`, isGB));
     rows.push(
-      calcRow(
-        `${gbLabel} 대기`,
-        (v) => isGB(v) && isWaitForDispatch(v.status)
-      )
+      calcRow(`${gbLabel} 대기`, (v) => isGB(v) && v.status === "대기")
+    );
+    rows.push(
+      calcRow(`${gbLabel} 복귀중`, (v) => isGB(v) && v.status === "복귀중")
     );
     rows.push(
       calcRow(
         `${gbLabel} 활동`,
-        (v) => isGB(v) && isActiveStatus(v.status)
+        (v) => isGB(v) && isActiveStatusLocal(v.status)
       )
     );
 
     return rows;
   }
 
-  // 재난모드도 경북 포함
   rows.push(calcRow(`${gbLabel} 전체`, isGB));
   rows.push(
-    calcRow(
-      `${gbLabel} 대기`,
-      (v) => isGB(v) && isWaitForDispatch(v.status)
-    )
+    calcRow(`${gbLabel} 대기`, (v) => isGB(v) && v.status === "대기")
+  );
+  rows.push(
+    calcRow(`${gbLabel} 복귀중`, (v) => isGB(v) && v.status === "복귀중")
   );
   rows.push(
     calcRow(
       `${gbLabel} 활동`,
-      (v) => isGB(v) && isActiveStatus(v.status)
+      (v) => isGB(v) && isActiveStatusLocal(v.status)
     )
   );
 
@@ -261,9 +259,13 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
     rows.push(
       calcRow(
         `${regionLabel} 대기`,
-        (v) =>
-          normalizeSido(v.sido) === region &&
-          isWaitForDispatch(v.status)
+        (v) => normalizeSido(v.sido) === region && v.status === "대기"
+      )
+    );
+    rows.push(
+      calcRow(
+        `${regionLabel} 복귀중`,
+        (v) => normalizeSido(v.sido) === region && v.status === "복귀중"
       )
     );
     rows.push(
@@ -271,7 +273,7 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
         `${regionLabel} 활동`,
         (v) =>
           normalizeSido(v.sido) === region &&
-          isActiveStatus(v.status)
+          isActiveStatusLocal(v.status)
       )
     );
   });
@@ -284,20 +286,18 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
  * 조건 빌더
  * ========================= */
 function buildRowPredicate(label: string) {
-  const [regionRaw, statusRaw] = label.split(" ");
-  const wantsWait = statusRaw === "대기";
-
-  // "경북소방" → "경상북도"
+  const parts = label.split(" ");
+  const statusRaw = parts[parts.length - 1] ?? "";
+  const regionRaw = parts.slice(0, -1).join(" ");
   const sidoOriginal = convertFireLabelToSido(regionRaw);
 
   return (v: Vehicle) => {
     const sido = normalizeSido(v.sido);
-
     if (sido !== sidoOriginal) return false;
-    if (wantsWait && !isWaitForDispatch(v.status)) return false;
-    if (!wantsWait && !isActiveStatus(v.status)) return false;
-
-    return true;
+    if (statusRaw === "대기") return v.status === "대기";
+    if (statusRaw === "복귀중") return v.status === "복귀중";
+    if (statusRaw === "활동") return isActiveStatusLocal(v.status);
+    return false;
   };
 }
 
@@ -316,7 +316,14 @@ const Manage: React.FC = () => {
 
   const [assignedIds, setAssignedIds] = useState<Set<number>>(new Set());
   const [assigned, setAssigned] = useState<
-    { id: number | string; callname: string; sido: string; station: string; type: string }[]
+    {
+      id: number | string;
+      callname: string;
+      sido: string;
+      station: string;
+      type: string;
+      status: string;
+    }[]
   >([]);
 
   const [title, setTitle] = useState("");
@@ -336,7 +343,9 @@ const Manage: React.FC = () => {
   const rows = useMemo(() => buildRows(remaining, isDisaster), [remaining, isDisaster]);
 
   function handleAssignOne(label: string, key: VehicleTypeKey) {
-    if (!label.includes("대기")) return alert("대기 차량만 선택할 수 있습니다.");
+    if (!isAssignableRowLabel(label)) {
+      return alert("대기·복귀중 행의 숫자만 선택할 수 있습니다.");
+    }
 
     const predicate = buildRowPredicate(label);
 
@@ -344,7 +353,9 @@ const Manage: React.FC = () => {
     if (!target) return;
 
     const vid = Number(target.id);
-    const labelText = `${getCallname(target)} / ${getStationName(target)} / ${target.type}`;
+    const statusLabel = target.status === "복귀중" ? "복귀중" : "대기중";
+    const labelText =
+      `[${statusLabel}] ${getCallname(target)} / ${getStationName(target)} / ${target.type}`;
 
     if (!window.confirm(`다음 차량을 편성합니다.\n\n${labelText}\n\n계속하시겠습니까?`)) {
       return;
@@ -359,6 +370,7 @@ const Manage: React.FC = () => {
         sido: target.sido,
         station: getStationName(target),
         type: target.type,
+        status: target.status,
       },
     ]);
   }
@@ -387,11 +399,19 @@ const Manage: React.FC = () => {
 
 
   async function sendSms(vehicleId: string | number, text: string) {
+    const vehicle = vehicles.find((v) => Number(v.id) === Number(vehicleId));
+    const contact = vehicle?.contact?.replace(/\D/g, "") ?? "";
+
+    if (!contact) {
+      devLog("문자 발송 생략 — 연락처 없음", { vehicleId });
+      return { skipped: true, reason: "no_contact" };
+    }
+
     devLog("문자 발송 요청(POST)", { vehicleId, text });
 
     return apiClient.post("/sms/to-vehicle", {
       vehicleId,
-      text
+      text,
     });
   }
 
@@ -427,12 +447,19 @@ const Manage: React.FC = () => {
         assigned.map((v) => sendSms(v.id, buildSmsText(v, missionId)))
       );
 
+      const smsSkipped = smsResults.filter(
+        (r) => r.status === "fulfilled" && (r.value as { skipped?: boolean })?.skipped
+      ).length;
       const smsFailed = smsResults.filter((r) => r.status === "rejected").length;
+      const smsSent = assigned.length - smsFailed - smsSkipped;
 
-      if (smsFailed > 0) {
+      if (smsFailed > 0 || smsSkipped > 0) {
         alert(
-          `출동 생성 완료\n\n문자 발송: 성공 ${assigned.length - smsFailed}건 / 실패 ${smsFailed}건\n` +
-          `실패 차량은 수동으로 재발송해 주세요.`
+          `출동 생성 완료\n\n` +
+          `문자 발송: 성공 ${smsSent}건` +
+          (smsSkipped > 0 ? ` / 연락처 없음 ${smsSkipped}건` : "") +
+          (smsFailed > 0 ? ` / 실패 ${smsFailed}건` : "") +
+          `\n실패·연락처 없음 차량은 수동으로 재발송해 주세요.`
         );
       } else {
         alert("출동 생성 + 문자 발송 완료!");
@@ -445,9 +472,21 @@ const Manage: React.FC = () => {
       setDesc("");
       setAddr("");
 
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
-      alert("출동 생성 / 문자 발송 중 오류 발생");
+      const msg =
+        e &&
+        typeof e === "object" &&
+        "response" in e &&
+        (e as { response?: { data?: { message?: string } } }).response?.data?.message;
+
+      if (typeof msg === "string" && msg.includes("전송 대상")) {
+        console.warn("SMS 검증 메시지(알림 생략):", msg);
+        alert("출동은 생성되었으나 일부 문자 발송 설정을 확인해 주세요.");
+        return;
+      }
+
+      alert(typeof msg === "string" && msg ? msg : "출동 생성 / 문자 발송 중 오류 발생");
     } finally {
       setSending(false);
     }
@@ -460,11 +499,18 @@ const Manage: React.FC = () => {
     <div className="min-h-screen bg-white text-gray-800">
       {/* 출동 편성 표 */}
       <section className="p-4 overflow-x-auto">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-red-500 font-semibold">출동 편성 시 대기차량 숫자 클릭</h1>
-          <span className="text-xs text-gray-500">
-            {vehicleLoading ? "차량 목록 갱신 중…" : "15초마다 자동 갱신"}
-          </span>
+        <div className="mb-2">
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-red-500 font-semibold">
+              출동 편성: 녹색(대기)·노란색(복귀중) 행의 숫자 클릭
+            </h1>
+            <span className="text-xs text-gray-500 shrink-0">
+              {vehicleLoading ? "차량 목록 갱신 중…" : "15초마다 자동 갱신"}
+            </span>
+          </div>
+          <p className="text-xs text-gray-600 mt-1">
+            대기 = 자원집결지 대기 차량 · 복귀중 = 임무 후 집결지로 복귀 중인 차량
+          </p>
         </div>
         {vehicleError && (
           <p className="mb-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
@@ -495,9 +541,10 @@ const Manage: React.FC = () => {
 
                 {COL_ORDER.map((k) => {
                   const val = r[k];
-                  const isWaitRow = String(r["구분"]).includes("대기"); // 대기 행 여부
+                  const rowLabel = String(r["구분"]);
+                  const isAssignableRow = isAssignableRowLabel(rowLabel);
                   const canClick =
-                    typeof val === "number" && val > 0 && isWaitRow;
+                    typeof val === "number" && val > 0 && isAssignableRow;
 
                   return (
                     <td
@@ -506,24 +553,27 @@ const Manage: React.FC = () => {
                         "border px-2 py-1 text-center select-none " +
                         (canClick
                           ? [
-                            // 버튼처럼 보이게 만드는 Tailwind 스타일
-                            "cursor-pointer  font-semibold",
-                            "bg-gradient-to-b from-blue-50 to-blue-200",
-                            "border-blue-400 shadow-[0_2px_4px_rgba(0,0,0,0.2)]",
-                            "hover:from-blue-100 hover:to-blue-300 hover:shadow-lg",
+                            "cursor-pointer font-semibold",
+                            rowLabel.includes("복귀")
+                              ? "bg-gradient-to-b from-amber-50 to-amber-200 border-amber-400"
+                              : "bg-gradient-to-b from-blue-50 to-blue-200 border-blue-400",
+                            "shadow-[0_2px_4px_rgba(0,0,0,0.2)]",
+                            rowLabel.includes("복귀")
+                              ? "hover:from-amber-100 hover:to-amber-300"
+                              : "hover:from-blue-100 hover:to-blue-300",
+                            "hover:shadow-lg",
                             "active:translate-y-[1px] active:shadow-none",
-                            "transition-all duration-150 ease-out"
+                            "transition-all duration-150 ease-out",
                           ].join(" ")
-                          : isWaitRow
+                          : isAssignableRow
                             ? "font-bold"
                             : "text-gray-400"
                         )
                       }
-                      onClick={() => canClick && handleAssignOne(String(r["구분"]), k)}
+                      onClick={() => canClick && handleAssignOne(rowLabel, k)}
                     >
                       {val}
                     </td>
-
                   );
                 })}
               </tr>
@@ -560,13 +610,27 @@ const Manage: React.FC = () => {
               {assigned.map((a) => (
                 <li
                   key={a.id}
-                  className="flex items-center justify-between border rounded px-3 py-2 bg-white"
+                  className="flex items-center justify-between border rounded px-3 py-2 bg-white gap-2"
                 >
-                  <div>{a.callname} / {a.sido} {a.station} / {a.type}</div>
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
+                    <span
+                      className={
+                        "shrink-0 text-xs font-bold px-2 py-0.5 rounded " +
+                        (a.status === "복귀중"
+                          ? "bg-amber-100 text-amber-800 border border-amber-300"
+                          : "bg-green-100 text-green-800 border border-green-300")
+                      }
+                    >
+                      {a.status === "복귀중" ? "복귀중" : "대기중"}
+                    </span>
+                    <span className="text-sm truncate">
+                      {a.callname} / {a.sido} {a.station} / {a.type}
+                    </span>
+                  </div>
 
                   <button
                     onClick={() => removeAssigned(Number(a.id))}
-                    className="px-2 py-1 bg-red-500 text-white text-xs rounded"
+                    className="shrink-0 px-2 py-1 bg-red-500 text-white text-xs rounded"
                   >
                     삭제
                   </button>

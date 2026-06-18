@@ -12,6 +12,7 @@ import {
 import { fetchVehicleList } from "../api/vehicles";
 import { fetchStationsByIds } from "../api/stations";
 import { mapApiListToVehicles } from "../services/mappers/vehicleMapper";
+import { isDispatchableStatus } from "../services/vehicle/status";
 import api from "../api/axios";
 import { formatPhone } from "../services/Register/utils";
 
@@ -249,7 +250,7 @@ const DispatchPage: React.FC = () => {
 
               <tbody>
                 {sortedVehicles
-                  .filter((v) => v.status === "대기")
+                  .filter((v) => isDispatchableStatus(v.status))
                   .map((v, idx) => (
                     <tr key={v.id} className="even:bg-gray-50">
                       <td className="border px-2 py-1 text-center">

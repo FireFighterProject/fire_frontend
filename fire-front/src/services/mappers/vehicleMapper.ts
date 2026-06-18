@@ -1,24 +1,28 @@
 import type { ApiFireStation, ApiVehicleListItem } from "../../api/types";
 import type { Vehicle } from "../../types/global";
-/** 백엔드 status 코드 → 프런트 표시 라벨 (0=대기, 1=활동, 2=철수, 3=집결중) */
-export const BACKEND_STATUS_LABELS: Record<number, string> = {
+import {
+    statusCodeToLabel,
+    statusLabelToCode,
+    VEHICLE_STATUS_CODE,
+} from "../vehicle/status";
+
+export { statusCodeToLabel, statusLabelToCode, VEHICLE_STATUS_CODE };
+export const BACKEND_STATUS_LABELS = {
     0: "대기",
     1: "활동",
-    2: "철수",
+    2: "복귀중",
     3: "집결중",
-};
+} as const;
 
 export const STATUS_TO_CODE: Record<string, number> = {
-    대기: 0,
-    활동: 1,
-    출동중: 1,
-    철수: 2,
-    집결중: 3,
+    대기: VEHICLE_STATUS_CODE.대기,
+    활동: VEHICLE_STATUS_CODE.활동,
+    출동중: VEHICLE_STATUS_CODE.활동,
+    복귀중: VEHICLE_STATUS_CODE.복귀중,
+    복귀: VEHICLE_STATUS_CODE.복귀중,
+    철수: VEHICLE_STATUS_CODE.복귀중,
+    집결중: VEHICLE_STATUS_CODE.집결중,
 };
-
-export function statusCodeToLabel(code: number): string {
-    return BACKEND_STATUS_LABELS[code] ?? "대기";
-}
 
 export function mapApiToVehicle(
     v: ApiVehicleListItem,

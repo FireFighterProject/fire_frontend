@@ -10,6 +10,7 @@ import type {
     KakaoPolyline,
 } from "../../types/kakao-navigation";
 import api from "../../api/axios";
+import { VEHICLE_STATUS_CODE } from "../../services/vehicle/status";
 import { devLog } from "../../utils/devLog";
 
 declare global {
@@ -695,9 +696,9 @@ const NavigationPage = () => {
 
     const currentInstruction = instructions[currentIdx];
 
-    const handleEnd = () => {
+    const handleEnd = async () => {
         const ok = window.confirm(
-            "상황을 종료하시겠습니까?\n내비게이션을 종료하고 대기기 화면으로 돌아갑니다."
+            "상황을 종료하시겠습니까?\n내비게이션을 종료하고 복귀 대기 화면으로 돌아갑니다."
         );
         if (!ok) return;
 
@@ -705,9 +706,18 @@ const NavigationPage = () => {
             window.speechSynthesis.cancel();
         }
 
-        // 필요하다면 여기서 백엔드에 '상황 종료' API 호출도 가능
-        // await api.post("/dispatch-orders/xxx/end", {...})
-        navigate("/gps/standby");
+        if (vehicleId) {
+            try {
+                await api.patch(`/vehicles/${vehicleId}/status`, {
+                    status: VEHICLE_STATUS_CODE.복귀중,
+                });
+            } catch (err) {
+                console.error("복귀중 상태 변경 실패", err);
+            }
+        }
+
+        const qs = vehicleId ? `?vehicle=${vehicleId}` : "";
+        navigate(`/gps/standby${qs}`);
     };
 
     return (

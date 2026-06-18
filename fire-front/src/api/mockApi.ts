@@ -38,6 +38,14 @@ function getMockData(method: string, path: string): unknown {
     }
     if (m === "get" && path === "/logs") return [];
     if (m === "get" && path === "/dispatch-orders") return [];
+    if (m === "get" && /^\/dispatch-orders\/vehicle\/\d+$/.test(path)) {
+        return {
+            orderId: null,
+            address: null,
+            content: null,
+            message: "출동 상태가 아닙니다.",
+        };
+    }
     if (m === "get" && /^\/dispatch-orders\/\d+$/.test(path)) {
         return { id: Number(path.split("/").pop()), title: "", description: "", status: 0 };
     }

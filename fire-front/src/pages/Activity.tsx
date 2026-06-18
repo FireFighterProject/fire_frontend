@@ -12,9 +12,13 @@ import { useAppDispatch, useAppSelector } from "../hooks";
 import { setVehicles, updateVehicle } from "../features/vehicle/vehicleSlice";
 import type { Vehicle } from "../types/global";
 import { fetchVehicleList } from "../api/vehicles";
-import { fetchFireStations } from "../api/stations";
-import { getLatestDispatchByVehicle } from "../api/dispatchOrders";
+import { fetchAllFireStations } from "../api/stations";
+import {
+  getCurrentDispatchByVehicle,
+  mapDispatchToVehicleFields,
+} from "../api/dispatchOrders";
 import { patchVehicleStatus } from "../api/vehicles";
+import { VEHICLE_STATUS_CODE } from "../services/vehicle/status";
 import { mapApiListToVehicles } from "../services/mappers/vehicleMapper";
 import apiClient from "../api/axios";
 import ActivitySummary from "../components/Activity/ActivitySummary";
@@ -234,31 +238,18 @@ const ActivityPage: React.FC = () => {
       await Promise.all(
         activeVehicles.map(async (v) => {
           try {
-            const res = await getLatestDispatchByVehicle(Number(v.id));
+            const res = await getCurrentDispatchByVehicle(Number(v.id));
 
             // 더 최신 fetch가 있으면 이 응답은 버림
             if (fetchId !== fetchIdRef.current) return;
 
-            const data = res.data;
+            const patch = mapDispatchToVehicleFields(res.data);
+            if (!patch) return;
 
-            // "출동 이력이 없습니다" 같은 메시지면 무시
-            if (
-              !data ||
-              typeof data !== "object" ||
-              (data.message &&
-                data.message.includes("출동 이력이 없습니다"))
-            ) {
-              return;
-            }
-
-            // 화면 출동 장소 / 내용만 채워줌
             dispatch(
               updateVehicle({
                 id: String(v.id),
-                patch: {
-                  dispatchPlace: data.address ?? "",
-                  content: data.content ?? "",
-                },
+                patch,
               })
             );
           } catch {
@@ -279,7 +270,7 @@ const ActivityPage: React.FC = () => {
       // 1) 차량 + 소방서를 동시에 호출 (병렬)
       const [vehicleList, stationList] = await Promise.all([
         fetchVehicleList(),
-        fetchFireStations(),
+        fetchAllFireStations(),
       ]);
 
       const stationMap = new Map(stationList.map((s) => [s.id, s]));
@@ -320,15 +311,14 @@ const ActivityPage: React.FC = () => {
         updateVehicle({
           id: vehicleId,
           patch: {
-            status: "대기",
+            status: "복귀중",
             dispatchPlace: "",
             content: "",
           },
         })
       );
 
-      // 2) 서버에 차량 상태를 0(대기)로 변경 요청
-      await patchVehicleStatus(vehicleId, 0);
+      await patchVehicleStatus(vehicleId, VEHICLE_STATUS_CODE.복귀중);
     } catch {
       alert("복귀 처리 실패");
       // 필요하면 여기서 상태 롤백도 가능

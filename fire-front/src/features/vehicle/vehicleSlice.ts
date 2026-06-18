@@ -6,7 +6,7 @@ import { fetchVehiclesMapped } from "../../api/vehicles";
 import type { FetchVehiclesParams } from "../../api/types";
 import { statusCodeToLabel } from "../../services/mappers/vehicleMapper";
 
-export type VehicleStatus = "대기" | "활동" | "철수" | "집결중";
+export type VehicleStatus = "대기" | "활동" | "복귀중" | "집결중";
 
 function loadFromLS<T>(key: string, fallback: T): T {
     try {
@@ -235,13 +235,14 @@ export const selectStatusCounts = createSelector([selectVehicles], (items) => {
     const counts: Record<VehicleStatus, number> = {
         대기: 0,
         활동: 0,
-        철수: 0,
+        복귀중: 0,
         집결중: 0,
     };
     for (const v of items) {
         const key = v.status as VehicleStatus;
         if (key in counts) counts[key]++;
         else if (v.status === "출동중") counts.활동++;
+        else if (v.status === "철수" || v.status === "복귀") counts.복귀중++;
     }
     return counts;
 });
