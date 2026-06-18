@@ -353,13 +353,6 @@ const Manage: React.FC = () => {
     if (!target) return;
 
     const vid = Number(target.id);
-    const statusLabel = target.status === "복귀중" ? "복귀중" : "대기중";
-    const labelText =
-      `[${statusLabel}] ${getCallname(target)} / ${getStationName(target)} / ${target.type}`;
-
-    if (!window.confirm(`다음 차량을 편성합니다.\n\n${labelText}\n\n계속하시겠습니까?`)) {
-      return;
-    }
 
     setAssignedIds((prev) => new Set(prev).add(vid));
     setAssigned((prev) => [
