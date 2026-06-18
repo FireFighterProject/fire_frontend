@@ -18,7 +18,12 @@ import {
   mapDispatchToVehicleFields,
 } from "../api/dispatchOrders";
 import { patchVehicleStatus } from "../api/vehicles";
-import { VEHICLE_STATUS_CODE } from "../services/vehicle/status";
+import {
+  VEHICLE_STATUS_CODE,
+  isActiveStatus,
+  isActivityManageVisibleStatus,
+  isReturningStatus,
+} from "../services/vehicle/status";
 import { mapApiListToVehicles } from "../services/mappers/vehicleMapper";
 import apiClient from "../api/axios";
 import ActivitySummary from "../components/Activity/ActivitySummary";
@@ -230,8 +235,8 @@ const ActivityPage: React.FC = () => {
   const fillLatestDispatchInfo = useCallback(
     async (vehicleList: Vehicle[], fetchId: number) => {
       // "활동" 또는 "출동중"인 차량만 요청
-      const activeVehicles = vehicleList.filter(
-        (v) => v.status === "활동" || v.status === "출동중"
+      const activeVehicles = vehicleList.filter((v) =>
+        isActiveStatus(v.status)
       );
       if (activeVehicles.length === 0) return;
 
@@ -346,10 +351,15 @@ const ActivityPage: React.FC = () => {
     });
   }, [vehicles, filter]);
 
-  /* -------------------- 활동 차량만 ------------------- */
-  const activeVehicles = filteredVehicles.filter(
-    (v) => v.status === "활동" || v.status === "출동중"
+  /* -------------------- 활동 + 복귀중 차량 ------------------- */
+  const visibleVehicles = filteredVehicles.filter((v) =>
+    isActivityManageVisibleStatus(v.status)
   );
+
+  const activeCount = visibleVehicles.filter((v) => isActiveStatus(v.status)).length;
+  const returningCount = visibleVehicles.filter((v) =>
+    isReturningStatus(v.status)
+  ).length;
 
   /* -------------------------------------------------------
    * 렌더링
@@ -370,12 +380,21 @@ const ActivityPage: React.FC = () => {
         {fetching ? "불러오는 중..." : "새로고침"}
       </button>
 
-      <ActivitySummary vehicles={activeVehicles} />
+      <div className="mb-3 flex flex-wrap gap-3 text-sm text-gray-700">
+        <span className="rounded border border-red-200 bg-red-50 px-3 py-1">
+          활동 {activeCount}대
+        </span>
+        <span className="rounded border border-amber-200 bg-amber-50 px-3 py-1">
+          복귀중 {returningCount}대
+        </span>
+      </div>
+
+      <ActivitySummary vehicles={visibleVehicles} />
       <ActivityFilter filter={filter} setFilter={setFilter} />
       <ActivityTable
-        vehicles={activeVehicles}
+        vehicles={visibleVehicles}
         onReturn={onReturn}
-        onOpenMap={(v) => setMapTarget(v)} // ✅ 지도 팝업 열기
+        onOpenMap={(v) => setMapTarget(v)}
       />
 
       {/* ✅ 지도 팝업 표시 */}

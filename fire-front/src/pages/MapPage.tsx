@@ -14,13 +14,15 @@ import type {
   MarkerBundle,
   MapVehicle,
 } from "../types/map";
-import { isMapTrackableStatus } from "../services/vehicle/status";
+import { isMapTrackableStatus, isReturningStatus } from "../services/vehicle/status";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace kakao.maps {
     interface Marker {
       setPosition(position: kakao.maps.LatLng): void;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setImage(image: any): void;
     }
 
     interface InfoWindow {
@@ -298,7 +300,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
     const activeIds = new Set<number>();
 
     const pickMarkerImage = (status: MapVehicle["status"]) =>
-      status === "복귀중" ? markerImages.복귀중 : markerImages.활동;
+      isReturningStatus(status) ? markerImages.복귀중 : markerImages.활동;
 
     filtered.forEach((v) => {
       const idNum = Number(v.id);

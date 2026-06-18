@@ -35,6 +35,17 @@ const MapStatsPanel: React.FC<Props> = ({ top, stats, selectedSido }) => {
             </div>
 
             <div className="mt-1.5 text-[11px] text-gray-600 space-x-2">
+                <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5">
+                    <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
+                    활동
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5">
+                    <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+                    복귀중
+                </span>
+            </div>
+
+            <div className="mt-1.5 text-[11px] text-gray-600 space-x-2">
                 <span className="inline-block rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5">
                     지도 클릭 → 시/도 통계
                 </span>

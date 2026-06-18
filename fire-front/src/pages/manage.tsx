@@ -8,7 +8,7 @@ import { devLog } from "../utils/devLog";
 import { buildAppPath } from "../utils/appUrl";
 import { fetchVehicles } from "../features/vehicle/vehicleSlice";
 import { useVehiclePolling } from "../hooks/useVehiclePolling";
-import { isActiveStatus } from "../services/vehicle/status";
+import { isActiveStatus, isReturningStatus } from "../services/vehicle/status";
 
 /* =========================
  * 타입 키
@@ -212,7 +212,7 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
       calcRow(`${gbLabel} 대기`, (v) => isGB(v) && v.status === "대기")
     );
     rows.push(
-      calcRow(`${gbLabel} 복귀중`, (v) => isGB(v) && v.status === "복귀중")
+      calcRow(`${gbLabel} 복귀중`, (v) => isGB(v) && isReturningStatus(v.status))
     );
     rows.push(
       calcRow(
@@ -229,7 +229,7 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
     calcRow(`${gbLabel} 대기`, (v) => isGB(v) && v.status === "대기")
   );
   rows.push(
-    calcRow(`${gbLabel} 복귀중`, (v) => isGB(v) && v.status === "복귀중")
+    calcRow(`${gbLabel} 복귀중`, (v) => isGB(v) && isReturningStatus(v.status))
   );
   rows.push(
     calcRow(
@@ -265,7 +265,7 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
     rows.push(
       calcRow(
         `${regionLabel} 복귀중`,
-        (v) => normalizeSido(v.sido) === region && v.status === "복귀중"
+        (v) => normalizeSido(v.sido) === region && isReturningStatus(v.status)
       )
     );
     rows.push(
@@ -295,7 +295,7 @@ function buildRowPredicate(label: string) {
     const sido = normalizeSido(v.sido);
     if (sido !== sidoOriginal) return false;
     if (statusRaw === "대기") return v.status === "대기";
-    if (statusRaw === "복귀중") return v.status === "복귀중";
+    if (statusRaw === "복귀중") return isReturningStatus(v.status);
     if (statusRaw === "활동") return isActiveStatusLocal(v.status);
     return false;
   };
@@ -609,12 +609,12 @@ const Manage: React.FC = () => {
                     <span
                       className={
                         "shrink-0 text-xs font-bold px-2 py-0.5 rounded " +
-                        (a.status === "복귀중"
+                        (isReturningStatus(a.status)
                           ? "bg-amber-100 text-amber-800 border border-amber-300"
                           : "bg-green-100 text-green-800 border border-green-300")
                       }
                     >
-                      {a.status === "복귀중" ? "복귀중" : "대기중"}
+                      {isReturningStatus(a.status) ? "복귀중" : "대기중"}
                     </span>
                     <span className="text-sm truncate">
                       {a.callname} / {a.sido} {a.station} / {a.type}

@@ -36,11 +36,20 @@ export function isActiveStatus(status?: string): boolean {
     return s.includes("활동") || s.includes("출동") || s.includes("임무");
 }
 
+/** 복귀 이동 중 (코드 2, 철수/복귀 별칭 포함) */
+export function isReturningStatus(status?: string): boolean {
+    return statusLabelToCode(String(status ?? "")) === VEHICLE_STATUS_CODE.복귀중;
+}
+
+/** 자원관리(/activity) 목록 표시 대상 — 활동 + 복귀중 */
+export function isActivityManageVisibleStatus(status?: string): boolean {
+    return isActiveStatus(status) || isReturningStatus(status);
+}
+
 /** 지도·GPS 추적 대상 (출동 중 + 복귀 이동 중) */
 export function isMapTrackableStatus(status?: string): boolean {
     if (!status) return false;
-    if (isActiveStatus(status)) return true;
-    return status === "복귀중" || status === "철수" || status === "복귀";
+    return isActivityManageVisibleStatus(status);
 }
 
 export function matchesStatusFilter(
