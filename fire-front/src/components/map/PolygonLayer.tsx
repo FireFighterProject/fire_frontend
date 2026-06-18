@@ -13,6 +13,7 @@ type Props = {
     map: kakao.maps.Map | null;
     vehicles: Vehicle[];
     onRegionSelect: (regionName: string, regionVehicles: Vehicle[]) => void;
+    canSelectRegion?: boolean;
 };
 
 /** 점이 폴리곤 내부인지 판정 (ray-casting) */
@@ -35,7 +36,12 @@ const isPointInPolygon = (lat: number, lng: number, path: kakao.maps.LatLng[]) =
     return inside;
 };
 
-const PolygonLayer = ({ map, vehicles, onRegionSelect }: Props) => {
+const PolygonLayer = ({
+    map,
+    vehicles,
+    onRegionSelect,
+    canSelectRegion = true,
+}: Props) => {
     const polygons = useRef<kakao.maps.Polygon[]>([]);
     const selectedPolygon = useRef<kakao.maps.Polygon | null>(null);
     const vehiclesRef = useRef(vehicles);
@@ -132,20 +138,23 @@ const PolygonLayer = ({ map, vehicles, onRegionSelect }: Props) => {
                         });
 
                         kakao.maps.event.addListener(polygon, "mouseover", () => {
+                            if (!canSelectRegion) return;
                             if (selectedPolygon.current !== polygon) {
                                 polygon.setOptions({ fillColor: "#9cf" });
                             }
                         });
 
                         kakao.maps.event.addListener(polygon, "mouseout", () => {
+                            if (!canSelectRegion) return;
                             if (selectedPolygon.current !== polygon) {
                                 polygon.setOptions({ fillColor: "#ffffff" });
                             }
                         });
 
-                        kakao.maps.event.addListener(polygon, "click", () =>
-                            handleSelect(polygon, regionName, path)
-                        );
+                        kakao.maps.event.addListener(polygon, "click", () => {
+                            if (!canSelectRegion) return;
+                            handleSelect(polygon, regionName, path);
+                        });
 
                         polygons.current.push(polygon);
                     });
@@ -169,7 +178,7 @@ const PolygonLayer = ({ map, vehicles, onRegionSelect }: Props) => {
             clearPolygons();
             selectedPolygon.current = null;
         };
-    }, [map]);
+    }, [map, canSelectRegion]);
 
     return null;
 };

@@ -5,9 +5,15 @@ type Props = {
     top: number;
     stats: MapStats;
     selectedSido: string;
+    regionSelectDisabled?: boolean;
 };
 
-const MapStatsPanel: React.FC<Props> = ({ top, stats, selectedSido }) => {
+const MapStatsPanel: React.FC<Props> = ({
+    top,
+    stats,
+    selectedSido,
+    regionSelectDisabled = false,
+}) => {
     return (
         <div
             className="fixed left-4 z-40 min-w-[210px] rounded-lg bg-white/95 shadow-lg ring-1 ring-gray-200 p-3 text-[13px] leading-6"
@@ -44,6 +50,12 @@ const MapStatsPanel: React.FC<Props> = ({ top, stats, selectedSido }) => {
                     복귀중
                 </span>
             </div>
+
+            {regionSelectDisabled && (
+                <div className="mt-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+                    현재 확대 수준에서는 지역 선택이 비활성화됩니다. (100m 단위)
+                </div>
+            )}
 
             <div className="mt-1.5 text-[11px] text-gray-600 space-x-2">
                 <span className="inline-block rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5">

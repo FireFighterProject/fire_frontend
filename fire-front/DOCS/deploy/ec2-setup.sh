@@ -41,6 +41,17 @@ server {
     root ${DEPLOY_DIR};
     index index.html;
 
+    location /assets/ {
+        try_files \$uri =404;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location = /index.html {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        try_files \$uri =404;
+    }
+
     # SPA 라우팅
     location / {
         try_files \$uri \$uri/ /index.html;

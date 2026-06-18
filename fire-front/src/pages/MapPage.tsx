@@ -49,6 +49,8 @@ type Props = {
 
 const API_BASE = "/api";
 const POLL_MS = 5000;
+// 카카오맵 레벨이 작을수록 확대됨 (100m 수준에서 지역 선택 비활성화)
+const REGION_SELECT_MIN_LEVEL = 5;
 
 
 // ===================== 공통 함수 =====================
@@ -133,6 +135,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
 
   //  UI 상태
   const [selectedSido, setSelectedSido] = useState("");
+  const [canSelectRegion, setCanSelectRegion] = useState(true);
 
   const [stats, setStats] = useState<MapStats>({
     visibleCount: 0,
@@ -251,12 +254,24 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
     });
 
     map.current = m;
+    setCanSelectRegion(m.getLevel() >= REGION_SELECT_MIN_LEVEL);
 
     m.addControl(new kakao.maps.ZoomControl(), kakao.maps.ControlPosition.RIGHT);
     m.addControl(new kakao.maps.MapTypeControl(), kakao.maps.ControlPosition.TOPRIGHT);
 
+    const syncRegionSelectable = () => {
+      const selectable = m.getLevel() >= REGION_SELECT_MIN_LEVEL;
+      setCanSelectRegion(selectable);
+      if (!selectable) {
+        setSelectedSido("");
+        setStats((s) => ({ ...s, selectedAreaCount: 0 }));
+      }
+    };
+    kakao.maps.event.addListener(m, "zoom_changed", syncRegionSelectable);
+
     // 언마운트 시 마커 정리
     return () => {
+      kakao.maps.event.removeListener(m, "zoom_changed", syncRegionSelectable);
       markers.current.forEach((bundle) => {
         bundle.marker.setMap(null);
         bundle.info?.close();
@@ -427,6 +442,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
           map={map.current}
           vehicles={filtered}
           onRegionSelect={handleRegionSelect}
+          canSelectRegion={canSelectRegion}
         />
       )}
 
@@ -447,6 +463,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
         top={topOffset}
         stats={stats}
         selectedSido={selectedSido}
+        regionSelectDisabled={!canSelectRegion}
       />
 
       <MapFilterPanel

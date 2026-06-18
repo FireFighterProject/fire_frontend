@@ -43,6 +43,17 @@ server {
     root /home/ec2-user/fire-frontend;
     index index.html;
 
+    location /assets/ {
+        try_files $uri =404;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location = /index.html {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        try_files $uri =404;
+    }
+
     location /api/ {
         proxy_pass http://127.0.0.1:8080/api/;
         proxy_http_version 1.1;
