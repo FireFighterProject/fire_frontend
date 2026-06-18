@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import DispatchProgressBar from "../../components/gps/DispatchProgressBar";
 
 const GPSReady = () => {
     const [params] = useSearchParams();
@@ -83,11 +84,18 @@ const GPSReady = () => {
 
 
 
-    return (
-        <div className="w-full min-h-screen flex justify-center bg-gray-50">
-            <div className="w-full max-w-xl p-5 flex flex-col gap-6">
+    const vehicleLabel = vehicle ? `${vehicle}호` : undefined;
 
-                <h2 className="text-center text-2xl sm:text-3xl font-bold">
+    return (
+        <div className="flex min-h-screen w-full flex-col bg-gray-50">
+            <DispatchProgressBar
+                currentStep="dispatch"
+                nextAction="아래 [출동 시작 OK] 버튼을 눌러 현장으로 이동하세요."
+                vehicleLabel={vehicleLabel}
+            />
+
+            <div className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-6 p-5">
+                <h2 className="text-center text-2xl font-bold sm:text-3xl">
                     🚨 출동 요청
                 </h2>
 
@@ -116,7 +124,7 @@ const GPSReady = () => {
 
                 <button
                     onClick={handleStart}
-                    className="bg-red-600 text-white font-bold py-4 rounded-xl text-xl shadow-md active:scale-95 transition"
+                    className="rounded-2xl bg-red-600 py-5 text-2xl font-bold text-white shadow-lg transition active:scale-95"
                 >
                     출동 시작 OK
                 </button>

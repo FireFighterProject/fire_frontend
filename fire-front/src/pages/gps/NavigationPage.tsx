@@ -10,6 +10,7 @@ import type {
     KakaoPolyline,
 } from "../../types/kakao-navigation";
 import api from "../../api/axios";
+import DispatchProgressBar from "../../components/gps/DispatchProgressBar";
 import { VEHICLE_STATUS_CODE } from "../../services/vehicle/status";
 import { devLog } from "../../utils/devLog";
 
@@ -720,13 +721,23 @@ const NavigationPage = () => {
         navigate(`/gps/standby${qs}`);
     };
 
+    const vehicleLabel = vehicleId ? `${vehicleId}호` : undefined;
+
     return (
         <>
+            <div className="fixed top-0 left-0 right-0 z-[10001]">
+                <DispatchProgressBar
+                    currentStep="dispatch"
+                    nextAction="현장 활동 후 우측 하단 [상황 종료] 버튼을 눌러 주세요."
+                    vehicleLabel={vehicleLabel}
+                />
+            </div>
+
             {/* 전체 화면 지도 */}
-            <div ref={mapRef} className="w-full h-screen" />
+            <div ref={mapRef} className="h-screen w-full" />
             {/* 📋 왼쪽 출동 정보 패널 */}
             {(dispatchTitle || destAddress || dispatchDesc) && (
-                <div className="fixed top-24 left-4 z-[9998] max-w-xs">
+                <div className="fixed top-56 left-4 z-[9998] max-w-xs sm:top-52">
                     <div className="bg-white/95 text-gray-900 rounded-2xl shadow-lg p-4 space-y-3">
                         {dispatchTitle && (
                             <div>
@@ -766,7 +777,7 @@ const NavigationPage = () => {
 
             {/* 🧭 상단 고정 안내 박스 (항상 보이게) */}
             {currentInstruction && (
-                <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999]">
+                <div className="fixed top-48 left-1/2 z-[9999] -translate-x-1/2 sm:top-44">
                     <div className="bg-black/70 text-white px-4 py-3 rounded-2xl shadow-lg flex flex-col gap-1 max-w-xl pointer-events-none">
                         <div className="flex items-center gap-3">
                             <span className="text-3xl">
@@ -838,7 +849,7 @@ const NavigationPage = () => {
             <button
                 type="button"
                 onClick={handleEnd}
-                className="fixed bottom-28 right-4 z-[10000] bg-red-600 text-white px-4 py-3 rounded-full shadow-xl text-lg font-bold active:scale-95"
+                className="fixed bottom-28 right-4 z-[10000] rounded-2xl bg-red-600 px-6 py-4 text-xl font-bold text-white shadow-xl active:scale-95"
             >
                 상황 종료
             </button>
