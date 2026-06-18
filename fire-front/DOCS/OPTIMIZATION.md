@@ -300,12 +300,59 @@ memo를 남용하면 오히려 비교 비용이 늘 수 있으므로, React DevT
 | `redux` | 32 KB | 12 KB | Redux Toolkit |
 | `charts` | 304 KB | 89 KB | Statistics 진입 시 |
 | `xlsx` | 429 KB | 143 KB | 엑셀 기능 사용 시 |
-| `MapPage` | 1,756 KB | 636 KB | 지도·폴리곤 데이터 포함 |
+| MapPage | 1,756 KB | 636 KB | ~~지도·폴리곤 데이터 포함~~ → **2차: 12 KB** (map-data 분리) |
+| map-data | — | — | **1,745 KB** (gzip 630 KB) — 지도 폴리곤 진입 시 |
 | `Statistics` | 13 KB | 4 KB | 페이지 청크 |
 | `Report` | 9 KB | 3 KB | 페이지 청크 |
 | `AssemblyNavigation` | 9 KB | 4 KB | GPS 페이지 청크 |
 
-> `MapPage` 청크가 가장 큽니다. `sido.json` / `sig.json` 등 정적 지도 데이터 lazy load가 다음 개선 포인트입니다.
+> `MapPage` 청크가 가장 큽니다. ~~`sido.json` / `sig.json` 등 정적 지도 데이터 lazy load가 다음 개선 포인트입니다.~~  
+> **2026-06-16 2차 적용:** GeoJSON을 `map-data` 청크로 분리 — MapPage **11.8KB**, map-data **1.7MB** (지도 진입 시 로드).
+
+---
+
+## 12. 2차 최적화 (2026-06-16)
+
+기능 동작을 유지한 채 추가 적용한 항목입니다.
+
+### GeoJSON 지연 로드 (`map-data` 청크)
+
+| Before | After |
+|--------|-------|
+| `PolygonLayer`가 `sido.json`·`sig.json` 정적 import | `geoJsonLoader.ts`에서 `import()` 동적 로드 |
+| MapPage 청크 ~1,756 KB | MapPage **~12 KB** + map-data **~1,745 KB** (지도 폴리곤 필요 시) |
+
+```
+src/services/map/geoJsonLoader.ts   # loadSidoGeoJson, loadSigGeoJson
+src/components/map/PolygonLayer.tsx # async 로드 + memo + ref 패턴
+```
+
+### 소방서 API 캐시 (5분 TTL + in-flight dedupe)
+
+동일 `/fire-stations` 요청이 여러 컴포넌트에서 중복 호출되던 문제를 **외부 의존성 없이** 해결했습니다.
+
+```
+src/services/cache/simpleCache.ts   # createCachedFetcher
+src/api/stations.ts                 # fetchFireStations, fetchAllFireStations 캐시 적용
+```
+
+- 시도별 키 + `__all_merged__` 키로 분리 캐시
+- 동시 요청은 하나의 Promise 공유 (in-flight dedupe)
+
+### 리렌더 · memo · callback
+
+| 파일 | 변경 |
+|------|------|
+| `PolygonLayer` | `memo`, `vehiclesRef`/`onRegionSelectRef` — vehicles 변경 시 폴리곤 재생성 방지 |
+| `MapFilterPanel` | `memo`, `fetchFireStations` 캐시 사용 |
+| `MapPage` | `useCallback` — `handleRegionSelect`, `resetFilters`, `changeFilter` |
+| `ActivityTable` | `memo` |
+
+### 프로덕션 디버그 로그 제거
+
+`src/utils/devLog.ts` — `import.meta.env.DEV`일 때만 `console.log` 출력.
+
+적용: GPS 페이지, `manage`, `RegisterTab` 등
 
 ---
 
@@ -315,9 +362,9 @@ memo를 남용하면 오히려 비교 비용이 늘 수 있으므로, React DevT
 
 | 항목 | 방법 | 기대 효과 |
 |------|------|-----------|
-| MapPage 청크 축소 | `sido.json`·`sig.json` dynamic import | 초기·지도 페이지 로딩 1MB+ 감소 |
+| ~~MapPage 청크 축소~~ | ~~`sido.json`·`sig.json` dynamic import~~ | **✅ 2차 적용 완료** |
 | God Component 분리 | `NavigationPage`(838줄), `AssemblyNavigation` hooks 추출 | 유지보수·테스트 용이 |
-| 서버 상태 캐싱 | React Query / SWR 도입 | `/fire-stations` 중복 호출 제거 |
+| 서버 상태 캐싱 | React Query / SWR 도입 | `/fire-stations` 중복 호출 제거 — **부분 적용: TTL 캐시** |
 
 ### 우선순위 중간
 
@@ -365,6 +412,9 @@ const { data: stations } = useQuery({
 | `src/hooks.ts` | typed Redux hooks |
 | `src/components/Report/ReportParts.tsx` | Report UI 분리 |
 | `src/pages/gps/AssemblyNavigation.tsx` | GPS watchPosition 수정 |
+| `src/services/map/geoJsonLoader.ts` | GeoJSON 동적 로드 |
+| `src/services/cache/simpleCache.ts` | API TTL 캐시 |
+| `src/utils/devLog.ts` | 개발 전용 로그 |
 
 ### 참고 문서
 

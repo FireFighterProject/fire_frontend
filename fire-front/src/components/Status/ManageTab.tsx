@@ -7,6 +7,7 @@ import { useAppDispatch, useAppSelector } from "../../hooks";
 import type { FilterQuery } from "../Status/manage/FilterBar";
 
 import { fetchVehicles, selectVehicles } from "../../features/vehicle/vehicleSlice";
+import { useVehiclePolling } from "../../hooks/useVehiclePolling";
 
 import FilterBar from "../Status/manage/FilterBar";
 import VehicleTable from "../Status/manage/VehicleTable";
@@ -18,8 +19,7 @@ export default function ManageTab() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dispatch = useAppDispatch();
     const vehicles = useAppSelector(selectVehicles) as Vehicle[];
-
-    const [loading, setLoading] = useState(false);
+    const loading = useAppSelector((s) => s.vehicle.loading);
 
     //  소방서 목록
     const [allStations, setAllStations] = useState<FireStation[]>([]);
@@ -46,12 +46,9 @@ export default function ManageTab() {
     }, []);
 
     // ========================================================
-    // 2) 차량 전체 로드
+    // 2) 차량 전체 로드 + 15초마다 자동 갱신
     // ========================================================
-    useEffect(() => {
-        setLoading(true);
-        dispatch(fetchVehicles({})).finally(() => setLoading(false));
-    }, [dispatch]);
+    useVehiclePolling();
 
     // ========================================================
     // 3) GPS 수신 차량 id 로드 (/api/gps/all) + 20초마다 폴링

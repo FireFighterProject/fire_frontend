@@ -4,8 +4,10 @@ import React, { useMemo, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../hooks";
 import type { Vehicle } from "../types/global";
 import apiClient from "../api/axios";
+import { devLog } from "../utils/devLog";
 import { buildAppPath } from "../utils/appUrl";
 import { fetchVehicles } from "../features/vehicle/vehicleSlice";
+import { useVehiclePolling } from "../hooks/useVehiclePolling";
 
 /* =========================
  * 타입 키
@@ -77,10 +79,14 @@ function normalizeType(type?: string): VehicleTypeKey {
   return "기타";
 }
 
-function normalizeStatus(status?: string): "대기" | "활동" {
+function isActiveStatus(status?: string): boolean {
   const s = status ?? "";
-  if (s.includes("활동") || s.includes("출동") || s.includes("임무")) return "활동";
-  return "대기";
+  return s.includes("활동") || s.includes("출동") || s.includes("임무");
+}
+
+/** 출동 편성 가능: status=대기(0)만. 집결중·철수 등 제외 */
+function isWaitForDispatch(status?: string): boolean {
+  return status === "대기";
 }
 
 function normalizeSido(raw?: string) {
@@ -206,13 +212,13 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
     rows.push(
       calcRow(
         `${gbLabel} 대기`,
-        (v) => isGB(v) && normalizeStatus(v.status) === "대기"
+        (v) => isGB(v) && isWaitForDispatch(v.status)
       )
     );
     rows.push(
       calcRow(
         `${gbLabel} 활동`,
-        (v) => isGB(v) && normalizeStatus(v.status) === "활동"
+        (v) => isGB(v) && isActiveStatus(v.status)
       )
     );
 
@@ -224,13 +230,13 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
   rows.push(
     calcRow(
       `${gbLabel} 대기`,
-      (v) => isGB(v) && normalizeStatus(v.status) === "대기"
+      (v) => isGB(v) && isWaitForDispatch(v.status)
     )
   );
   rows.push(
     calcRow(
       `${gbLabel} 활동`,
-      (v) => isGB(v) && normalizeStatus(v.status) === "활동"
+      (v) => isGB(v) && isActiveStatus(v.status)
     )
   );
 
@@ -257,7 +263,7 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
         `${regionLabel} 대기`,
         (v) =>
           normalizeSido(v.sido) === region &&
-          normalizeStatus(v.status) === "대기"
+          isWaitForDispatch(v.status)
       )
     );
     rows.push(
@@ -265,7 +271,7 @@ function buildRows(vehicles: Vehicle[], isDisaster: boolean) {
         `${regionLabel} 활동`,
         (v) =>
           normalizeSido(v.sido) === region &&
-          normalizeStatus(v.status) === "활동"
+          isActiveStatus(v.status)
       )
     );
   });
@@ -286,10 +292,10 @@ function buildRowPredicate(label: string) {
 
   return (v: Vehicle) => {
     const sido = normalizeSido(v.sido);
-    const status = normalizeStatus(v.status);
 
     if (sido !== sidoOriginal) return false;
-    if (wantsWait && status !== "대기") return false;
+    if (wantsWait && !isWaitForDispatch(v.status)) return false;
+    if (!wantsWait && !isActiveStatus(v.status)) return false;
 
     return true;
   };
@@ -303,6 +309,10 @@ const Manage: React.FC = () => {
   const dispatch = useAppDispatch();
   const isDisaster = useAppSelector((s) => s.emergency.isDisaster);
   const vehicles = useAppSelector((s) => s.vehicle.vehicles) as Vehicle[];
+  const vehicleLoading = useAppSelector((s) => s.vehicle.loading);
+  const vehicleError = useAppSelector((s) => s.vehicle.error);
+
+  useVehiclePolling();
 
   const [assignedIds, setAssignedIds] = useState<Set<number>>(new Set());
   const [assigned, setAssigned] = useState<
@@ -316,7 +326,10 @@ const Manage: React.FC = () => {
   const [sending, setSending] = useState(false);
 
   const remaining = useMemo(
-    () => vehicles.filter((v) => !assignedIds.has(Number(v.id))),
+    () =>
+      vehicles
+        .filter((v) => !assignedIds.has(Number(v.id)))
+        .sort((a, b) => Number(a.id) - Number(b.id)),
     [vehicles, assignedIds]
   );
 
@@ -331,6 +344,11 @@ const Manage: React.FC = () => {
     if (!target) return;
 
     const vid = Number(target.id);
+    const labelText = `${getCallname(target)} / ${getStationName(target)} / ${target.type}`;
+
+    if (!window.confirm(`다음 차량을 편성합니다.\n\n${labelText}\n\n계속하시겠습니까?`)) {
+      return;
+    }
 
     setAssignedIds((prev) => new Set(prev).add(vid));
     setAssigned((prev) => [
@@ -369,7 +387,7 @@ const Manage: React.FC = () => {
 
 
   async function sendSms(vehicleId: string | number, text: string) {
-    console.log("📨 문자 발송 요청(POST)", { vehicleId, text });
+    devLog("문자 발송 요청(POST)", { vehicleId, text });
 
     return apiClient.post("/sms/to-vehicle", {
       vehicleId,
@@ -404,18 +422,21 @@ const Manage: React.FC = () => {
         vehicleIds: assigned.map((v) => v.id),
       });
 
-      // 3) 문자 발송 (개선됨: 실패해도 전체 stop X)
-      for (const v of assigned) {
-        try {
-          const smsText = buildSmsText(v, missionId);  // 👈 변경됨
-          await sendSms(v.id, smsText);
-        } catch (err) {
-          console.error(`문자 발송 실패 차량 ID = ${v.id}`, err);
-        }
+      // 3) 문자 발송 — 실패해도 나머지 계속 발송
+      const smsResults = await Promise.allSettled(
+        assigned.map((v) => sendSms(v.id, buildSmsText(v, missionId)))
+      );
+
+      const smsFailed = smsResults.filter((r) => r.status === "rejected").length;
+
+      if (smsFailed > 0) {
+        alert(
+          `출동 생성 완료\n\n문자 발송: 성공 ${assigned.length - smsFailed}건 / 실패 ${smsFailed}건\n` +
+          `실패 차량은 수동으로 재발송해 주세요.`
+        );
+      } else {
+        alert("출동 생성 + 문자 발송 완료!");
       }
-
-
-      alert("출동 생성 + 문자 발송 완료!");
 
       dispatch(fetchVehicles({}));
       setAssigned([]);
@@ -439,7 +460,17 @@ const Manage: React.FC = () => {
     <div className="min-h-screen bg-white text-gray-800">
       {/* 출동 편성 표 */}
       <section className="p-4 overflow-x-auto">
-        <h1 className="text-red-500 font-semibold">출동 편성 시 대기차량 숫자 클릭</h1>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-red-500 font-semibold">출동 편성 시 대기차량 숫자 클릭</h1>
+          <span className="text-xs text-gray-500">
+            {vehicleLoading ? "차량 목록 갱신 중…" : "15초마다 자동 갱신"}
+          </span>
+        </div>
+        {vehicleError && (
+          <p className="mb-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+            최신 차량 목록을 불러오지 못했습니다. 마지막 데이터를 표시합니다. ({vehicleError})
+          </p>
+        )}
         <table className="table-auto w-full border border-gray-300 text-sm">
           <thead className="bg-gray-100">
             <tr>

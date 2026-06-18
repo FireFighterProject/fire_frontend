@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useRef } from "react";
-import sidoJson from "../../data/sido.json";
-import sigJson from "../../data/sig.json";
+import { memo, useEffect, useRef } from "react";
+import { loadGeoJsonForZoom } from "../../services/map/geoJsonLoader";
 import type { Vehicle } from "../../types/map";
 
 declare global {
@@ -16,7 +15,7 @@ type Props = {
     onRegionSelect: (regionName: string, regionVehicles: Vehicle[]) => void;
 };
 
-/** 🔥 점이 폴리곤 내부인지 판정 (ray-casting) */
+/** 점이 폴리곤 내부인지 판정 (ray-casting) */
 const isPointInPolygon = (lat: number, lng: number, path: kakao.maps.LatLng[]) => {
     let inside = false;
 
@@ -39,10 +38,17 @@ const isPointInPolygon = (lat: number, lng: number, path: kakao.maps.LatLng[]) =
 const PolygonLayer = ({ map, vehicles, onRegionSelect }: Props) => {
     const polygons = useRef<kakao.maps.Polygon[]>([]);
     const selectedPolygon = useRef<kakao.maps.Polygon | null>(null);
+    const vehiclesRef = useRef(vehicles);
+    const onRegionSelectRef = useRef(onRegionSelect);
+
+    vehiclesRef.current = vehicles;
+    onRegionSelectRef.current = onRegionSelect;
 
     useEffect(() => {
         if (!map) return;
         const kakao = window.kakao;
+        let cancelled = false;
+        let zoomListener: unknown = null;
 
         const clearPolygons = () => {
             polygons.current.forEach((p) => p.setMap(null));
@@ -65,7 +71,6 @@ const PolygonLayer = ({ map, vehicles, onRegionSelect }: Props) => {
             ];
         };
 
-        /** 🔥 클릭 시 → 폴리곤 내부 차량만 카운트 */
         const handleSelect = (
             polygon: kakao.maps.Polygon,
             regionName: string,
@@ -89,74 +94,84 @@ const PolygonLayer = ({ map, vehicles, onRegionSelect }: Props) => {
 
             selectedPolygon.current = polygon;
 
-            const regionVehicles = vehicles.filter((v) => {
+            const currentVehicles = vehiclesRef.current;
+            const regionVehicles = currentVehicles.filter((v) => {
                 if (!v.lat || !v.lng) return false;
                 return isPointInPolygon(v.lat, v.lng, path);
             });
 
-            onRegionSelect(regionName, regionVehicles);
+            onRegionSelectRef.current(regionName, regionVehicles);
         };
 
-        const loadPolygons = (level: number) => {
+        const loadPolygons = async (level: number) => {
             clearPolygons();
+            selectedPolygon.current = null;
 
-            const geo = level <= 10 ? sigJson : sidoJson;
-            const features = geo.features;
+            try {
+                const geo = await loadGeoJsonForZoom(level);
+                if (cancelled) return;
 
-            features.forEach((unit: any) => {
-                const regionName =
-                    unit.properties.SIG_KOR_NM ||
-                    unit.properties.CTY_KOR_NM ||
-                    unit.properties.SIDO_NM;
+                const features = geo.features as any[];
 
-                const paths = parseCoordinates(unit.geometry);
+                features.forEach((unit: any) => {
+                    const regionName =
+                        unit.properties.SIG_KOR_NM ||
+                        unit.properties.CTY_KOR_NM ||
+                        unit.properties.SIDO_NM;
 
-                paths.forEach((path: kakao.maps.LatLng[]) => {
-                    const polygon = new kakao.maps.Polygon({
-                        map,
-                        path,
-                        strokeWeight: 2,
-                        strokeColor: "#004c80",
-                        fillColor: "#ffffff",
-                        fillOpacity: 0.15,
+                    const paths = parseCoordinates(unit.geometry);
+
+                    paths.forEach((path: kakao.maps.LatLng[]) => {
+                        const polygon = new kakao.maps.Polygon({
+                            map,
+                            path,
+                            strokeWeight: 2,
+                            strokeColor: "#004c80",
+                            fillColor: "#ffffff",
+                            fillOpacity: 0.15,
+                        });
+
+                        kakao.maps.event.addListener(polygon, "mouseover", () => {
+                            if (selectedPolygon.current !== polygon) {
+                                polygon.setOptions({ fillColor: "#9cf" });
+                            }
+                        });
+
+                        kakao.maps.event.addListener(polygon, "mouseout", () => {
+                            if (selectedPolygon.current !== polygon) {
+                                polygon.setOptions({ fillColor: "#ffffff" });
+                            }
+                        });
+
+                        kakao.maps.event.addListener(polygon, "click", () =>
+                            handleSelect(polygon, regionName, path)
+                        );
+
+                        polygons.current.push(polygon);
                     });
-
-                    kakao.maps.event.addListener(polygon, "mouseover", () => {
-                        if (selectedPolygon.current !== polygon) {
-                            polygon.setOptions({ fillColor: "#9cf" });
-                        }
-                    });
-
-                    kakao.maps.event.addListener(polygon, "mouseout", () => {
-                        if (selectedPolygon.current !== polygon) {
-                            polygon.setOptions({ fillColor: "#ffffff" });
-                        }
-                    });
-
-                    kakao.maps.event.addListener(polygon, "click", () =>
-                        handleSelect(polygon, regionName, path)
-                    );
-
-                    polygons.current.push(polygon);
                 });
-            });
+            } catch (e) {
+                console.error("지도 폴리곤 GeoJSON 로드 실패:", e);
+            }
         };
 
-        loadPolygons(map.getLevel());
+        void loadPolygons(map.getLevel());
 
-        const listener = kakao.maps.event.addListener(
-            map,
-            "zoom_changed",
-            () => loadPolygons(map.getLevel())
-        );
+        zoomListener = kakao.maps.event.addListener(map, "zoom_changed", () => {
+            void loadPolygons(map.getLevel());
+        });
 
         return () => {
-            kakao.maps.event.removeListener(map, "zoom_changed", listener);
+            cancelled = true;
+            if (zoomListener) {
+                kakao.maps.event.removeListener(map, "zoom_changed", zoomListener);
+            }
             clearPolygons();
+            selectedPolygon.current = null;
         };
-    }, [map, vehicles, onRegionSelect]);
+    }, [map]);
 
     return null;
 };
 
-export default PolygonLayer;
+export default memo(PolygonLayer);

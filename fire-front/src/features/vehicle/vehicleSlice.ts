@@ -176,8 +176,11 @@ const vehicleSlice = createSlice({
             })
             .addCase(fetchVehicles.rejected, (state, action) => {
                 state.loading = false;
-                state.error = action.error.message ?? "로드 실패";
-                state.vehicles = [];
+                state.error =
+                    (typeof action.payload === "string" ? action.payload : null) ??
+                    action.error.message ??
+                    "로드 실패";
+                // 긴급 상황: API 실패 시에도 마지막 서버/캐시 데이터 유지
             });
     },
 });

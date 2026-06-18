@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import apiClient from "../../api/axios";
+import { devLog } from "../../utils/devLog";
 
 const GPSStandby = () => {
     const [params] = useSearchParams();
@@ -17,7 +18,7 @@ const GPSStandby = () => {
                 await apiClient.patch(`/vehicles/${vehicleId}/status`, {
                     status: "철수"
                 });
-                console.log("🚒 차량 상태 철수로 업데이트 완료");
+                devLog("차량 상태 철수로 업데이트 완료");
             } catch (err) {
                 console.error("🚨 차량 철수 업데이트 실패", err);
             }

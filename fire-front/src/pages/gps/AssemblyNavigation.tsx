@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
+import { devLog } from "../../utils/devLog";
 import apiClient from "../../api/axios";
 import type { KakaoMap, KakaoMarker, KakaoPolyline } from "../../types/kakao-navigation";
 
@@ -243,7 +244,7 @@ const AssemblyNavigationPage = () => {
             }
 
             const raw = (await res.json()) as TmapRouteResponse;
-            console.log("RAW TMAP RESPONSE (AssemblyNav):", raw);
+            devLog("RAW TMAP RESPONSE (AssemblyNav):", raw);
 
             const features = raw.features ?? [];
 
@@ -276,7 +277,7 @@ const AssemblyNavigationPage = () => {
                 });
             });
 
-            console.log(
+            devLog(
                 "Tmap merged total points (AssemblyNav):",
                 mergedCoords.length,
                 "첫 5개 좌표:",
@@ -458,7 +459,7 @@ const AssemblyNavigationPage = () => {
             };
 
             try {
-                console.log("📡 /gps/send 주기적 전송", payload);
+                devLog("📡 /gps/send 주기적 전송", payload);
                 await apiClient.post("/gps/send", payload);
             } catch (err) {
                 if (!cancelled) {
@@ -498,7 +499,7 @@ const AssemblyNavigationPage = () => {
         };
 
         try {
-            console.log("📡 /gps/send 최초 전송", payload);
+            devLog("📡 /gps/send 최초 전송", payload);
             await apiClient.post("/gps/send", payload);
             alert("응소 OK 처리 완료!\n현재 위치가 관제센터로 전송됩니다.");
         } catch (err) {

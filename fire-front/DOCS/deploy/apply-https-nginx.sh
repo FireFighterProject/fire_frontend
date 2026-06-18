@@ -12,6 +12,25 @@ server {
 }
 
 server {
+    listen 80;
+    server_name fire.rjsgud.com;
+    return 301 https://fire-management.rjsgud.com$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name fire.rjsgud.com;
+
+    ssl_certificate /etc/letsencrypt/live/fire-management.rjsgud.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/fire-management.rjsgud.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    return 301 https://fire-management.rjsgud.com$request_uri;
+}
+
+server {
     listen 443 ssl;
     http2 on;
     server_name fire-management.rjsgud.com;

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import type { Vehicle } from "../../types/global";
 import ActivityRow from "./table/ActivityRow";
 
@@ -42,4 +42,4 @@ const ActivityTable: React.FC<Props> = ({ vehicles, onReturn, onOpenMap }) => {
     );
 };
 
-export default ActivityTable;
+export default memo(ActivityTable);

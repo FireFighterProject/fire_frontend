@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from "react";
 import apiClient from "../../api/axios";
+import { devLog } from "../../utils/devLog";
+import { fetchFireStations } from "../../api/stations";
 
 import RegisterForm from "./Register/RegisterForm";
 import ExcelUploader from "./Register/ExcelUploader";
@@ -13,6 +15,11 @@ import {
     SIDO_OPTIONS
 } from "../../services/Register/utils";
 import { buildAppPath } from "../../utils/appUrl";
+import {
+    formatSmsResultMessage,
+    matchExcelRowsToVehicleIds,
+    sendBulkSms,
+} from "../../services/Register/batchSms";
 
 /* 타입 정의 */
 export type ApiVehicle = {
@@ -78,9 +85,8 @@ function RegisterTab() {
             return;
         }
 
-        apiClient
-            .get<FireStation[]>("/fire-stations", { params: { sido: form.sido } })
-            .then((res) => setStations(res.data ?? []))
+        fetchFireStations(form.sido)
+            .then(setStations)
             .catch((e) => {
                 console.error("fire-stations 조회 실패:", e);
                 setStations([]);
@@ -89,12 +95,7 @@ function RegisterTab() {
         setForm((p) => ({ ...p, stationName: "" }));
     }, [form.sido]);
 
-    const ensureStationsLoaded = async (sido: string) => {
-        const res = await apiClient.get<FireStation[]>("/fire-stations", {
-            params: { sido },
-        });
-        return res.data ?? [];
-    };
+    const ensureStationsLoaded = async (sido: string) => fetchFireStations(sido);
 
     const getAssemblyLink = (vehicleId: number) =>
         buildAppPath(
@@ -222,7 +223,7 @@ function RegisterTab() {
             } = res.data;
 
             alert(`총 ${total} / 성공 ${inserted} / 중복 ${duplicates}`);
-            console.log("BATCH RESULT:", res.data);
+            devLog("BATCH RESULT:", res.data);
 
             if (!inserted || inserted === 0) {
                 if (messages && messages.length > 0) {
@@ -244,30 +245,27 @@ function RegisterTab() {
                 return;
             }
 
-            const count = Math.min(inserted, vehicleIds.length);
+            const pairs = await matchExcelRowsToVehicleIds(excelRows, vehicleIds);
 
-            for (let i = 0; i < count; i++) {
-                const vehicleId = vehicleIds[i];
-                try {
-                    await apiClient.patch(`/vehicles/${vehicleId}/status`, {
-                        status: 3,
-                    });
-                } catch (patchErr: any) {
-                    console.warn(`차량 ${vehicleId} 상태(집결중) 설정 실패:`, patchErr);
-                }
+            if (pairs.length < inserted) {
+                console.warn(
+                    `[batch] 매칭 누락: 등록 ${inserted}건, 매칭 ${pairs.length}건`,
+                    { vehicleIds, excelRows }
+                );
             }
 
-            for (let i = 0; i < count; i++) {
-                const vehicleId = vehicleIds[i];
-                const row = excelRows[i];
+            await Promise.allSettled(
+                pairs.map(({ vehicleId }) =>
+                    apiClient.patch(`/vehicles/${vehicleId}/status`, { status: 3 })
+                )
+            );
 
+            const smsResult = await sendBulkSms(pairs, (vehicleId, row) => {
                 const link = getAssemblyLink(vehicleId);
-                const text = `[자원집결지 동원소방력] 차량:${row.callSign} 집결지:${rallyPointInput} 응소OK:${link}`;
+                return `[자원집결지 동원소방력] 차량:${row.callSign} 집결지:${rallyPointInput} 응소OK:${link}`;
+            });
 
-                await apiClient.post("/sms/to-vehicle", { vehicleId, text });
-            }
-
-            alert(`등록 ${inserted}건 + 문자 발송 완료`);
+            alert(formatSmsResultMessage(inserted, smsResult));
             setExcelRows([]);
         } catch (err: any) {
             console.error(err);

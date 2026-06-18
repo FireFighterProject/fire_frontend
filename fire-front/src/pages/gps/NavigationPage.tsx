@@ -10,6 +10,7 @@ import type {
     KakaoPolyline,
 } from "../../types/kakao-navigation";
 import api from "../../api/axios";
+import { devLog } from "../../utils/devLog";
 
 declare global {
     interface Window {
@@ -300,7 +301,7 @@ const NavigationPage = () => {
                     const x = parseFloat(result[0].x); // 경도
                     setDestLat(y);
                     setDestLon(x);
-                    console.log("DEST GEOCODE:", destAddress, y, x);
+                    devLog("DEST GEOCODE:", destAddress, y, x);
 
                     const destPos = new window.kakao.maps.LatLng(y, x);
                     new window.kakao.maps.Marker({
@@ -358,7 +359,7 @@ const NavigationPage = () => {
         }
 
         const raw = (await res.json()) as TmapRouteResponse;
-        console.log("RAW TMAP RESPONSE:", raw);
+        devLog("RAW TMAP RESPONSE:", raw);
 
         const features = raw.features ?? [];
 
@@ -392,7 +393,7 @@ const NavigationPage = () => {
             });
         });
 
-        console.log(
+        devLog(
             "Tmap merged total points:",
             mergedCoords.length,
             "첫 5개 좌표:",
@@ -467,7 +468,7 @@ const NavigationPage = () => {
             })
             .sort((a, b) => a.order - b.order);
 
-        console.log("Nav instructions:", pointInstructions);
+        devLog("Nav instructions:", pointInstructions);
 
         setInstructions(pointInstructions);
         setCurrentIdx(0);
@@ -578,7 +579,7 @@ const NavigationPage = () => {
         const intervalId = window.setInterval(async () => {
             try {
                 const res = await api.get(`/gps/location/${vehicleId}`);
-                console.log("GPS LOCATION RES:", res.data);
+                devLog("GPS LOCATION RES:", res.data);
 
                 // ⚠️ 실제 응답 구조에 맞게 필드명 조정 필요
                 const { latitude, longitude } = res.data;

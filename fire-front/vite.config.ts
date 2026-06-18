@@ -26,6 +26,7 @@ export default defineConfig(({ mode }) => {
           redux: ["@reduxjs/toolkit", "react-redux"],
           charts: ["recharts"],
           xlsx: ["xlsx"],
+          "map-data": ["src/data/sido.json", "src/data/sig.json"],
         },
       },
     },

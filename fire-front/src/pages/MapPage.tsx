@@ -1,5 +1,5 @@
 // src/pages/MapPage.tsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useAppSelector } from "../hooks";
 import { useKakaoLoader } from "../hooks/useKakaoLoader";
 
@@ -368,31 +368,30 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
 
 
 
-  // ===================== 지역 클릭 =====================
-  const handleRegionSelect = (regionName: string, regionData: MapVehicle[]) => {
+  const handleRegionSelect = useCallback((regionName: string, regionData: MapVehicle[]) => {
     setSelectedSido(regionName);
-
     setStats((s) => ({
       ...s,
       selectedAreaCount: regionData.length,
     }));
-  };
+  }, []);
 
-
-  // ===================== 필터 리셋 =====================
-  const resetFilters = () => {
-    console.log("Filtered Vehicles:", filtered);
+  const resetFilters = useCallback(() => {
     setFilters({ sido: "", station: "", type: "" });
     setSelectedSido("");
-
     setStats((s) => ({
       ...s,
       selectedAreaCount: 0,
     }));
-  };
+  }, []);
 
-  const changeFilter = (k: keyof Filters, v: string) =>
+  const changeFilter = useCallback((k: keyof Filters, v: string) => {
     setFilters((prev) => ({ ...prev, [k]: v }));
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    setStats((s) => ({ ...s, visibleCount: filtered.length }));
+  }, [filtered.length]);
 
 
 
@@ -442,9 +441,7 @@ const MapPage = ({ vehicles: externalVehicles, headerHeight = 44 }: Props) => {
         filters={filters}
         onChangeFilter={changeFilter}
         onReset={resetFilters}
-        onRefresh={() =>
-          setStats((s) => ({ ...s, visibleCount: filtered.length }))
-        }
+        onRefresh={handleRefresh}
       />
     </div>
   );
