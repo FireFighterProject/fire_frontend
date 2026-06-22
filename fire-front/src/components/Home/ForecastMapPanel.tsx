@@ -1,4 +1,4 @@
-import { Layers, MapPin, Radio } from "lucide-react";
+import { MapPin } from "lucide-react";
 import type { RefObject } from "react";
 
 type Props = {
@@ -6,10 +6,10 @@ type Props = {
     mapContainerRef: RefObject<HTMLDivElement | null>;
     mapReady: boolean;
     locationName: string;
-    radarOn: boolean;
-    onToggleRadar: () => void;
-    radarStatus: "idle" | "loading" | "ready" | "error";
-    radarError: string;
+    // radarOn: boolean;
+    // onToggleRadar: () => void;
+    // radarStatus: "idle" | "loading" | "ready" | "error";
+    // radarError: string;
 };
 
 export default function ForecastMapPanel({
@@ -17,10 +17,10 @@ export default function ForecastMapPanel({
     mapContainerRef,
     mapReady,
     locationName,
-    radarOn,
-    onToggleRadar,
-    radarStatus,
-    radarError,
+    // radarOn,
+    // onToggleRadar,
+    // radarStatus,
+    // radarError,
 }: Props) {
     return (
         <div className="relative h-full p-3 lg:p-4 lg:pr-2">
@@ -74,6 +74,7 @@ export default function ForecastMapPanel({
                         <p className="mt-0.5">드래그 이동 · 휠 확대/축소</p>
                     </div>
 
+                    {/* 강수 레이더 (백엔드 API 연동 전까지 비활성)
                     <div className="flex flex-col items-end gap-2">
                         <button
                             type="button"
@@ -123,6 +124,7 @@ export default function ForecastMapPanel({
                             </span>
                         )}
                     </div>
+                    */}
                 </div>
             </div>
         </div>

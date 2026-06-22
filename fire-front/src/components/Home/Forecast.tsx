@@ -32,17 +32,17 @@ import {
     type HourlyPoint,
 } from "../../services/weather/api";
 import type { DailyForecast } from "../../services/weather/parseForecast";
-import { useKakaoRadarOverlay } from "../../hooks/useKakaoRadarOverlay";
+// import { useKakaoRadarOverlay } from "../../hooks/useKakaoRadarOverlay";
 import ForecastMapPanel from "./ForecastMapPanel";
 import {
     DEFAULT_REGION,
     WEATHER_REGIONS,
 } from "../../services/weather/regions";
-import {
-    isInKoreaRadarCoverage,
-    KOREA_RADAR_CENTER,
-    RADAR_VIEW_LEVEL,
-} from "../../services/weather/radarTiles";
+// import {
+//     isInKoreaRadarCoverage,
+//     KOREA_RADAR_CENTER,
+//     RADAR_VIEW_LEVEL,
+// } from "../../services/weather/radarTiles";
 
 type GeocoderExtended = {
     addressSearch: (
@@ -306,9 +306,9 @@ const Forecast: React.FC = () => {
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapWrapperRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<any>(null);
-    const [mapInstance, setMapInstance] = useState<any>(null);
-    const [radarOn, setRadarOn] = useState(false);
-    const radarOnRef = useRef(false);
+    // const [mapInstance, setMapInstance] = useState<any>(null);
+    // const [radarOn, setRadarOn] = useState(false);
+    // const radarOnRef = useRef(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const skipCenterEventRef = useRef(false);
     const requestIdRef = useRef(0);
@@ -325,29 +325,29 @@ const Forecast: React.FC = () => {
     const [hourlyData, setHourlyData] = useState<HourlyPoint[]>([]);
     const [dailyForecast, setDailyForecast] = useState<DailyForecast[]>([]);
 
-    const { status: radarStatus, error: radarError } = useKakaoRadarOverlay(
-        mapInstance,
-        mapContainerRef,
-        radarOn
-    );
-
-    radarOnRef.current = radarOn;
-
-    /** 최대 축소(레벨 14)가 아니면 강수 레이더 자동 OFF */
-    useEffect(() => {
-        if (!mapInstance || !window.kakao?.maps) return;
-
-        const onZoomChanged = () => {
-            if (radarOnRef.current && mapInstance.getLevel() !== RADAR_VIEW_LEVEL) {
-                setRadarOn(false);
-            }
-        };
-
-        window.kakao.maps.event.addListener(mapInstance, "zoom_changed", onZoomChanged);
-        return () => {
-            window.kakao.maps.event.removeListener(mapInstance, "zoom_changed", onZoomChanged);
-        };
-    }, [mapInstance]);
+    // const { status: radarStatus, error: radarError } = useKakaoRadarOverlay(
+    //     mapInstance,
+    //     mapContainerRef,
+    //     radarOn
+    // );
+    //
+    // radarOnRef.current = radarOn;
+    //
+    // /** 최대 축소(레벨 14)가 아니면 강수 레이더 자동 OFF */
+    // useEffect(() => {
+    //     if (!mapInstance || !window.kakao?.maps) return;
+    //
+    //     const onZoomChanged = () => {
+    //         if (radarOnRef.current && mapInstance.getLevel() !== RADAR_VIEW_LEVEL) {
+    //             setRadarOn(false);
+    //         }
+    //     };
+    //
+    //     window.kakao.maps.event.addListener(mapInstance, "zoom_changed", onZoomChanged);
+    //     return () => {
+    //         window.kakao.maps.event.removeListener(mapInstance, "zoom_changed", onZoomChanged);
+    //     };
+    // }, [mapInstance]);
 
     const regionGroups = useMemo(() => {
         const groups = new Map<string, typeof WEATHER_REGIONS>();
@@ -423,44 +423,44 @@ const Forecast: React.FC = () => {
         }, 500);
     }, [handleCenterUpdate]);
 
-    /** 강수 레이더 ON 시 커버리지·줌 맞춤 이동 */
-    const moveToRadarView = useCallback(() => {
-        const map = mapRef.current;
-        if (!map || !window.kakao?.maps) return;
-
-        const center = map.getCenter();
-        let lat = center.getLat();
-        let lng = center.getLng();
-        let name: string | undefined;
-
-        if (!isInKoreaRadarCoverage(lat, lng)) {
-            lat = KOREA_RADAR_CENTER.lat;
-            lng = KOREA_RADAR_CENTER.lng;
-            name = KOREA_RADAR_CENTER.name;
-        }
-
-        skipCenterEventRef.current = true;
-        const latlng = new window.kakao.maps.LatLng(lat, lng);
-        map.panTo(latlng);
-        map.setLevel(RADAR_VIEW_LEVEL, { anchor: latlng });
-
-        if (name) setLocationName(name);
-        handleCenterUpdate(lat, lng, name);
-
-        window.setTimeout(() => {
-            skipCenterEventRef.current = false;
-            map.relayout();
-        }, 500);
-    }, [handleCenterUpdate]);
-
-    const handleToggleRadar = useCallback(() => {
-        if (radarOn) {
-            setRadarOn(false);
-            return;
-        }
-        setRadarOn(true);
-        window.requestAnimationFrame(() => moveToRadarView());
-    }, [radarOn, moveToRadarView]);
+    // /** 강수 레이더 ON 시 커버리지·줌 맞춤 이동 */
+    // const moveToRadarView = useCallback(() => {
+    //     const map = mapRef.current;
+    //     if (!map || !window.kakao?.maps) return;
+    //
+    //     const center = map.getCenter();
+    //     let lat = center.getLat();
+    //     let lng = center.getLng();
+    //     let name: string | undefined;
+    //
+    //     if (!isInKoreaRadarCoverage(lat, lng)) {
+    //         lat = KOREA_RADAR_CENTER.lat;
+    //         lng = KOREA_RADAR_CENTER.lng;
+    //         name = KOREA_RADAR_CENTER.name;
+    //     }
+    //
+    //     skipCenterEventRef.current = true;
+    //     const latlng = new window.kakao.maps.LatLng(lat, lng);
+    //     map.panTo(latlng);
+    //     map.setLevel(RADAR_VIEW_LEVEL, { anchor: latlng });
+    //
+    //     if (name) setLocationName(name);
+    //     handleCenterUpdate(lat, lng, name);
+    //
+    //     window.setTimeout(() => {
+    //         skipCenterEventRef.current = false;
+    //         map.relayout();
+    //     }, 500);
+    // }, [handleCenterUpdate]);
+    //
+    // const handleToggleRadar = useCallback(() => {
+    //     if (radarOn) {
+    //         setRadarOn(false);
+    //         return;
+    //     }
+    //     setRadarOn(true);
+    //     window.requestAnimationFrame(() => moveToRadarView());
+    // }, [radarOn, moveToRadarView]);
 
     /** 메인 진입 시(마운트) 현재 위치로 이동 — 다른 페이지 갔다 오면 컴포넌트가 다시 마운트됨 */
     const moveToCurrentLocation = useCallback(() => {
@@ -510,9 +510,9 @@ const Forecast: React.FC = () => {
             const anchor = map.getCenter();
             map.setLevel(next, { anchor });
 
-            if (next !== RADAR_VIEW_LEVEL && radarOnRef.current) {
-                setRadarOn(false);
-            }
+            // if (next !== RADAR_VIEW_LEVEL && radarOnRef.current) {
+            //     setRadarOn(false);
+            // }
         };
 
         window.kakao.maps.load(() => {
@@ -533,7 +533,7 @@ const Forecast: React.FC = () => {
             map.setDraggable(true);
             map.setZoomable(true);
             mapRef.current = map;
-            setMapInstance(map);
+            // setMapInstance(map);
 
             requestAnimationFrame(() => map.relayout());
 
@@ -565,7 +565,7 @@ const Forecast: React.FC = () => {
             }
             wrapper?.removeEventListener("wheel", onWheel);
             mapRef.current = null;
-            setMapInstance(null);
+            // setMapInstance(null);
         };
     }, [mapReady, handleCenterUpdate, moveToCurrentLocation]);
 
@@ -718,10 +718,6 @@ const Forecast: React.FC = () => {
                         mapContainerRef={mapContainerRef}
                         mapReady={mapReady}
                         locationName={locationName}
-                        radarOn={radarOn}
-                        onToggleRadar={handleToggleRadar}
-                        radarStatus={radarStatus}
-                        radarError={radarError}
                     />
                 </div>
 
