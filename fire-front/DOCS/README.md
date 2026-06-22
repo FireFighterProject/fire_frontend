@@ -109,6 +109,8 @@ npm run lint
 
 | 문서 | 설명 |
 |------|------|
+| [deploy/BACKEND_REQUEST_WEATHER_RADAR.md](./deploy/BACKEND_REQUEST_WEATHER_RADAR.md) | **강수 레이더 프록시 API 구현 명세 (확정)** |
+| [deploy/BACKEND_REQUEST_RETURN_STATUS.md](./deploy/BACKEND_REQUEST_RETURN_STATUS.md) | 차량 복귀중 status 백엔드 요청 |
 | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) | 트러블슈팅 가이드 |
 | [TROUBLESHOOTING_GPS.md](./TROUBLESHOOTING_GPS.md) | GPS `watchPosition` 무한 재등록 루프 문제 |
 | [TROUBLESHOOTING_PORTFOLIO.md](./TROUBLESHOOTING_PORTFOLIO.md) | 트러블슈팅 사례 (포트폴리오) |

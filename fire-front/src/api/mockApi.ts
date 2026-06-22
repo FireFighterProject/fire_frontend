@@ -51,7 +51,31 @@ function getMockData(method: string, path: string): unknown {
     }
 
     if (m === "get" && path.startsWith("/weather/")) {
-        return { response: { body: { items: { item: [] } } } };
+        const now = new Date();
+        const y = now.getFullYear();
+        const mth = String(now.getMonth() + 1).padStart(2, "0");
+        const d = String(now.getDate()).padStart(2, "0");
+        const date = `${y}${mth}${d}`;
+        const hour = String(now.getHours()).padStart(2, "0") + "00";
+        return {
+            response: {
+                header: { resultCode: "00", resultMsg: "OK" },
+                body: {
+                    items: {
+                        item: [
+                            { category: "TMP", fcstDate: date, fcstTime: hour, fcstValue: "22" },
+                            { category: "SKY", fcstDate: date, fcstTime: hour, fcstValue: "1" },
+                            { category: "PTY", fcstDate: date, fcstTime: hour, fcstValue: "0" },
+                            { category: "POP", fcstDate: date, fcstTime: hour, fcstValue: "20" },
+                            { category: "WSD", fcstDate: date, fcstTime: hour, fcstValue: "2" },
+                            { category: "REH", fcstDate: date, fcstTime: hour, fcstValue: "55" },
+                            { category: "TMN", fcstDate: date, fcstTime: "0600", fcstValue: "18" },
+                            { category: "TMX", fcstDate: date, fcstTime: "1500", fcstValue: "26" },
+                        ],
+                    },
+                },
+            },
+        };
     }
 
     if (["post", "patch", "put", "delete"].includes(m)) return { ok: true };

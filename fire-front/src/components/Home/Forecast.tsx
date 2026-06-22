@@ -9,32 +9,40 @@ import React, {
 import {
     Cloud,
     Droplets,
-    MapPin,
     Search,
     Wind,
     AlertTriangle,
 } from "lucide-react";
 import {
-    LineChart,
     Line,
     XAxis,
     YAxis,
     CartesianGrid,
     Tooltip,
     ResponsiveContainer,
+    ComposedChart,
+    Area,
 } from "recharts";
 import { useKakaoLoader } from "../../hooks/useKakaoLoader";
 import {
-    fetchWeatherByLatLng,
+    fetchShortTermForecastByLatLng,
     formatPty,
     formatSky,
     type CurrentWeather,
     type HourlyPoint,
 } from "../../services/weather/api";
+import type { DailyForecast } from "../../services/weather/parseForecast";
+import { useKakaoRadarOverlay } from "../../hooks/useKakaoRadarOverlay";
+import ForecastMapPanel from "./ForecastMapPanel";
 import {
     DEFAULT_REGION,
     WEATHER_REGIONS,
 } from "../../services/weather/regions";
+import {
+    isInKoreaRadarCoverage,
+    KOREA_RADAR_CENTER,
+    RADAR_VIEW_LEVEL,
+} from "../../services/weather/radarTiles";
 
 type GeocoderExtended = {
     addressSearch: (
@@ -48,11 +56,259 @@ type GeocoderExtended = {
     ) => void;
 };
 
+const PRIMARY = "#1a56db";
+const TEMP_COLOR = "#1a3c6e";
+const ACCENT_WARM = "#f59e0b";
+const PAGE_BG = "#f0f4f8";
+const CARD_SHADOW = "0 1px 4px rgba(0,0,0,0.08)";
+
+function getDailyCardGradient(skyLabel: string, ptyLabel: string) {
+    const isRainy = ptyLabel !== "없음" && ptyLabel !== "-";
+    const isCloudy = skyLabel === "흐림" || skyLabel === "구름많음";
+
+    if (isRainy) {
+        return "bg-gradient-to-br from-[#bfdbfe] via-[#60a5fa]/40 to-[#1d4ed8]/15 border-blue-200/70";
+    }
+    if (isCloudy) {
+        return "bg-gradient-to-br from-[#e2e8f0] via-[#cbd5e1]/80 to-[#94a3b8]/25 border-slate-200/80";
+    }
+    return "bg-gradient-to-br from-[#e0f2fe] via-[#f0f9ff] to-white border-sky-100";
+}
+
+function DailyTempDisplay({
+    day,
+}: {
+    day: DailyForecast;
+}) {
+    const hasTemp = day.minTemp != null && day.maxTemp != null;
+
+    return (
+        <div className="mt-2 flex h-8 items-center justify-center">
+            {hasTemp ? (
+                <p className="text-2xl font-bold" style={{ color: TEMP_COLOR }}>
+                    {day.minTemp}° / {day.maxTemp}°
+                </p>
+            ) : day.label === "오늘" ? (
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gray-400 opacity-60" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-gray-500" />
+                    </span>
+                    현재 측정 중
+                </div>
+            ) : (
+                <p className="text-2xl font-bold text-gray-300">-</p>
+            )}
+        </div>
+    );
+}
+
+function DailyForecastSkeleton({ compact = false }: { compact?: boolean }) {
+    const rows = ["오늘", "내일", "모레"];
+    if (compact) {
+        return (
+            <div className="space-y-2">
+                {rows.map((label) => (
+                    <div
+                        key={label}
+                        className="flex h-[58px] animate-pulse items-center gap-3 rounded-xl border border-gray-100 bg-gray-50/80 px-3"
+                    >
+                        <span className="h-4 w-10 rounded bg-gray-200" />
+                        <div className="flex-1 space-y-2">
+                            <span className="block h-3 w-16 rounded bg-gray-200" />
+                            <span className="block h-2.5 w-24 rounded bg-gray-200" />
+                        </div>
+                        <div className="space-y-1.5 text-right">
+                            <span className="block h-4 w-14 rounded bg-gray-200" />
+                            <span className="ml-auto block h-3 w-8 rounded bg-gray-200" />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+    return (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {rows.map((label) => (
+                <div
+                    key={label}
+                    className="h-[168px] animate-pulse rounded-xl border border-gray-100 bg-gray-50/80 p-4"
+                >
+                    <span className="mx-auto block h-4 w-10 rounded bg-gray-200" />
+                    <span className="mx-auto mt-4 block h-8 w-20 rounded bg-gray-200" />
+                    <span className="mx-auto mt-3 block h-3 w-14 rounded bg-gray-200" />
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function CurrentWeatherSkeleton() {
+    return (
+        <div className="flex flex-1 flex-col animate-pulse">
+            <div
+                className="mb-4 rounded-2xl border border-gray-100 bg-white p-5"
+                style={{ boxShadow: CARD_SHADOW }}
+            >
+                <span className="mb-2 block h-3 w-32 rounded bg-gray-200" />
+                <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-3">
+                        <span className="block h-12 w-28 rounded bg-gray-200" />
+                        <span className="block h-4 w-20 rounded bg-gray-200" />
+                    </div>
+                    <span className="mt-1 h-9 w-9 rounded-full bg-gray-200" />
+                </div>
+            </div>
+            <ul className="space-y-2.5 rounded-2xl border border-gray-100 bg-white p-4">
+                {[1, 2, 3].map((i) => (
+                    <li
+                        key={i}
+                        className={`flex items-center justify-between ${i > 1 ? "border-t border-gray-100 pt-2.5" : ""}`}
+                    >
+                        <span className="h-4 w-20 rounded bg-gray-200" />
+                        <span className="h-4 w-12 rounded bg-gray-200" />
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
+function WeatherAlertBar({
+    show,
+    windSpeed,
+}: {
+    show: boolean;
+    windSpeed: number;
+}) {
+    if (!show) return null;
+
+    return (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span className="truncate">강풍 주의 (풍속 {windSpeed}m/s)</span>
+        </div>
+    );
+}
+
+function DailyForecastPanel({
+    days,
+    loading,
+    compact = false,
+}: {
+    days: DailyForecast[];
+    loading: boolean;
+    compact?: boolean;
+}) {
+    if (days.length === 0) {
+        if (loading) {
+            return <DailyForecastSkeleton compact={compact} />;
+        }
+        return (
+            <div className={compact ? "space-y-2" : ""}>
+                {compact ? (
+                    <DailyForecastSkeleton compact />
+                ) : (
+                    <p className="py-6 text-center text-sm text-gray-400">
+                        지도를 이동하면 해당 지역 단기예보가 표시됩니다.
+                    </p>
+                )}
+            </div>
+        );
+    }
+
+    if (compact) {
+        return (
+            <div className="space-y-2">
+                {days.map((day) => (
+                    <div
+                        key={day.date}
+                        className={`flex h-[58px] items-center gap-3 rounded-xl border px-3 py-2.5 ${getDailyCardGradient(day.skyLabel, day.ptyLabel)}`}
+                    >
+                        <span className="w-10 shrink-0 text-sm font-bold text-gray-800">
+                            {day.label}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                            <p className="text-[13px] uppercase tracking-wide text-gray-500">
+                                {day.skyLabel}
+                            </p>
+                            <p className="truncate text-xs text-gray-600">
+                                {day.ptyLabel !== "없음" ? day.ptyLabel : "강수 없음"}
+                            </p>
+                        </div>
+                        <div className="flex w-[72px] shrink-0 flex-col items-end justify-center">
+                            <div className="flex h-5 items-center">
+                                {day.minTemp != null && day.maxTemp != null ? (
+                                    <p
+                                        className="text-sm font-bold leading-none"
+                                        style={{ color: TEMP_COLOR }}
+                                    >
+                                        {day.minTemp}° / {day.maxTemp}°
+                                    </p>
+                                ) : day.label === "오늘" ? (
+                                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                                        <span className="relative flex h-1.5 w-1.5 shrink-0">
+                                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gray-400 opacity-60" />
+                                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-gray-500" />
+                                        </span>
+                                        측정 중
+                                    </div>
+                                ) : (
+                                    <p className="text-sm font-bold leading-none text-gray-300">-</p>
+                                )}
+                            </div>
+                            <p
+                                className="mt-0.5 text-xs font-semibold leading-none"
+                                style={{ color: "#b45309" }}
+                            >
+                                {day.maxPop}%
+                            </p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    return (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {days.map((day) => (
+                <div
+                    key={day.date}
+                    className={`rounded-xl border p-4 text-center ${getDailyCardGradient(day.skyLabel, day.ptyLabel)}`}
+                    style={{ boxShadow: CARD_SHADOW }}
+                >
+                    <p className="text-sm font-bold text-gray-800">{day.label}</p>
+                    <DailyTempDisplay day={day} />
+                    <p className="mt-2 text-[13px] font-normal uppercase tracking-wide text-gray-500">
+                        {day.skyLabel}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-600">
+                        {day.ptyLabel !== "없음" ? day.ptyLabel : "강수 없음"}
+                    </p>
+                    <p
+                        className="mt-2 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                        style={{
+                            backgroundColor: `${ACCENT_WARM}22`,
+                            color: "#b45309",
+                        }}
+                    >
+                        강수확률 {day.maxPop}%
+                    </p>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 const Forecast: React.FC = () => {
     const mapReady = useKakaoLoader();
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapWrapperRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<any>(null);
+    const [mapInstance, setMapInstance] = useState<any>(null);
+    const [radarOn, setRadarOn] = useState(false);
+    const radarOnRef = useRef(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const skipCenterEventRef = useRef(false);
     const requestIdRef = useRef(0);
@@ -67,6 +323,31 @@ const Forecast: React.FC = () => {
     const [updatedAt, setUpdatedAt] = useState("");
     const [currentWeather, setCurrentWeather] = useState<CurrentWeather | null>(null);
     const [hourlyData, setHourlyData] = useState<HourlyPoint[]>([]);
+    const [dailyForecast, setDailyForecast] = useState<DailyForecast[]>([]);
+
+    const { status: radarStatus, error: radarError } = useKakaoRadarOverlay(
+        mapInstance,
+        mapContainerRef,
+        radarOn
+    );
+
+    radarOnRef.current = radarOn;
+
+    /** 최대 축소(레벨 14)가 아니면 강수 레이더 자동 OFF */
+    useEffect(() => {
+        if (!mapInstance || !window.kakao?.maps) return;
+
+        const onZoomChanged = () => {
+            if (radarOnRef.current && mapInstance.getLevel() !== RADAR_VIEW_LEVEL) {
+                setRadarOn(false);
+            }
+        };
+
+        window.kakao.maps.event.addListener(mapInstance, "zoom_changed", onZoomChanged);
+        return () => {
+            window.kakao.maps.event.removeListener(mapInstance, "zoom_changed", onZoomChanged);
+        };
+    }, [mapInstance]);
 
     const regionGroups = useMemo(() => {
         const groups = new Map<string, typeof WEATHER_REGIONS>();
@@ -97,10 +378,11 @@ const Forecast: React.FC = () => {
         setError("");
 
         try {
-            const { current, hourly } = await fetchWeatherByLatLng(lat, lng);
+            const { current, hourly, daily } = await fetchShortTermForecastByLatLng(lat, lng);
             if (reqId !== requestIdRef.current) return;
             setCurrentWeather(current);
             setHourlyData(hourly);
+            setDailyForecast(daily);
             setUpdatedAt(
                 new Date().toLocaleTimeString("ko-KR", {
                     hour: "2-digit",
@@ -140,6 +422,45 @@ const Forecast: React.FC = () => {
             skipCenterEventRef.current = false;
         }, 500);
     }, [handleCenterUpdate]);
+
+    /** 강수 레이더 ON 시 커버리지·줌 맞춤 이동 */
+    const moveToRadarView = useCallback(() => {
+        const map = mapRef.current;
+        if (!map || !window.kakao?.maps) return;
+
+        const center = map.getCenter();
+        let lat = center.getLat();
+        let lng = center.getLng();
+        let name: string | undefined;
+
+        if (!isInKoreaRadarCoverage(lat, lng)) {
+            lat = KOREA_RADAR_CENTER.lat;
+            lng = KOREA_RADAR_CENTER.lng;
+            name = KOREA_RADAR_CENTER.name;
+        }
+
+        skipCenterEventRef.current = true;
+        const latlng = new window.kakao.maps.LatLng(lat, lng);
+        map.panTo(latlng);
+        map.setLevel(RADAR_VIEW_LEVEL, { anchor: latlng });
+
+        if (name) setLocationName(name);
+        handleCenterUpdate(lat, lng, name);
+
+        window.setTimeout(() => {
+            skipCenterEventRef.current = false;
+            map.relayout();
+        }, 500);
+    }, [handleCenterUpdate]);
+
+    const handleToggleRadar = useCallback(() => {
+        if (radarOn) {
+            setRadarOn(false);
+            return;
+        }
+        setRadarOn(true);
+        window.requestAnimationFrame(() => moveToRadarView());
+    }, [radarOn, moveToRadarView]);
 
     /** 메인 진입 시(마운트) 현재 위치로 이동 — 다른 페이지 갔다 오면 컴포넌트가 다시 마운트됨 */
     const moveToCurrentLocation = useCallback(() => {
@@ -188,6 +509,10 @@ const Forecast: React.FC = () => {
 
             const anchor = map.getCenter();
             map.setLevel(next, { anchor });
+
+            if (next !== RADAR_VIEW_LEVEL && radarOnRef.current) {
+                setRadarOn(false);
+            }
         };
 
         window.kakao.maps.load(() => {
@@ -208,6 +533,7 @@ const Forecast: React.FC = () => {
             map.setDraggable(true);
             map.setZoomable(true);
             mapRef.current = map;
+            setMapInstance(map);
 
             requestAnimationFrame(() => map.relayout());
 
@@ -239,6 +565,7 @@ const Forecast: React.FC = () => {
             }
             wrapper?.removeEventListener("wheel", onWheel);
             mapRef.current = null;
+            setMapInstance(null);
         };
     }, [mapReady, handleCenterUpdate, moveToCurrentLocation]);
 
@@ -269,15 +596,39 @@ const Forecast: React.FC = () => {
 
     const windSpeed = Number(currentWeather?.wsd ?? 0);
     const isWindAlert = windSpeed >= 10;
-    const isRainAlert = Number(currentWeather?.pop ?? 0) >= 60;
+
+    const hourlyChartData = useMemo(() => {
+        const seen = new Set<string>();
+        return hourlyData
+            .map((point) => {
+                const hour = point.time.replace(/시$/, "");
+                return { ...point, hourLabel: `${hour}시` };
+            })
+            .filter((point) => {
+                if (seen.has(point.hourLabel)) return false;
+                seen.add(point.hourLabel);
+                return true;
+            });
+    }, [hourlyData]);
+
+    const hourlyYMin = useMemo(() => {
+        if (!hourlyChartData.length) return 0;
+        return Math.floor(Math.min(...hourlyChartData.map((d) => d.temp)) - 2);
+    }, [hourlyChartData]);
 
     return (
-        <div className="w-full bg-white shadow-lg rounded-2xl overflow-hidden border border-gray-100">
+        <div
+            className="w-full overflow-hidden rounded-2xl border border-gray-200/80"
+            style={{ backgroundColor: PAGE_BG, boxShadow: CARD_SHADOW }}
+        >
             {/* 상단: 검색 + 지역 선택 */}
-            <div className="px-5 py-4 border-b bg-gray-50/80 flex flex-wrap items-center gap-3">
-                <h2 className="flex items-center gap-2 text-lg font-bold text-gray-800 shrink-0">
-                    <Cloud className="w-5 h-5 text-blue-500" />
-                    일기예보
+            <div
+                className="flex flex-wrap items-center gap-3 border-b border-gray-200/60 px-5 py-4"
+                style={{ backgroundColor: "#ffffff" }}
+            >
+                <h2 className="flex shrink-0 items-center gap-2 text-lg font-bold text-gray-800">
+                    <Cloud className="h-5 w-5" style={{ color: PRIMARY }} />
+                    기상정보 · 단기예보
                 </h2>
 
                 <form onSubmit={handleSearch} className="flex flex-1 min-w-[220px] gap-2">
@@ -293,7 +644,8 @@ const Forecast: React.FC = () => {
                     </div>
                     <button
                         type="submit"
-                        className="h-9 px-4 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 shrink-0"
+                        className="h-9 shrink-0 rounded-lg px-4 text-sm text-white hover:opacity-90"
+                        style={{ backgroundColor: PRIMARY }}
                     >
                         검색
                     </button>
@@ -324,11 +676,16 @@ const Forecast: React.FC = () => {
                             onClick={() =>
                                 setMode(label === "현재" ? "current" : "hourly")
                             }
-                            className={`px-3 h-9 text-sm font-medium rounded-lg border ${
+                            className={`h-9 rounded-lg border px-3 text-sm font-medium ${
                                 mode === (label === "현재" ? "current" : "hourly")
-                                    ? "bg-blue-600 text-white border-blue-600"
+                                    ? "border-transparent text-white"
                                     : "bg-white text-gray-700"
                             }`}
+                            style={
+                                mode === (label === "현재" ? "current" : "hourly")
+                                    ? { backgroundColor: PRIMARY }
+                                    : undefined
+                            }
                         >
                             {label}
                         </button>
@@ -350,138 +707,205 @@ const Forecast: React.FC = () => {
                 </span>
             </div>
 
-            {/* 본문: 지도(왼쪽) + 날씨(오른쪽) */}
-            <div className="flex flex-col lg:flex-row min-h-[500px]">
-                {/* 지도 */}
-                <div
-                    ref={mapWrapperRef}
-                    className="relative flex-1 min-h-[320px] lg:min-h-[500px] bg-gray-100 cursor-grab active:cursor-grabbing"
-                >
-                    {!mapReady && (
-                        <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm z-20 bg-gray-100">
-                            지도 로딩 중...
-                        </div>
-                    )}
-                    <div
-                        ref={mapContainerRef}
-                        className="absolute inset-0 z-[1] touch-none"
-                        style={{ cursor: "grab" }}
+            {/* 본문: 지도(60%) + 날씨(40%) */}
+            <div
+                className="flex min-h-[500px] flex-col lg:flex-row"
+                style={{ backgroundColor: PAGE_BG }}
+            >
+                <div className="w-full lg:w-[60%] lg:shrink-0">
+                    <ForecastMapPanel
+                        mapWrapperRef={mapWrapperRef}
+                        mapContainerRef={mapContainerRef}
+                        mapReady={mapReady}
+                        locationName={locationName}
+                        radarOn={radarOn}
+                        onToggleRadar={handleToggleRadar}
+                        radarStatus={radarStatus}
+                        radarError={radarError}
                     />
-
-                    {/* 중심 핀 */}
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full z-[2] pointer-events-none">
-                        <MapPin className="w-9 h-9 text-red-500 drop-shadow-md fill-red-500" />
-                        <div className="w-2 h-2 bg-red-500/40 rounded-full mx-auto -mt-1" />
-                    </div>
-
-                    <div className="absolute top-3 left-3 z-[2] pointer-events-none bg-white/95 backdrop-blur px-3 py-2 rounded-lg shadow text-sm max-w-[70%]">
-                        <p className="text-xs text-gray-500 mb-0.5">지도 중심 위치</p>
-                        <p className="font-semibold text-gray-800 truncate">{locationName}</p>
-                    </div>
-
-                    <div className="absolute bottom-3 left-3 z-[2] pointer-events-none bg-black/60 text-white text-xs px-2.5 py-1.5 rounded-lg">
-                        드래그로 지도 이동 · 휠로 확대/축소 (중심 핀 기준 날씨)
-                    </div>
                 </div>
 
                 {/* 날씨 패널 */}
-                <div className="w-full lg:w-[min(440px,40%)] xl:w-[460px] border-t lg:border-t-0 lg:border-l p-5 flex flex-col">
-                    {error && (
-                        <div className="mb-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                <div
+                    className="flex w-full min-h-[500px] flex-col border-t border-gray-200/60 bg-white p-5 lg:w-[40%] lg:border-l lg:border-t-0"
+                    style={{ boxShadow: CARD_SHADOW }}
+                >
+                    {error ? (
+                        <div className="mb-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">
                             {error}
                         </div>
-                    )}
+                    ) : null}
 
-                    {(isWindAlert || isRainAlert) && currentWeather && (
-                        <div className="mb-3 flex items-start gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                            <span>
-                                {isWindAlert && `강풍 주의 (풍속 ${windSpeed}m/s)`}
-                                {isWindAlert && isRainAlert && " · "}
-                                {isRainAlert && `강수확률 ${currentWeather.pop}%`}
-                            </span>
-                        </div>
-                    )}
+                    <WeatherAlertBar
+                        show={Boolean(currentWeather && isWindAlert)}
+                        windSpeed={windSpeed}
+                    />
 
-                    {mode === "current" && currentWeather && (
-                        <>
-                            <div className="bg-gradient-to-br from-blue-50 to-sky-50 p-5 rounded-2xl mb-4">
-                                <p className="text-sm text-gray-600 mb-1">{locationName}</p>
-                                <div className="flex items-end justify-between">
+                    <div className="flex-1">
+                    {mode === "current" && (
+                        currentWeather ? (
+                        <div
+                            className={`flex flex-col transition-opacity duration-200 ${loading ? "opacity-70" : "opacity-100"}`}
+                        >
+                            <div
+                                className="mb-4 rounded-2xl border border-gray-100 bg-white p-5"
+                                style={{ boxShadow: CARD_SHADOW }}
+                            >
+                                <p
+                                    className="mb-2 truncate text-gray-500"
+                                    style={{ fontSize: "12px" }}
+                                >
+                                    {locationName}
+                                </p>
+                                <div className="flex items-start justify-between gap-3">
                                     <div>
-                                        <p className="text-5xl font-bold text-blue-600 leading-none">
+                                        <p
+                                            className="leading-none"
+                                            style={{
+                                                fontSize: "3rem",
+                                                fontWeight: 700,
+                                                color: TEMP_COLOR,
+                                            }}
+                                        >
                                             {currentWeather.temp}
-                                            <span className="text-2xl">°C</span>
+                                            <span className="text-2xl font-bold">°C</span>
                                         </p>
-                                        <p className="text-gray-700 mt-2 text-sm">
+                                        <p
+                                            className="mt-2 uppercase tracking-wide text-gray-500"
+                                            style={{
+                                                fontSize: "13px",
+                                                fontWeight: 400,
+                                            }}
+                                        >
                                             {formatSky(currentWeather.sky)}
                                             {currentWeather.pty && currentWeather.pty !== "0"
                                                 ? ` · ${formatPty(currentWeather.pty)}`
                                                 : ""}
                                         </p>
                                     </div>
-                                    <Cloud className="w-16 h-16 text-blue-300" />
+                                    <Cloud
+                                        className="mt-1 h-9 w-9 shrink-0 opacity-60"
+                                        style={{ color: PRIMARY }}
+                                    />
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-3">
-                                <div className="bg-purple-50 p-3 rounded-xl text-center">
-                                    <Droplets className="w-5 h-5 mx-auto mb-1 text-purple-500" />
-                                    <p className="text-xs text-gray-600">강수확률</p>
-                                    <p className="text-lg font-bold">{currentWeather.pop ?? "-"}%</p>
-                                </div>
-                                <div className="bg-cyan-50 p-3 rounded-xl text-center">
-                                    <Wind className="w-5 h-5 mx-auto mb-1 text-cyan-600" />
-                                    <p className="text-xs text-gray-600">풍속</p>
-                                    <p className="text-lg font-bold">{currentWeather.wsd ?? "-"} m/s</p>
-                                </div>
-                                <div className="bg-pink-50 p-3 rounded-xl text-center">
-                                    <MapPin className="w-5 h-5 mx-auto mb-1 text-pink-500" />
-                                    <p className="text-xs text-gray-600">위치</p>
-                                    <p className="text-sm font-bold truncate" title={locationName}>
-                                        {locationName}
-                                    </p>
-                                </div>
-                            </div>
-                        </>
+                            <ul className="space-y-2.5 rounded-2xl border border-gray-100 bg-white p-4 text-sm">
+                                <li className="flex items-center justify-between gap-3">
+                                    <span className="flex items-center gap-2 text-gray-600">
+                                        <Droplets className="h-4 w-4 shrink-0" style={{ color: ACCENT_WARM }} />
+                                        강수확률
+                                    </span>
+                                    <span className="font-semibold" style={{ color: ACCENT_WARM }}>
+                                        {currentWeather.pop ?? "-"}%
+                                    </span>
+                                </li>
+                                <li className="flex items-center justify-between gap-3 border-t border-gray-100 pt-2.5">
+                                    <span className="flex items-center gap-2 text-gray-600">
+                                        <Wind className="h-4 w-4 shrink-0 text-cyan-600" />
+                                        풍속
+                                    </span>
+                                    <span className="font-semibold text-gray-800">
+                                        {currentWeather.wsd ?? "-"} m/s
+                                    </span>
+                                </li>
+                                <li className="flex items-center justify-between gap-3 border-t border-gray-100 pt-2.5">
+                                    <span className="text-gray-600">습도</span>
+                                    <span className="font-semibold text-gray-800">
+                                        {currentWeather.reh ?? "-"}%
+                                    </span>
+                                </li>
+                            </ul>
+                        </div>
+                        ) : (
+                            <CurrentWeatherSkeleton />
+                        )
                     )}
 
                     {mode === "hourly" && (
-                        <div className="flex-1 flex flex-col min-h-[280px]">
-                            <h3 className="text-sm font-semibold text-gray-700 mb-3">
-                                {locationName} · 시간별 기온
+                        <div className="flex h-full min-h-[280px] flex-col">
+                            <p
+                                className="mb-1 truncate text-gray-500"
+                                style={{ fontSize: "12px" }}
+                            >
+                                {locationName}
+                            </p>
+                            <h3 className="mb-3 text-sm font-semibold text-gray-700">
+                                시간별 기온
                             </h3>
-                            {hourlyData.length > 0 ? (
-                                <div className="flex-1 min-h-[240px]">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart data={hourlyData}>
-                                            <CartesianGrid strokeDasharray="3 3" />
-                                            <XAxis dataKey="time" tick={{ fontSize: 11 }} />
-                                            <YAxis tick={{ fontSize: 11 }} unit="°" />
+                            {hourlyChartData.length > 0 ? (
+                                <div className="h-[240px] w-full min-w-0">
+                                    <ResponsiveContainer width="100%" height={240} minWidth={0}>
+                                        <ComposedChart data={hourlyChartData}>
+                                            <defs>
+                                                <linearGradient id="tempAreaFill" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="0%" stopColor={PRIMARY} stopOpacity={0.28} />
+                                                    <stop offset="100%" stopColor={PRIMARY} stopOpacity={0.03} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                            <XAxis
+                                                dataKey="hourLabel"
+                                                tick={{ fontSize: 11, fill: "#6b7280" }}
+                                                interval="preserveStartEnd"
+                                            />
+                                            <YAxis
+                                                tick={{ fontSize: 11, fill: "#6b7280" }}
+                                                unit="°"
+                                                domain={[hourlyYMin, "auto"]}
+                                                width={36}
+                                            />
                                             <Tooltip
                                                 formatter={(v: number) => [`${v}°C`, "기온"]}
+                                                labelFormatter={(label) => String(label)}
+                                            />
+                                            <Area
+                                                type="monotone"
+                                                dataKey="temp"
+                                                fill="url(#tempAreaFill)"
+                                                stroke="none"
+                                                isAnimationActive={false}
                                             />
                                             <Line
                                                 type="monotone"
                                                 dataKey="temp"
-                                                stroke="#2563eb"
+                                                stroke={PRIMARY}
                                                 strokeWidth={2.5}
-                                                dot={{ r: 3 }}
+                                                dot={{ r: 3, fill: PRIMARY }}
+                                                activeDot={{ r: 5 }}
+                                                isAnimationActive={false}
                                             />
-                                        </LineChart>
+                                        </ComposedChart>
                                     </ResponsiveContainer>
                                 </div>
                             ) : (
-                                <p className="text-sm text-gray-400">데이터 없음</p>
+                                <div className="h-[240px] w-full animate-pulse rounded-xl bg-gray-50" />
                             )}
                         </div>
                     )}
+                    </div>
 
-                    {!currentWeather && !loading && !error && (
-                        <p className="text-sm text-gray-400 text-center py-10">
-                            지도를 이동하거나 지역을 검색해 주세요.
-                        </p>
-                    )}
+                    {/* 하단: 단기예보 3일 */}
+                    <div
+                        className="mt-auto min-h-[226px] rounded-2xl border border-gray-100 bg-white p-4 pt-5"
+                        style={{ boxShadow: CARD_SHADOW }}
+                    >
+                        <div className="mb-3 flex min-h-[20px] items-center justify-between gap-2">
+                            <h3 className="text-sm font-bold text-gray-800">단기예보 (3일)</h3>
+                            <span
+                                className={`shrink-0 text-xs transition-opacity duration-200 ${loading ? "opacity-100" : "opacity-0"}`}
+                                style={{ color: PRIMARY, minWidth: "3.5rem" }}
+                                aria-hidden={!loading}
+                            >
+                                갱신 중...
+                            </span>
+                        </div>
+                        <DailyForecastPanel
+                            days={dailyForecast}
+                            loading={loading}
+                            compact
+                        />
+                    </div>
                 </div>
             </div>
         </div>
