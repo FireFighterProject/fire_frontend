@@ -1,12 +1,13 @@
 // src/components/Status/Register/ExcelUploader.tsx
 import type { ExcelPreviewRow } from "../RegisterTab";
 import type { RefObject } from "react";
-import { formatPhone, normalizePhone } from "../../../services/Register/utils";
+import { formatPhone, normalizePhone, resolveExcelCallSign } from "../../../services/Register/utils";
 
 interface ExcelRawRow {
     연번?: string | number;
     소방서?: string;
     호출명?: string;
+    무전호출명?: string;
     차종?: string;
     인원?: string | number;
     연락처?: string;
@@ -72,7 +73,7 @@ function ExcelUploader({
                 id: `${file.name}-${i}`,
                 serialNo: toNum(r["연번"]),
                 stationName,
-                callSign: r["호출명"] ?? "",
+                callSign: resolveExcelCallSign(r),
                 typeName: r["차종"] ?? "",
                 personnel: toNum(r["인원"]),
                 contact: normalizePhone(r["연락처"]),
@@ -136,7 +137,7 @@ function ExcelUploader({
                             <tr>
                                 <th className={TH}>연번</th>
                                 <th className={TH}>소방서</th>
-                                <th className={TH}>호출명</th>
+                                <th className={TH}>호출명/무전호출명</th>
                                 <th className={TH}>차종</th>
                                 <th className={TH}>인원</th>
                                 <th className={TH}>연락처</th>

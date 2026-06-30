@@ -203,7 +203,7 @@ function RegisterTab() {
             (r) => !r.stationName || !r.callSign
         );
         if (invalidRows.length > 0) {
-            alert("소방서명 또는 호출명이 비어 있는 행이 있습니다.");
+            alert("소방서명 또는 호출명(무전호출명)이 비어 있는 행이 있습니다.");
             return;
         }
 

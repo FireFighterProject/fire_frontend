@@ -92,6 +92,20 @@ export const formatPhone = (value: string | number | undefined | null): string =
     return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
 };
 
+/* 엑셀 호출명 컬럼 (호출명 · 무전호출명 동일 취급) */
+export const resolveExcelCallSign = (row: {
+    호출명?: string | number;
+    무전호출명?: string | number;
+}): string => {
+    for (const key of ["호출명", "무전호출명"] as const) {
+        const value = row[key];
+        if (value == null) continue;
+        const trimmed = String(value).trim();
+        if (trimmed) return trimmed;
+    }
+    return "";
+};
+
 /* 소방서명으로 시도 조회 */
 export const resolveSidoFromStation = (
     stationName: string,

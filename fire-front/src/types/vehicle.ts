@@ -1,10 +1,13 @@
+import { resolveExcelCallSign } from "../services/Register/utils";
+
 // ==============================
 // 1) 엑셀 1행 타입 (클라이언트 양식)
 // ==============================
 export type ExcelRow = {
     연번?: string | number;
     소방서: string;
-    호출명: string;
+    호출명?: string;
+    무전호출명?: string;
     차종: string;
     인원: string | number;
     연락처: string;
@@ -121,7 +124,7 @@ export function toFrontVehicleFromExcel(row: ExcelRow, id: string): Vehicle {
         station: row.소방서,
         stationId: STATION_NAME_TO_ID[row.소방서] ?? 0,
         type: row.차종,
-        callname: row.호출명,
+        callname: resolveExcelCallSign(row),
         personnel: toNum(row.인원),
         contact: normalizePhone(row.연락처),
         status: "대기",
@@ -137,7 +140,7 @@ export function toFrontVehicleFromExcel(row: ExcelRow, id: string): Vehicle {
 export function toApiVehicleFromExcel(row: ExcelRow): ApiVehicle {
     return {
         stationId: STATION_NAME_TO_ID[row.소방서] ?? 0,
-        callSign: row.호출명,
+        callSign: resolveExcelCallSign(row),
         typeName: row.차종,
         personnel: toNum(row.인원),
         psLteNumber: normalizePhone(row.연락처),
