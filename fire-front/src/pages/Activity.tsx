@@ -18,6 +18,7 @@ import {
   mapDispatchToVehicleFields,
 } from "../api/dispatchOrders";
 import { patchVehicleStatus } from "../api/vehicles";
+import NoTranslate from "../components/common/NoTranslate";
 import {
   VEHICLE_STATUS_CODE,
   isActiveStatus,
@@ -185,7 +186,7 @@ const MapPopup: React.FC<MapPopupProps> = ({ vehicle, onClose }) => {
           </div>
           <div>
             <span className="font-semibold">출동 장소</span>{" "}
-            {vehicle.dispatchPlace || "-"}
+            <NoTranslate>{vehicle.dispatchPlace || "-"}</NoTranslate>
           </div>
         </div>
 

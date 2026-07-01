@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import DispatchProgressBar from "../../components/gps/DispatchProgressBar";
+import NoTranslate from "../../components/common/NoTranslate";
 
 const GPSReady = () => {
     const [params] = useSearchParams();
@@ -87,44 +88,61 @@ const GPSReady = () => {
     const vehicleLabel = vehicle ? `${vehicle}호` : undefined;
 
     return (
-        <div className="flex min-h-screen w-full flex-col bg-gray-50">
+        <div className="flex min-h-[100dvh] w-full flex-col bg-gray-50">
             <DispatchProgressBar
                 currentStep="dispatch"
                 nextAction="아래 [출동 시작 OK] 버튼을 눌러 현장으로 이동하세요."
                 vehicleLabel={vehicleLabel}
             />
 
-            <div className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-6 p-5">
-                <h2 className="text-center text-2xl font-bold sm:text-3xl">
+            <div className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-5">
+                <h2 className="text-center text-xl font-bold sm:text-3xl">
                     🚨 출동 요청
                 </h2>
 
-                <div className="bg-white rounded-xl shadow p-4 space-y-3">
-                    <p><strong>제목:</strong> {title}</p>
-                    <p><strong>주소:</strong> {address}</p>
-                    <p><strong>내용:</strong> {desc}</p>
-                    <p><strong>차량 번호:</strong> {vehicle}호</p>
-                    <p><strong>출동 코드:</strong> {missionId}</p>
-                </div>
+                <NoTranslate
+                    as="div"
+                    className="space-y-2 rounded-xl bg-white p-4 shadow sm:space-y-3"
+                >
+                    <p className="text-sm sm:text-base">
+                        <strong>제목:</strong> {title}
+                    </p>
+                    <p className="text-sm leading-snug sm:text-base">
+                        <strong>주소:</strong> {address}
+                    </p>
+                    <p className="text-sm leading-snug sm:text-base">
+                        <strong>내용:</strong> {desc}
+                    </p>
+                    <p className="text-sm sm:text-base">
+                        <strong>차량 번호:</strong> {vehicle}호
+                    </p>
+                    <p className="text-sm sm:text-base">
+                        <strong>출동 코드:</strong> {missionId}
+                    </p>
+                </NoTranslate>
 
-                <div className="bg-white rounded-xl shadow p-4 text-center">
-                    <h3 className="font-semibold text-xl mb-2">현재 GPS 수신상태</h3>
+                <div className="rounded-xl bg-white p-4 text-center shadow">
+                    <h3 className="mb-2 text-lg font-semibold sm:text-xl">
+                        현재 GPS 수신상태
+                    </h3>
 
                     {error ? (
-                        <p className="text-red-600">{error}</p>
+                        <p className="text-sm text-red-600 sm:text-base">{error}</p>
                     ) : lat && lon ? (
-                        <p className="text-gray-700 font-mono">
+                        <p className="font-mono text-sm text-gray-700 sm:text-base">
                             위도 {lat.toFixed(6)} <br />
                             경도 {lon.toFixed(6)}
                         </p>
                     ) : (
-                        <p className="text-gray-500">GPS 정보를 불러오는 중...</p>
+                        <p className="text-sm text-gray-500 sm:text-base">
+                            GPS 정보를 불러오는 중...
+                        </p>
                     )}
                 </div>
 
                 <button
                     onClick={handleStart}
-                    className="rounded-2xl bg-red-600 py-5 text-2xl font-bold text-white shadow-lg transition active:scale-95"
+                    className="mt-auto rounded-2xl bg-red-600 py-4 text-xl font-bold text-white shadow-lg transition active:scale-95 sm:py-5 sm:text-2xl"
                 >
                     출동 시작 OK
                 </button>

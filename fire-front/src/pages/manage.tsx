@@ -578,23 +578,29 @@ const Manage: React.FC = () => {
         <div className="mt-6 space-y-3">
           <input
             placeholder="출동 제목"
-            className="w-full border px-3 py-2 rounded"
+            className="notranslate w-full border rounded px-3 py-2"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            translate="no"
+            lang="ko"
           />
 
           <textarea
             placeholder="출동 내용"
-            className="w-full border px-3 py-2 rounded h-24"
+            className="notranslate h-24 w-full border rounded px-3 py-2"
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
+            translate="no"
+            lang="ko"
           />
 
           <input
             placeholder="출동 주소"
-            className="w-full border px-3 py-2 rounded"
+            className="notranslate w-full border rounded px-3 py-2"
             value={addr}
             onChange={(e) => setAddr(e.target.value)}
+            translate="no"
+            lang="ko"
           />
 
           {/* 편성된 차량 목록 - 차량이 있을 때만 표시 */}

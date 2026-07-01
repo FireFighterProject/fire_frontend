@@ -11,6 +11,7 @@ import type {
 } from "../../types/kakao-navigation";
 import api from "../../api/axios";
 import DispatchProgressBar from "../../components/gps/DispatchProgressBar";
+import NoTranslate from "../../components/common/NoTranslate";
 import { VEHICLE_STATUS_CODE } from "../../services/vehicle/status";
 import { devLog } from "../../utils/devLog";
 
@@ -278,8 +279,18 @@ const NavigationPage = () => {
                 map: created,
                 position: startPos,
             });
+
+            requestAnimationFrame(() => (created as { relayout?: () => void }).relayout?.());
         })();
     }, [loadKakao, startLat, startLon]);
+
+    useEffect(() => {
+        if (!map) return;
+
+        const onResize = () => (map as { relayout?: () => void }).relayout?.();
+        window.addEventListener("resize", onResize);
+        return () => window.removeEventListener("resize", onResize);
+    }, [map]);
 
     /* ===========================
      * 3) 목적지 지오코딩 + 마커
@@ -724,120 +735,123 @@ const NavigationPage = () => {
     const vehicleLabel = vehicleId ? `${vehicleId}호` : undefined;
 
     return (
-        <>
-            <div className="fixed top-0 left-0 right-0 z-[10001]">
-                <DispatchProgressBar
-                    currentStep="dispatch"
-                    nextAction="현장 활동 후 우측 하단 [상황 종료] 버튼을 눌러 주세요."
-                    vehicleLabel={vehicleLabel}
-                />
-            </div>
+        <div className="flex h-[100dvh] w-full flex-col overflow-hidden">
+            <DispatchProgressBar
+                currentStep="dispatch"
+                nextAction="현장 활동 후 화면 하단 [상황 종료] 버튼을 눌러 주세요."
+                vehicleLabel={vehicleLabel}
+            />
 
-            {/* 전체 화면 지도 */}
-            <div ref={mapRef} className="h-screen w-full" />
-            {/* 📋 왼쪽 출동 정보 패널 */}
-            {(dispatchTitle || destAddress || dispatchDesc) && (
-                <div className="fixed top-56 left-4 z-[9998] max-w-xs sm:top-52">
-                    <div className="bg-white/95 text-gray-900 rounded-2xl shadow-lg p-4 space-y-3">
-                        {dispatchTitle && (
-                            <div>
-                                <div className="text-[21px] font-semibold text-gray-500">
-                                    출동 제목
-                                </div>
-                                <div className="text-[17px] font-bold">
-                                    {dispatchTitle}
-                                </div>
-                            </div>
-                        )}
+            <div className="relative min-h-0 flex-1">
+                <div ref={mapRef} className="absolute inset-0" />
 
-                        {destAddress && (
-                            <div>
-                                <div className="text-[21px] font-semibold text-gray-500">
-                                    출동 주소
+                {(dispatchTitle || destAddress || dispatchDesc) && (
+                    <div className="absolute left-2 right-2 top-2 z-[9998] sm:left-4 sm:right-auto sm:top-3 sm:max-w-xs">
+                        <NoTranslate
+                            as="div"
+                            className="max-h-[28vh] space-y-2 overflow-y-auto rounded-xl bg-white/95 p-3 text-gray-900 shadow-lg sm:max-h-none sm:space-y-3 sm:rounded-2xl sm:p-4"
+                        >
+                            {dispatchTitle && (
+                                <div>
+                                    <div className="text-xs font-semibold text-gray-500 sm:text-sm">
+                                        출동 제목
+                                    </div>
+                                    <div className="text-sm font-bold sm:text-base">
+                                        {dispatchTitle}
+                                    </div>
                                 </div>
-                                <div className="text-[17px] font-bold">
-                                    {destAddress}
-                                </div>
-                            </div>
-                        )}
+                            )}
 
-                        {dispatchDesc && (
-                            <div>
-                                <div className="text-[21px] font-semibold text-gray-500">
-                                    출동 내용
+                            {destAddress && (
+                                <div>
+                                    <div className="text-xs font-semibold text-gray-500 sm:text-sm">
+                                        출동 주소
+                                    </div>
+                                    <div className="text-sm font-bold leading-snug sm:text-base">
+                                        {destAddress}
+                                    </div>
                                 </div>
-                                <div className="text-[17px]  font-bold leading-snug max-h-32 overflow-y-auto">
-                                    {dispatchDesc}
+                            )}
+
+                            {dispatchDesc && (
+                                <div>
+                                    <div className="text-xs font-semibold text-gray-500 sm:text-sm">
+                                        출동 내용
+                                    </div>
+                                    <div className="text-sm font-bold leading-snug sm:text-base">
+                                        {dispatchDesc}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </NoTranslate>
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* 🧭 상단 고정 안내 박스 (항상 보이게) */}
-            {currentInstruction && (
-                <div className="fixed top-48 left-1/2 z-[9999] -translate-x-1/2 sm:top-44">
-                    <div className="bg-black/70 text-white px-4 py-3 rounded-2xl shadow-lg flex flex-col gap-1 max-w-xl pointer-events-none">
-                        <div className="flex items-center gap-3">
-                            <span className="text-3xl">
-                                {getDirectionSymbol(
-                                    currentInstruction.description,
-                                    currentInstruction.turnType
-                                )}
-                            </span>
-                            <div className="flex flex-col">
-                                <span className="font-semibold text-lg">
-                                    {currentInstruction.description}
+                {currentInstruction && (
+                    <div
+                        className={
+                            "absolute left-2 right-2 z-[9999] pointer-events-none sm:left-1/2 sm:right-auto sm:max-w-xl sm:-translate-x-1/2 " +
+                            (dispatchTitle || destAddress || dispatchDesc
+                                ? "top-[min(30vh,9.5rem)] sm:top-3"
+                                : "top-2 sm:top-3")
+                        }
+                    >
+                        <div className="flex flex-col gap-1 rounded-xl bg-black/75 px-3 py-2 text-white shadow-lg sm:rounded-2xl sm:px-4 sm:py-3">
+                            <div className="flex items-center gap-2 sm:gap-3">
+                                <span className="text-2xl sm:text-3xl">
+                                    {getDirectionSymbol(
+                                        currentInstruction.description,
+                                        currentInstruction.turnType
+                                    )}
                                 </span>
-                                {currentInstruction.nextRoadName && (
-                                    <span className="text-sm text-gray-200">
-                                        다음 도로:{" "}
-                                        {currentInstruction.nextRoadName}
+                                <div className="min-w-0 flex-1">
+                                    <span className="block text-sm font-semibold leading-snug sm:text-lg">
+                                        {currentInstruction.description}
                                     </span>
-                                )}
+                                    {currentInstruction.nextRoadName && (
+                                        <span className="mt-0.5 block truncate text-xs text-gray-200 sm:text-sm">
+                                            다음 도로: {currentInstruction.nextRoadName}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
-            {/* 🚗 운전 중에도 잘 보이는 하단 상태바 */}
-            {(remainingDistanceM != null ||
-                remainingTimeSec != null ||
-                currentSpeedKph != null) && (
-                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999]">
-                        <div className="bg-black/80 text-white px-6 py-3 rounded-3xl shadow-xl flex gap-8 pointer-events-none">
-                            {/* 남은 거리 */}
+                )}
+
+                {(remainingDistanceM != null ||
+                    remainingTimeSec != null ||
+                    currentSpeedKph != null) && (
+                    <div className="pointer-events-none absolute bottom-2 left-2 right-2 z-[9999] sm:bottom-6 sm:left-1/2 sm:right-auto sm:-translate-x-1/2">
+                        <div className="flex items-stretch justify-between gap-1 rounded-2xl bg-black/85 px-3 py-2 text-white shadow-xl sm:gap-8 sm:rounded-3xl sm:px-6 sm:py-3">
                             {remainingDistanceM != null && (
-                                <div className="flex flex-col items-center min-w-[90px]">
-                                    <span className="text-[11px] text-gray-300">
+                                <div className="flex min-w-0 flex-1 flex-col items-center">
+                                    <span className="text-[10px] text-gray-300 sm:text-[11px]">
                                         남은 거리
                                     </span>
-                                    <span className="text-xl font-semibold">
+                                    <span className="text-base font-semibold sm:text-xl">
                                         {formatDistance(remainingDistanceM)}
                                     </span>
                                 </div>
                             )}
 
-                            {/* 예상 시간 */}
                             {remainingTimeSec != null && (
-                                <div className="flex flex-col items-center min-w-[90px]">
-                                    <span className="text-[11px] text-gray-300">
+                                <div className="flex min-w-0 flex-1 flex-col items-center">
+                                    <span className="text-[10px] text-gray-300 sm:text-[11px]">
                                         예상 시간
                                     </span>
-                                    <span className="text-xl font-semibold">
+                                    <span className="text-base font-semibold sm:text-xl">
                                         {formatTime(remainingTimeSec)}
                                     </span>
                                 </div>
                             )}
 
-                            {/* 현재 속도 */}
                             {currentSpeedKph != null && (
-                                <div className="flex flex-col items-center min-w-[90px]">
-                                    <span className="text-[11px] text-gray-300">
+                                <div className="flex min-w-0 flex-1 flex-col items-center">
+                                    <span className="text-[10px] text-gray-300 sm:text-[11px]">
                                         현재 속도
                                     </span>
-                                    <span className="text-xl font-semibold">
+                                    <span className="text-base font-semibold sm:text-xl">
                                         {Math.round(currentSpeedKph)} km/h
                                     </span>
                                 </div>
@@ -845,15 +859,16 @@ const NavigationPage = () => {
                         </div>
                     </div>
                 )}
-            {/* 🔴 상황 종료 버튼 */}
-            <button
-                type="button"
-                onClick={handleEnd}
-                className="fixed bottom-28 right-4 z-[10000] rounded-2xl bg-red-600 px-6 py-4 text-xl font-bold text-white shadow-xl active:scale-95"
-            >
-                상황 종료
-            </button>
-        </>
+
+                <button
+                    type="button"
+                    onClick={handleEnd}
+                    className="absolute bottom-[4.75rem] left-3 right-3 z-[10000] rounded-xl bg-red-600 py-3.5 text-base font-bold text-white shadow-xl active:scale-[0.98] sm:bottom-28 sm:left-auto sm:right-4 sm:w-auto sm:rounded-2xl sm:px-6 sm:py-4 sm:text-xl"
+                >
+                    상황 종료
+                </button>
+            </div>
+        </div>
     );
 };
 

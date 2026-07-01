@@ -2,6 +2,7 @@ import React, { memo } from "react";
 import type { Vehicle } from "../../../types/global";
 import { formatPhone } from "../../../services/Register/utils";
 import { isReturningStatus } from "../../../services/vehicle/status";
+import NoTranslate from "../../common/NoTranslate";
 
 interface Props {
     index: number;
@@ -21,8 +22,12 @@ const ActivityRow: React.FC<Props> = ({ index, vehicle, onReturn, onOpenMap }) =
             <td className="border border-black px-3 py-2">{vehicle.type}</td>
             <td className="border border-black px-3 py-2">{vehicle.personnel}</td>
             <td className="border border-black px-3 py-2">{formatPhone(vehicle.contact)}</td>
-            <td className="border border-black px-3 py-2">{vehicle.dispatchPlace}</td>
-            <td className="border border-black px-3 py-2">{vehicle.content}</td>
+            <td className="border border-black px-3 py-2">
+                <NoTranslate>{vehicle.dispatchPlace}</NoTranslate>
+            </td>
+            <td className="border border-black px-3 py-2">
+                <NoTranslate>{vehicle.content}</NoTranslate>
+            </td>
             <td className="border border-black px-3 py-2">
                 <span
                     className={

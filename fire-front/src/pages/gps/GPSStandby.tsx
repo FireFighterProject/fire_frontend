@@ -109,36 +109,42 @@ const GPSStandby = () => {
             : "소방서·집결지 도착 후 아래 [복귀완료] 버튼을 눌러 주세요.";
 
     return (
-        <div className="flex min-h-screen w-full flex-col bg-gray-100">
+        <div className="flex min-h-[100dvh] w-full flex-col bg-gray-100">
             <DispatchProgressBar
                 currentStep={progressStep}
                 nextAction={nextAction}
                 vehicleLabel={vehicleLabel}
             />
 
-            <div className="flex flex-1 flex-col items-center justify-center px-4 py-8">
+            <div className="flex flex-1 flex-col items-center justify-center px-4 py-6 sm:py-8">
                 {phase === "loading" ? (
-                    <div className="text-center text-lg text-gray-600">상태 확인 중...</div>
+                    <div className="text-center text-base text-gray-600 sm:text-lg">
+                        상태 확인 중...
+                    </div>
                 ) : phase === "complete" ? (
-                    <div className="w-full max-w-lg rounded-3xl bg-white p-8 text-center shadow-xl">
-                        <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-green-100 text-5xl">
+                    <div className="w-full max-w-lg rounded-2xl bg-white p-6 text-center shadow-xl sm:rounded-3xl sm:p-8">
+                        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-green-100 text-4xl sm:mb-6 sm:h-24 sm:w-24 sm:text-5xl">
                             ✓
                         </div>
-                        <h2 className="mb-3 text-3xl font-bold text-green-800">대기 중</h2>
-                        <p className="text-lg leading-relaxed text-gray-700">
+                        <h2 className="mb-2 text-2xl font-bold text-green-800 sm:mb-3 sm:text-3xl">
+                            대기 중
+                        </h2>
+                        <p className="text-base leading-relaxed text-gray-700 sm:text-lg">
                             복귀가 완료되었습니다.
                             <br />
                             <strong>다음 출동 지령을 기다려 주세요.</strong>
                         </p>
                     </div>
                 ) : (
-                    <div className="flex w-full max-w-lg flex-col gap-6">
-                        <div className="rounded-3xl bg-white p-8 text-center shadow-xl">
-                            <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-amber-100 text-5xl">
+                    <div className="flex w-full max-w-lg flex-col gap-4 sm:gap-6">
+                        <div className="rounded-2xl bg-white p-6 text-center shadow-xl sm:rounded-3xl sm:p-8">
+                            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-100 text-4xl sm:mb-6 sm:h-24 sm:w-24 sm:text-5xl">
                                 🚒
                             </div>
-                            <h2 className="mb-3 text-3xl font-bold text-amber-900">복귀 중</h2>
-                            <p className="text-lg leading-relaxed text-gray-700">
+                            <h2 className="mb-2 text-2xl font-bold text-amber-900 sm:mb-3 sm:text-3xl">
+                                복귀 중
+                            </h2>
+                            <p className="text-base leading-relaxed text-gray-700 sm:text-lg">
                                 상황이 종료되었습니다.
                                 <br />
                                 <strong>집결지·소방서로 복귀해 주세요.</strong>
@@ -150,7 +156,7 @@ const GPSStandby = () => {
                             onClick={handleReturnComplete}
                             disabled={submitting}
                             className={
-                                "w-full rounded-2xl py-6 text-2xl font-bold text-white shadow-lg transition active:scale-[0.98] " +
+                                "w-full rounded-2xl py-4 text-lg font-bold text-white shadow-lg transition active:scale-[0.98] sm:py-6 sm:text-2xl " +
                                 (submitting
                                     ? "cursor-not-allowed bg-gray-400"
                                     : "bg-green-600 hover:bg-green-700")
@@ -159,7 +165,7 @@ const GPSStandby = () => {
                             {submitting ? "처리 중..." : "복귀완료 · 대기 전환"}
                         </button>
 
-                        <p className="text-center text-sm text-gray-500">
+                        <p className="text-center text-xs text-gray-500 sm:text-sm">
                             도착 후에만 눌러 주세요. 관제 화면에서 대기 차량으로 표시됩니다.
                         </p>
                     </div>

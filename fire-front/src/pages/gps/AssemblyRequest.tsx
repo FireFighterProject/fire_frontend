@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import NoTranslate from "../../components/common/NoTranslate";
 
 const AssemblyRequest = () => {
     const [params] = useSearchParams();
@@ -125,8 +126,11 @@ const AssemblyRequest = () => {
                 </h2>
 
                 {/* 요청 정보 */}
-                <div className="bg-white rounded-xl shadow p-4 sm:p-5 space-y-3">
-                    <div className="text-gray-800 text-base sm:text-lg space-y-1">
+                <NoTranslate
+                    as="div"
+                    className="space-y-3 rounded-xl bg-white p-4 shadow sm:p-5"
+                >
+                    <div className="space-y-1 text-base text-gray-800 sm:text-lg">
                         {title && (
                             <p>
                                 <span className="font-semibold">출동 제목:</span> {title}
@@ -151,7 +155,7 @@ const AssemblyRequest = () => {
                             </p>
                         )}
                     </div>
-                </div>
+                </NoTranslate>
 
                 {/* GPS 상태 */}
                 <div className="bg-white rounded-xl shadow p-4 sm:p-5 text-center">

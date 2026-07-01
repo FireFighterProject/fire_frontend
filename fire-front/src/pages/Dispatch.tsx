@@ -138,18 +138,22 @@ const DispatchPage: React.FC = () => {
         <div>
           <label className="font-medium">출동 제목</label>
           <input
-            className="border p-2 w-full rounded"
+            className="notranslate border p-2 w-full rounded"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            translate="no"
+            lang="ko"
           />
         </div>
 
         <div>
           <label className="font-medium">출동 내용</label>
           <textarea
-            className="border p-2 w-full rounded"
+            className="notranslate border p-2 w-full rounded"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            translate="no"
+            lang="ko"
           />
         </div>
 
@@ -157,9 +161,11 @@ const DispatchPage: React.FC = () => {
           <label className="font-medium">출동 주소</label>
           <div className="flex gap-2">
             <input
-              className="border p-2 flex-1 rounded"
+              className="notranslate border p-2 flex-1 rounded"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
+              translate="no"
+              lang="ko"
             />
             <button
               className="px-3 py-2 border rounded bg-white"
