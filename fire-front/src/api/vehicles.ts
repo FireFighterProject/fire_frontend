@@ -16,6 +16,14 @@ export async function fetchVehicleList(
     return res.data ?? [];
 }
 
+/** 목록 API에서 id로 차량 조회 (단건 GET 없을 때 사용) */
+export async function fetchVehicleById(
+    id: number | string
+): Promise<ApiVehicleListItem | null> {
+    const list = await fetchVehicleList();
+    return list.find((v) => Number(v.id) === Number(id)) ?? null;
+}
+
 export async function fetchVehiclesMapped(
     params?: FetchVehiclesParams,
     stationMap?: Map<number, string>

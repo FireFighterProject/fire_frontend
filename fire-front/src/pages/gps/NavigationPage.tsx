@@ -10,6 +10,7 @@ import type {
     KakaoPolyline,
 } from "../../types/kakao-navigation";
 import api from "../../api/axios";
+import { fetchVehicleById } from "../../api/vehicles";
 import DispatchProgressBar from "../../components/gps/DispatchProgressBar";
 import NoTranslate from "../../components/common/NoTranslate";
 import { VEHICLE_STATUS_CODE } from "../../services/vehicle/status";
@@ -195,6 +196,25 @@ const NavigationPage = () => {
     const destAddress = params.get("dest") ?? "";
     const dispatchTitle = params.get("title") ?? "";
     const dispatchDesc = params.get("desc") ?? "";
+
+    const [callSign, setCallSign] = useState("");
+
+    useEffect(() => {
+        if (!vehicleId) return;
+
+        let cancelled = false;
+        fetchVehicleById(vehicleId)
+            .then((v) => {
+                if (!cancelled && v?.callSign) {
+                    setCallSign(v.callSign.trim());
+                }
+            })
+            .catch((e) => console.error("차량 호출명 조회 실패", e));
+
+        return () => {
+            cancelled = true;
+        };
+    }, [vehicleId]);
 
     // ====== 목적지 좌표 ======
     const [destLat, setDestLat] = useState<number | null>(null);
@@ -732,7 +752,8 @@ const NavigationPage = () => {
         navigate(`/gps/standby${qs}`);
     };
 
-    const vehicleLabel = vehicleId ? `${vehicleId}호` : undefined;
+    const vehicleLabel =
+        callSign || (vehicleId ? `${vehicleId}호` : undefined);
 
     return (
         <div className="flex h-[100dvh] w-full flex-col overflow-hidden">

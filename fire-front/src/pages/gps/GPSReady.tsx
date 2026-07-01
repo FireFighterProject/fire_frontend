@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import { fetchVehicleById } from "../../api/vehicles";
 import DispatchProgressBar from "../../components/gps/DispatchProgressBar";
 import NoTranslate from "../../components/common/NoTranslate";
 
@@ -19,6 +20,24 @@ const GPSReady = () => {
     const [lat, setLat] = useState<number | null>(null);
     const [lon, setLon] = useState<number | null>(null);
     const [error, setError] = useState("");
+    const [callSign, setCallSign] = useState("");
+
+    useEffect(() => {
+        if (!vehicle) return;
+
+        let cancelled = false;
+        fetchVehicleById(vehicle)
+            .then((v) => {
+                if (!cancelled && v?.callSign) {
+                    setCallSign(v.callSign.trim());
+                }
+            })
+            .catch((e) => console.error("차량 호출명 조회 실패", e));
+
+        return () => {
+            cancelled = true;
+        };
+    }, [vehicle]);
 
     // 출동 정보 자동 불러오기
     useEffect(() => {
@@ -85,7 +104,8 @@ const GPSReady = () => {
 
 
 
-    const vehicleLabel = vehicle ? `${vehicle}호` : undefined;
+    const vehicleLabel =
+        callSign || (vehicle ? `${vehicle}호` : undefined);
 
     return (
         <div className="flex min-h-[100dvh] w-full flex-col bg-gray-50">
@@ -114,7 +134,8 @@ const GPSReady = () => {
                         <strong>내용:</strong> {desc}
                     </p>
                     <p className="text-sm sm:text-base">
-                        <strong>차량 번호:</strong> {vehicle}호
+                        <strong>호출명:</strong>{" "}
+                        {callSign || (vehicle ? "불러오는 중…" : "-")}
                     </p>
                     <p className="text-sm sm:text-base">
                         <strong>출동 코드:</strong> {missionId}

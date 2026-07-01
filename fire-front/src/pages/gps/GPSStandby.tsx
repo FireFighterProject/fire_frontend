@@ -96,11 +96,7 @@ const GPSStandby = () => {
         }
     };
 
-    const vehicleLabel = callSign
-        ? `${callSign} (${vehicleId}호)`
-        : vehicleId
-          ? `${vehicleId}호`
-          : undefined;
+    const vehicleLabel = callSign || (vehicleId ? `${vehicleId}호` : undefined);
 
     const progressStep = phase === "complete" ? "complete" : "return";
     const nextAction =
