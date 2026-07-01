@@ -8,10 +8,12 @@ import type { FilterQuery } from "../Status/manage/FilterBar";
 
 import { fetchVehicles, selectVehicles } from "../../features/vehicle/vehicleSlice";
 import { useVehiclePolling } from "../../hooks/useVehiclePolling";
-import { matchesStatusFilter } from "../../services/vehicle/status";
+import { canResetToStandby, matchesStatusFilter, VEHICLE_STATUS_CODE } from "../../services/vehicle/status";
+import { patchVehicleStatus } from "../../api/vehicles";
 
 import FilterBar from "../Status/manage/FilterBar";
 import VehicleTable from "../Status/manage/VehicleTable";
+import StandbyResetDialog from "../Status/manage/StandbyResetDialog";
 
 import type { FireStation } from "../../types/station";
 import type { Vehicle } from "../../types/vehicle";
@@ -234,6 +236,78 @@ export default function ManageTab() {
         deleteVehicles(Array.from(selectedIds));
     };
 
+    const [resetting, setResetting] = useState(false);
+    const [resetDialogIds, setResetDialogIds] = useState<string[] | null>(null);
+
+    const getResettableIds = (ids: string[]) =>
+        ids.filter((id) => {
+            const row = filteredRows.find((r) => String(r.id) === id);
+            return row && canResetToStandby(String(row.status));
+        });
+
+    const openResetDialog = (ids: string[]) => {
+        const targets = getResettableIds(ids);
+        if (targets.length === 0) {
+            alert("이미 대기 상태이거나 전환할 수 없는 차량입니다.");
+            return;
+        }
+        setResetDialogIds(targets);
+    };
+
+    const resetDialogVehicles = useMemo(() => {
+        if (!resetDialogIds) return [];
+        return resetDialogIds
+            .map((id) => filteredRows.find((r) => String(r.id) === id))
+            .filter((r): r is (typeof filteredRows)[number] => Boolean(r))
+            .map((r) => ({
+                id: String(r.id),
+                callname: r.callname,
+                status: String(r.status),
+                rally: r.rally,
+            }));
+    }, [resetDialogIds, filteredRows]);
+
+    const executeResetToStandby = async () => {
+        if (!resetDialogIds?.length) return;
+
+        setResetting(true);
+        try {
+            const results = await Promise.allSettled(
+                resetDialogIds.map((id) =>
+                    patchVehicleStatus(id, VEHICLE_STATUS_CODE.대기)
+                )
+            );
+            const failed = results.filter((r) => r.status === "rejected").length;
+            const succeeded = resetDialogIds.length - failed;
+
+            dispatch(fetchVehicles({}));
+            setSelectedIds(new Set());
+            setResetDialogIds(null);
+
+            if (failed > 0) {
+                alert(`대기 전환 완료: ${succeeded}대 / 실패: ${failed}대`);
+            } else {
+                alert(`${succeeded}대를 대기 상태로 변경했습니다.`);
+            }
+        } catch (err) {
+            console.error(err);
+            alert("대기 전환 중 오류가 발생했습니다.");
+        } finally {
+            setResetting(false);
+        }
+    };
+
+    const handleResetSelectedToStandby = () => {
+        openResetDialog(Array.from(selectedIds));
+    };
+
+    const resettableSelectedCount = getResettableIds(Array.from(selectedIds)).length;
+
+    const resettableInViewCount = useMemo(
+        () => filteredRows.filter((r) => canResetToStandby(String(r.status))).length,
+        [filteredRows]
+    );
+
     return (
         <div className="p-6 space-y-4">
             <h3 className="text-lg font-semibold">등록 차량 리스트</h3>
@@ -260,6 +334,19 @@ export default function ManageTab() {
                 toggleSelectAll={toggleSelectAll}
                 onDeleteSelected={handleDeleteSelected}
                 deleting={deleting}
+                onResetToStandby={(id) => openResetDialog([id])}
+                onResetSelectedToStandby={handleResetSelectedToStandby}
+                resettableSelectedCount={resettableSelectedCount}
+                resettableInViewCount={resettableInViewCount}
+                resetting={resetting}
+            />
+
+            <StandbyResetDialog
+                open={resetDialogIds !== null}
+                vehicles={resetDialogVehicles}
+                loading={resetting}
+                onConfirm={executeResetToStandby}
+                onCancel={() => !resetting && setResetDialogIds(null)}
             />
         </div>
     );

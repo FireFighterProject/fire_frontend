@@ -61,3 +61,8 @@ export function matchesStatusFilter(
     }
     return statusLabelToCode(String(vehicleStatus ?? "")) === Number(filterCode);
 }
+
+/** 관리 화면에서 대기(0)로 되돌릴 수 있는지 */
+export function canResetToStandby(status?: string): boolean {
+    return statusLabelToCode(String(status ?? "")) !== VEHICLE_STATUS_CODE.대기;
+}
